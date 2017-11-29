@@ -14,7 +14,6 @@
     <modules>
         <module>nannoq-auth</module>
         <module>nannoq-cluster</module>
-        <module>nannoq-commons</module>
         <module>nannoq-fcm</module>
         <module>nannoq-repository</module>
         <module>nannoq-web</module>
