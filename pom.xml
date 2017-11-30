@@ -7,7 +7,7 @@
     <groupId>com.nannoq</groupId>
     <artifactId>tools</artifactId>
     <packaging>pom</packaging>
-    <version>1.6.0</version>
+    <version>1.0.0-SNAPSHOT</version>
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Nannoq Tools Parent POM</description>
@@ -49,18 +49,14 @@
         <maven.compiler.version>3.7.0</maven.compiler.version>
         <maven.gpg.version>1.6</maven.gpg.version>
         <maven.versions.plugin>2.5</maven.versions.plugin>
+        <sonatype.staging>1.6.8</sonatype.staging>
         <nannoq.version>${project.version}</nannoq.version>
     </properties>
 
     <distributionManagement>
-        <repository>
-            <id>atv.releases</id>
-            <url>http://mvn-repo.norigin.tv/nexus/content/repositories/releases</url>
-        </repository>
-
         <snapshotRepository>
-            <id>atv.snapshots</id>
-            <url>http://mvn-repo.norigin.tv/nexus/content/repositories/rdml</url>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
         </snapshotRepository>
     </distributionManagement>
 
@@ -92,6 +88,10 @@
                 <artifactId>maven-gpg-plugin</artifactId>
                 <version>${maven.gpg.version}</version>
 
+                <configuration>
+                    <executable>gpg2</executable>
+                </configuration>
+
                 <executions>
                     <execution>
                         <id>sign-artifacts</id>
@@ -102,6 +102,20 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>${sonatype.staging}</version>
+
+                <extensions>true</extensions>
+
+                <configuration>
+                    <serverId>ossrh</serverId>
+                    <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                    <autoReleaseAfterClose>false</autoReleaseAfterClose>
+                </configuration>
             </plugin>
         </plugins>
     </build>
