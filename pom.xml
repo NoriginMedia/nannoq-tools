@@ -7,9 +7,33 @@
     <groupId>com.nannoq</groupId>
     <artifactId>tools</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.0</version>
+    <version>1.6.0</version>
 
-    <name>Nannoq Tools</name>
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>Nannoq Tools Parent POM</description>
+    <url>https://github.com/AspiroTV/nannoq-tools</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Anders Mikkelsen</name>
+            <email>mikkelsen.anders@gmail.com</email>
+            <organization>Norigin Media</organization>
+            <organizationUrl>https://github.com/mikand13</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/AspiroTV/nannoq-tools.git</connection>
+        <developerConnection>scm:git:ssh://github.com:AspiroTV/nannoq-tools.git</developerConnection>
+        <url>https://github.com/mikand13/nannoq-tools/tree/master</url>
+    </scm>
 
     <modules>
         <module>nannoq-auth</module>
@@ -19,15 +43,65 @@
         <module>nannoq-web</module>
     </modules>
 
+    <properties>
+        <maven.sources.version>3.0.1</maven.sources.version>
+        <maven.javadoc.version>3.0.0-M1</maven.javadoc.version>
+        <maven.compiler.version>3.7.0</maven.compiler.version>
+        <maven.gpg.version>1.6</maven.gpg.version>
+        <maven.versions.plugin>2.5</maven.versions.plugin>
+        <nannoq.version>${project.version}</nannoq.version>
+    </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>atv.releases</id>
+            <url>http://mvn-repo.norigin.tv/nexus/content/repositories/releases</url>
+        </repository>
+
+        <snapshotRepository>
+            <id>atv.snapshots</id>
+            <url>http://mvn-repo.norigin.tv/nexus/content/repositories/rdml</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <build>
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-deploy-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>versions-maven-plugin</artifactId>
+                <version>${maven.versions.plugin}</version>
 
                 <configuration>
-                    <skip>true</skip>
+                    <processAllModules>true</processAllModules>
+                    <newVersion>${project.version}</newVersion>
                 </configuration>
+
+                <executions>
+                    <execution>
+                        <id>set-version</id>
+                        <phase>validate</phase>
+
+                        <goals>
+                            <goal>update-child-modules</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>${maven.gpg.version}</version>
+
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>install</phase>
+
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
