@@ -11,7 +11,7 @@
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Nannoq Tools Parent POM</description>
-    <url>https://github.com/AspiroTV/nannoq-tools</url>
+    <url>https://github.com/NoriginMedia/nannoq-tools</url>
 
     <licenses>
         <license>
@@ -30,9 +30,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/AspiroTV/nannoq-tools.git</connection>
-        <developerConnection>scm:git:ssh://github.com:AspiroTV/nannoq-tools.git</developerConnection>
-        <url>https://github.com/mikand13/nannoq-tools/tree/master</url>
+        <connection>scm:git:git://github.com/NoriginMedia/nannoq-tools.git</connection>
+        <developerConnection>scm:git:ssh://github.com:NoriginMedia/nannoq-tools.git</developerConnection>
+        <url>https://github.com/NoriginMedia/nannoq-tools/tree/master</url>
     </scm>
 
     <modules>
