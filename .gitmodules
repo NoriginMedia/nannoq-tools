@@ -1,15 +1,15 @@
 [submodule "nannoq-auth"]
 	path = nannoq-auth
-	url = git@github.com:mikand13/nannoq-auth.git
+	url = git@github.com:NoriginMedia/nannoq-auth.git
 [submodule "nannoq-cluster"]
 	path = nannoq-cluster
-	url = git@github.com:mikand13/nannoq-cluster.git
+	url = git@github.com:NoriginMedia/nannoq-cluster.git
 [submodule "nannoq-fcm"]
 	path = nannoq-fcm
-	url = git@github.com:mikand13/nannoq-fcm.git
+	url = git@github.com:NoriginMedia/nannoq-fcm.git
 [submodule "nannoq-repository"]
 	path = nannoq-repository
-	url = git@github.com:mikand13/nannoq-repository.git
+	url = git@github.com:NoriginMedia/nannoq-repository.git
 [submodule "nannoq-web"]
 	path = nannoq-web
-	url = git@github.com:mikand13/nannoq-web.git
+	url = git@github.com:NoriginMedia/nannoq-web.git
