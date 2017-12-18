@@ -42,6 +42,10 @@ dependencies {
 }
 ```
 
+### Implementation and Use
+
+Please consult the individual modules on implementations and use, this is just a parent project.
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](https://github.com/NoriginMedia/nannoq-tools/blob/master/CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
