@@ -22,7 +22,7 @@ pipeline {
     stage("Build Nannoq-Tools") {
       steps {
         configFileProvider([configFile(fileId: 'ossrh-nannoq-config', variable: 'MAVEN_SETTINGS')]) {
-          bash 'mvn -s $MAVEN_SETTINGS -N clean deploy'
+          sh 'mvn -s $MAVEN_SETTINGS -N clean deploy'
         }
       }
     }
