@@ -30,11 +30,7 @@ pipeline {
     }
   }
   
-  post {
-    always {
-      junit 'target/*-reports/*.xml'
-    }
-    
+  post {  
     failure {
       mail to: 'mikkelsen.anders@gmail.com',
           subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
