@@ -1,5 +1,7 @@
 ## Welcome to Nannoq Tools
 
+[![Build Status](https://www.tomrom.net/buildStatus/icon?job=nannoq-tools/master)](https://www.tomrom.net/job/nannoq-tools/job/master/)
+
 This repo is a collection of the most current version of all Nannoq Tools.
 
 ### Prerequisites
@@ -30,7 +32,7 @@ First install with either Maven:
 <dependency>
     <groupId>com.nannoq</groupId>
     <artifactId>tools</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
 </dependency>
 ```
 
@@ -38,7 +40,7 @@ or Gradle:
 
 ```groovy
 dependencies {
-    compile group: 'nannoq.com:tools:1.0.1'
+    compile group: 'nannoq.com:tools:1.0.2'
 }
 ```
 
