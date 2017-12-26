@@ -38,6 +38,16 @@ pipeline {
         }
       }
     }
+
+    stage("Release Nannoq-Tools") {
+      steps {
+        withCredentials([string(credentialsId: 'gpg-pass-nannoq', variable: 'TOKEN')]) {
+          configFileProvider([configFile(fileId: 'ossrh-nannoq-config', variable: 'MAVEN_SETTINGS')]) {
+            sh 'mvn -s $MAVEN_SETTINGS -Dgpg.passphrase=$TOKEN nexus-staging:release'
+          }
+        }
+      }
+    }
   }
   
   post {
