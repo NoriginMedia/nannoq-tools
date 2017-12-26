@@ -7,7 +7,7 @@
     <groupId>com.nannoq</groupId>
     <artifactId>tools</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.2</version>
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Nannoq Tools Parent POM</description>
@@ -153,7 +153,7 @@
                         <validationProperty>
                             <name>validating project version</name>
                             <value>${project.version}</value>
-                            <shouldMatchTo>.*(-SNAPSHOT)$</shouldMatchTo>
+                            <shouldMatchTo><![CDATA[^.*(?<!-SNAPSHOT)$]]></shouldMatchTo>
                         </validationProperty>
                     </validationProperties>
                 </configuration>
