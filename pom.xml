@@ -7,7 +7,7 @@
     <groupId>com.nannoq</groupId>
     <artifactId>tools</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.3-SNAPSHOT</version>
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Nannoq Tools Parent POM</description>
