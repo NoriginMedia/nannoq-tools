@@ -1,0 +1,7 @@
+{
+  "test" : true,
+  "ssl" : false,
+  "dynamo_db_iam_id" : "someTestId",
+  "dynamo_db_iam_key" : "someTestKey",
+  "content_bucket" : "default"
+}

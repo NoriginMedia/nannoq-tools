@@ -156,9 +156,3 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
-
-.gradle
-*/.gradle
-build
-*/build
-*/node_modules

@@ -22,8 +22,8 @@ pipeline {
     stage("Build Nannoq-Tools") {
       steps {
         withCredentials([string(credentialsId: 'gpg-pass-nannoq', variable: 'TOKEN')]) {
-          configFileProvider([configFile(fileId: 'ossrh-nannoq-config', variable: 'MAVEN_SETTINGS')]) {
-            sh 'mvn -s $MAVEN_SETTINGS -N -Dgpg.passphrase=$TOKEN clean deploy'
+          script {
+            sh "./gradlew install -Dsigning.gnupg.passphrase=$TOKEN -Dorg.gradle.parallel=false -Pcentral --info --stacktrace"
           }
         }
       }
