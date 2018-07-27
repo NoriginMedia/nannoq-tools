@@ -6,23 +6,23 @@ This repo is a collection of the most current version of all Nannoq Tools.
 
 ### Prerequisites
 
-Vert.x >= 3.5.0
+Vert.x >= 3.5.3
 
 Java >= 1.8
 
-Maven
+Kotlin
 
 ## Installing
 
-mvn clean package -Dgpg.skip=true
+./gradlew install
 
 ### Running the tests
 
-mvn clean test -Dgpg.skip=true
+./gradlew test
 
 ### Running the integration tests
 
-mvn clean verify -Dgpg.skip=true
+./gradlew verify
 
 ## Usage
 
@@ -50,7 +50,7 @@ First install with either Maven:
 <dependency>
     <groupId>com.nannoq</groupId>
     <artifactId>tools</artifactId>
-    <version>1.0.5-SNAPSHOT</version>
+    <version>1.0.7-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -62,7 +62,7 @@ repositories {
 }
 
 dependencies {
-    compile group: 'nannoq.com:tools:1.0.4-SNAPSHOT'
+    compile group: 'nannoq.com:tools:1.0.7-SNAPSHOT'
 }
 ```
 
