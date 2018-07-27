@@ -2,8 +2,6 @@
 
 [![Build Status](https://www.tomrom.net/buildStatus/icon?job=nannoq-tools/master)](https://www.tomrom.net/job/nannoq-tools/job/master/)
 
-This repo is a collection of the most current version of all Nannoq Tools.
-
 ### Prerequisites
 
 Vert.x >= 3.5.3
@@ -31,7 +29,7 @@ First install with either Maven:
 ```xml
 <dependency>
     <groupId>com.nannoq</groupId>
-    <artifactId>tools</artifactId>
+    <artifactId>module</artifactId>
     <version>1.0.7</version>
 </dependency>
 ```
@@ -40,13 +38,13 @@ or Gradle:
 
 ```groovy
 dependencies {
-    compile group: 'nannoq.com:tools:1.0.7’
+    compile group: 'nannoq.com:module:1.0.7’
 }
 ```
 
 ### Implementation and Use
 
-Please consult the individual modules on implementations and use, this is just a parent project.
+Please consult the [GitHub Pages](https://noriginmedia.github.io/nannoq-tools/) on implementations and use.
 
 ## Contributing
 
