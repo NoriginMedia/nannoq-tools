@@ -1,0 +1,36 @@
+= Cheatsheets
+
+[[GenericItemList]]
+== GenericItemList
+
+++++
+ This class defines a generic list for items. Used for aggregation.
+++++
+'''
+
+[cols=">25%,^25%,50%"]
+[frame="topbot"]
+|===
+^|Name | Type ^| Description
+|[[count]]`count`|`Number (int)`|-
+|[[etag]]`etag`|`String`|-
+|[[items]]`items`|`Array of Json object`|-
+|[[pageToken]]`pageToken`|`String`|-
+|===
+
+[[ValidationError]]
+== ValidationError
+
+++++
+ This class defines helpers for Model operations.
+++++
+'''
+
+[cols=">25%,^25%,50%"]
+[frame="topbot"]
+|===
+^|Name | Type ^| Description
+|[[description]]`description`|`String`|-
+|[[fieldName]]`fieldName`|`String`|-
+|===
+
