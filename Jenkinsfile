@@ -15,7 +15,6 @@ pipeline {
   
   tools {
     jdk "jdk8"
-    maven "maven"
   }
   
   stages {
@@ -30,7 +29,7 @@ pipeline {
     }
   }
   
-  post {  
+  post {
     failure {
       mail to: 'mikkelsen.anders@gmail.com',
           subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",

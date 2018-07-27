@@ -1,6 +1,6 @@
 ## Welcome to Nannoq Tools
 
-[![Build Status](https://www.tomrom.net/buildStatus/icon?job=nannoq-tools/develop)](https://www.tomrom.net/job/nannoq-tools/job/develop/)
+[![Build Status](https://www.tomrom.net/buildStatus/icon?job=nannoq-tools/master)](https://www.tomrom.net/job/nannoq-tools/job/master/)
 
 This repo is a collection of the most current version of all Nannoq Tools.
 
@@ -29,40 +29,18 @@ Kotlin
 First install with either Maven:
 
 ```xml
-<repositories>
-    <repository>
-        <id>ossrh</id>
-        <name>OSSRH Snapshots</name>
-        <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-
-        <releases>
-            <enabled>false</enabled>
-        </releases>
-
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-            <checksumPolicy>fail</checksumPolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
 <dependency>
     <groupId>com.nannoq</groupId>
     <artifactId>tools</artifactId>
-    <version>1.0.7-SNAPSHOT</version>
+    <version>1.0.7</version>
 </dependency>
 ```
 
 or Gradle:
 
 ```groovy
-repositories {
-    maven { url "http://oss.sonatype.org/content/repositories/snapshots/" }
-}
-
 dependencies {
-    compile group: 'nannoq.com:tools:1.0.7-SNAPSHOT'
+    compile group: 'nannoq.com:tools:1.0.7’
 }
 ```
 
