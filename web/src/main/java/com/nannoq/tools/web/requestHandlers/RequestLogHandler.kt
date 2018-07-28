@@ -68,14 +68,15 @@ class RequestLogHandler : Handler<RoutingContext> {
         fun addLogMessageToRequestLog(routingContext: RoutingContext, message: String, t: Throwable? = null) {
             val sb = routingContext.get<StringBuffer>(REQUEST_LOG_TAG)
 
-            if (sb != null) {
-                sb.append("\n\n").append(message).append("\n\n")
+            when {
+                sb != null -> {
+                    sb.append("\n\n").append(message).append("\n\n")
 
-                if (t != null) {
-                    sb.append("\n\n").append(ExceptionUtils.getStackTrace(t)).append("\n\n")
+                    if (t != null) {
+                        sb.append("\n\n").append(ExceptionUtils.getStackTrace(t)).append("\n\n")
+                    }
                 }
-            } else {
-                logger.warn("Routinglogger not available, printing: $message", t)
+                else -> logger.warn("Routinglogger not available, printing: $message", t)
             }
         }
     }

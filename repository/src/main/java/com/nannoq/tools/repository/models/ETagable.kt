@@ -48,12 +48,11 @@ interface ETagable {
         Arrays.stream<Field>(javaClass.declaredFields).forEach { field ->
             field.isAccessible = true
 
-            if (Collection::class.java.isAssignableFrom(field.getType())) {
-                try {
+            when {
+                Collection::class.java.isAssignableFrom(field.type) -> try {
                     val `object` = field.get(this)
 
                     if (`object` != null) {
-
                         (`object` as Collection<*>).forEach { o ->
                             val e = o as ETagable
                             val stringStringMap = e.generateAndSetEtag(map)
@@ -70,8 +69,7 @@ interface ETagable {
                 } catch (e: IllegalAccessException) {
                     logger.error("Cannot access collection for etag!", e)
                 }
-            } else {
-                try {
+                else -> try {
                     val value = field.get(this)
                     val innerEtagCode = value?.hashCode()?.toLong() ?: 12345L
 

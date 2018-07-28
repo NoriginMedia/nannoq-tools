@@ -66,20 +66,19 @@ class ResponseLogHandler : Handler<RoutingContext> {
 
         val sb = buildLogs(routingContext, statusCode, uniqueToken, body, debug)
 
-        if (body == null) {
-            routingContext.response().end()
-        } else {
-            routingContext.response().end((body as? String)?.toString() ?: Json.encode(body))
+        when (body) {
+            null -> routingContext.response().end()
+            else -> routingContext.response().end((body as? String)?.toString() ?: Json.encode(body))
         }
 
         outputLog(statusCode, sb)
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(ResponseLogHandler::class.java!!.getSimpleName())
+        private val logger = LoggerFactory.getLogger(ResponseLogHandler::class.java.simpleName)
 
-        val BODY_CONTENT_TAG = "bodyContent"
-        val DEBUG_INFORMATION_OBJECT = "debugInfo"
+        const val BODY_CONTENT_TAG = "bodyContent"
+        const val DEBUG_INFORMATION_OBJECT = "debugInfo"
 
         fun buildLogs(routingContext: RoutingContext, statusCode: Int,
                       uniqueToken: String, body: Any?, debug: Any?): StringBuffer {
@@ -104,12 +103,10 @@ class ResponseLogHandler : Handler<RoutingContext> {
             try {
                 requestBody = routingContext.bodyAsString
 
-                if (routingContext.body != null && routingContext.body.bytes.size > 0) {
+                if (routingContext.body != null && routingContext.body.bytes.isNotEmpty()) {
                     try {
                         bodyObject = JsonObject(requestBody)
-                    } catch (ignored: DecodeException) {
-                    }
-
+                    } catch (ignored: DecodeException) { }
                 }
             } catch (e: Exception) {
                 logger.debug("Parse exception!", e)

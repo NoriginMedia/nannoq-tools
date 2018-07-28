@@ -74,11 +74,12 @@ class CrossModelGroupingConfiguration {
     }
 
     fun validate(TYPE: Class<*>, fieldName: String, validationError: JsonObject): Boolean {
-        if (groupingListLimit == 0) {
-            groupingListLimit = Integer.MAX_VALUE
-            isFullList = true
-        } else if (groupingListLimit > 100 || groupingListLimit < 1) {
-            validationError.put("groupingListLimit",
+        when {
+            groupingListLimit == 0 -> {
+                groupingListLimit = Integer.MAX_VALUE
+                isFullList = true
+            }
+            groupingListLimit > 100 || groupingListLimit < 1 -> validationError.put("groupingListLimit",
                     groupBy.toString() + ": Must be an Integer between inclusive 1 and inclusive 100! " +
                             "If you are looking for a full list, set the size to 0!")
         }
@@ -92,38 +93,41 @@ class CrossModelGroupingConfiguration {
             val field = TYPE.getDeclaredField(fieldName)
             val fieldType = field.type
 
-            if (fieldType === Long::class.java || fieldType === Int::class.java ||
-                    fieldType === Double::class.java || fieldType === Float::class.java ||
-                    fieldType === Short::class.java ||
-                    fieldType === Long::class.javaPrimitiveType || fieldType === Int::class.javaPrimitiveType ||
-                    fieldType === Double::class.javaPrimitiveType || fieldType === Float::class.javaPrimitiveType ||
-                    fieldType === Short::class.javaPrimitiveType) {
-                if (groupByUnit == null) {
-                    return true
-                } else if (groupByUnit!!.equals("INTEGER", ignoreCase = true)) {
-                    return true
-                }
-
-                validationError.put("field_error", "Field cannot be found!")
-
-                return false
-            } else return if (fieldType === Date::class.java) {
-                if (groupByUnit == null) {
-                    throw IllegalArgumentException("Cannot aggregate on dates without a unit!")
-                } else {
-                    try {
-                        AggregateFunction.TIMEUNIT_DATE.valueOf(groupByRange!!.toString().toUpperCase())
-
-                        true
-                    } catch (ex: IllegalArgumentException) {
-                        validationError.put("field_error", "Cannot convert value to timevalue")
+            when {
+                fieldType === Long::class.java ||
+                        fieldType === Int::class.java ||
+                        fieldType === Double::class.java ||
+                        fieldType === Float::class.java ||
+                        fieldType === Short::class.java ||
+                        fieldType === Long::class.javaPrimitiveType ||
+                        fieldType === Int::class.javaPrimitiveType ||
+                        fieldType === Double::class.javaPrimitiveType ||
+                        fieldType === Float::class.javaPrimitiveType ||
+                        fieldType === Short::class.javaPrimitiveType -> return when {
+                    groupByUnit == null -> true
+                    groupByUnit!!.equals("INTEGER", ignoreCase = true) -> true
+                    else -> {
+                        validationError.put("field_error", "Field cannot be found!")
 
                         false
                     }
-
                 }
-            } else {
-                throw IllegalArgumentException("Not an aggregatable field!")
+                else -> return when {
+                    fieldType === Date::class.java ->
+                        when (groupByUnit) {
+                            null -> throw IllegalArgumentException("Cannot aggregate on dates without a unit!")
+                            else -> try {
+                                AggregateFunction.TIMEUNIT_DATE.valueOf(groupByRange!!.toString().toUpperCase())
+
+                                true
+                            } catch (ex: IllegalArgumentException) {
+                                validationError.put("field_error", "Cannot convert value to timevalue")
+
+                                false
+                            }
+                        }
+                    else -> throw IllegalArgumentException("Not an aggregatable field!")
+                }
             }
         } catch (iae: IllegalArgumentException) {
             validationError.put("field_error",

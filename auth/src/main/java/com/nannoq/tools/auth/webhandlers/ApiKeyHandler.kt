@@ -35,17 +35,17 @@ import io.vertx.ext.web.RoutingContext
  * @version 17.11.2017
  */
 class ApiKeyHandler(private val apiKey: String) : Handler<RoutingContext> {
-
     override fun handle(routingContext: RoutingContext) {
         val incomingKey = routingContext.request().getHeader("Authorization")
 
-        if (incomingKey.startsWith("APIKEY ")) {
-            val key = incomingKey.substring("APIKEY".length).trim({ it <= ' ' })
+        when {
+            incomingKey.startsWith("APIKEY ") -> {
+                val key = incomingKey.substring("APIKEY".length).trim({ it <= ' ' })
 
-            if (key == apiKey) {
-                routingContext.next()
-            } else {
-                unAuthorized(routingContext)
+                when (key) {
+                    apiKey -> routingContext.next()
+                    else -> unAuthorized(routingContext)
+                }
             }
         }
     }

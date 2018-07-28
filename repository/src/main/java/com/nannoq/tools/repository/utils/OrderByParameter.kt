@@ -60,10 +60,9 @@ class OrderByParameter {
             val param = OrderByParameter()
             param.field = field
 
-            if (direction != null) {
-                param.direction = direction
-            } else {
-                param.direction = "desc"
+            when {
+                direction != null -> param.direction = direction
+                else -> param.direction = "desc"
             }
 
             return param

@@ -49,12 +49,10 @@ class S3LinkDeserializer(config: JsonObject?) : StdDeserializer<S3Link>(S3Link::
     init {
 
         if (clientCache == null) {
-            val endPoint: String
-
-            if (config == null) {
-                endPoint = "http://localhost:8001"
+            val endPoint = if (config == null) {
+                "http://localhost:8001"
             } else {
-                endPoint = config.getString("dynamo_endpoint")
+                config.getString("dynamo_endpoint")
             }
 
             val dynamoDBAsyncClient = AmazonDynamoDBAsyncClient(

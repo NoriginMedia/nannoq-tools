@@ -46,6 +46,7 @@ import java.lang.reflect.Method
 import java.util.*
 import java.util.function.Function
 
+@Suppress("unused")
 /**
  * This interface defines the RestController. It defines a chain of operations for CRUD and Index operations. Overriding
  * functions must remember to call the next element in the chain.
@@ -75,14 +76,16 @@ interface RestController<E> where E : ETagable, E : Model {
         val initialNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
         val requestEtag = routingContext.request().getHeader("If-None-Match")
 
-        if (requestEtag != null && requestEtag == item.etag) {
-            unChangedShow(routingContext)
-        } else {
-            routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-            routingContext.put(BODY_CONTENT_TAG,
-                    if (projections != null) item.toJsonString(projections) else item.toJsonString())
+        when {
+            requestEtag != null && requestEtag == item.etag ->
+                unChangedShow(routingContext)
+            else -> {
+                routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                routingContext.put(BODY_CONTENT_TAG,
+                        if (projections != null) item.toJsonString(projections) else item.toJsonString())
 
-            setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+                setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+            }
         }
     }
 
@@ -169,15 +172,17 @@ interface RestController<E> where E : ETagable, E : Model {
         val initialNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
         val requestEtag = routingContext.request().getHeader("If-None-Match")
 
-        if (requestEtag != null && requestEtag == items.etag) {
-            unChangedIndex(routingContext)
-        } else {
-            val content = items.toJsonString(projections ?: arrayOf())
+        when {
+            requestEtag != null && requestEtag == items.etag ->
+                unChangedIndex(routingContext)
+            else -> {
+                val content = items.toJsonString(projections ?: arrayOf())
 
-            routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-            routingContext.put(BODY_CONTENT_TAG, content)
+                routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                routingContext.put(BODY_CONTENT_TAG, content)
 
-            setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+                setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+            }
         }
     }
 
@@ -185,13 +190,15 @@ interface RestController<E> where E : ETagable, E : Model {
         val initialNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
         val requestEtag = routingContext.request().getHeader("If-None-Match")
 
-        if (requestEtag != null && requestEtag == ModelUtils.returnNewEtag(content.hashCode().toLong())) {
-            unChangedIndex(routingContext)
-        } else {
-            routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-            routingContext.put(BODY_CONTENT_TAG, content)
+        when {
+            requestEtag != null && requestEtag == ModelUtils.returnNewEtag(content.hashCode().toLong()) ->
+                unChangedIndex(routingContext)
+            else -> {
+                routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                routingContext.put(BODY_CONTENT_TAG, content)
 
-            setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+                setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+            }
         }
     }
 
@@ -265,12 +272,13 @@ interface RestController<E> where E : ETagable, E : Model {
         val initialNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
         val errors = record.validateCreate()
 
-        if (errors.isNotEmpty()) {
-            routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-            routingContext.put(BODY_CONTENT_TAG, Json.encodePrettily(buildValidationErrorObject(errors)))
-            setStatusCodeAndAbort(422, routingContext, initialNanoTime)
-        } else {
-            postValidateForCreate(record, routingContext)
+        when {
+            errors.isNotEmpty() -> {
+                routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                routingContext.put(BODY_CONTENT_TAG, Json.encodePrettily(buildValidationErrorObject(errors)))
+                setStatusCodeAndAbort(422, routingContext, initialNanoTime)
+            }
+            else -> postValidateForCreate(record, routingContext)
         }
     }
 
@@ -356,12 +364,13 @@ interface RestController<E> where E : ETagable, E : Model {
         record.updatedAt = Date()
         val errors = record.validateUpdate()
 
-        if (errors.isNotEmpty()) {
-            routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-            routingContext.put(BODY_CONTENT_TAG, Json.encodePrettily(buildValidationErrorObject(errors)))
-            setStatusCodeAndAbort(422, routingContext, initialNanoTime)
-        } else {
-            postValidateForUpdate(record, setNewValues, routingContext)
+        when {
+            errors.isNotEmpty() -> {
+                routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                routingContext.put(BODY_CONTENT_TAG, Json.encodePrettily(buildValidationErrorObject(errors)))
+                setStatusCodeAndAbort(422, routingContext, initialNanoTime)
+            }
+            else -> postValidateForUpdate(record, setNewValues, routingContext)
         }
     }
 

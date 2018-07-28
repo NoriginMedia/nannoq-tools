@@ -80,10 +80,9 @@ class Google(private val vertx: Vertx) : Provider<GoogleIdToken.Payload> {
 
                 logger.info(idToken)
 
-                if (idToken == null) {
-                    it.fail(RuntimeException("Could not verify JWT..."))
-                } else {
-                    it.complete(idToken.payload)
+                when (idToken) {
+                    null -> it.fail(RuntimeException("Could not verify JWT..."))
+                    else -> it.complete(idToken.payload)
                 }
             } catch (e: GeneralSecurityException) {
                 logger.error("\nERROR " + GOOGLE + " Auth: " + e.message)
@@ -91,21 +90,22 @@ class Google(private val vertx: Vertx) : Provider<GoogleIdToken.Payload> {
                 it.fail(e)
             } catch (e: IOException) {
                 logger.error("\nERROR " + GOOGLE + " Auth: " + e.message)
+
                 it.fail(e)
             } catch (e: IllegalArgumentException) {
                 logger.error("\nERROR " + GOOGLE + " Auth: " + e.message)
+
                 it.fail(e)
             }
         }, false) {
-            if (it.succeeded()) {
-                resultHandler.handle(Future.succeededFuture<GoogleIdToken.Payload>(it.result()))
-            } else {
-                resultHandler.handle(Future.failedFuture<GoogleIdToken.Payload>(it.cause()))
+            when {
+                it.succeeded() -> resultHandler.handle(Future.succeededFuture<GoogleIdToken.Payload>(it.result()))
+                else -> resultHandler.handle(Future.failedFuture<GoogleIdToken.Payload>(it.cause()))
             }
         }
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(Google::class.java!!.getSimpleName())
+        private val logger = LoggerFactory.getLogger(Google::class.java.simpleName)
     }
 }

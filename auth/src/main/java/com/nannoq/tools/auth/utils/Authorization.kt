@@ -39,8 +39,8 @@ import io.vertx.core.json.JsonObject
  */
 @DataObject(generateConverter = true)
 class Authorization {
-    val model: String
-    val method: String
+    val model: String?
+    val method: String?
     val domainIdentifier: String
 
     constructor() : this(JsonObject())
@@ -61,11 +61,9 @@ class Authorization {
         return JsonObject.mapFrom(this)
     }
 
-    @Suppress("SENSELESS_COMPARISON")
     fun validate(): Boolean {
-        return domainIdentifier != null && (domainIdentifier == VALIDATION_REQUEST ||
-                domainIdentifier == GLOBAL_AUTHORIZATION) ||
-                model != null && method != null && domainIdentifier != null
+        return (domainIdentifier == VALIDATION_REQUEST || domainIdentifier == GLOBAL_AUTHORIZATION) ||
+                model != null && method != null
     }
 
     companion object {

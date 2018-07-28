@@ -60,16 +60,17 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
     private fun doEtagRemovalWithRetry(etagKeyBase: String, resultHandler: Handler<AsyncResult<Boolean>>) {
         performJedisWithRetry(REDIS_CLIENT) {
             it.hgetall(etagKeyBase) {
-                if (it.failed()) {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
-                } else {
-                    val result = it.result()
-                    val itemsToRemove = ArrayList<String>()
-                    result.iterator().forEachRemaining { itemsToRemove.add(it.key) }
+                when {
+                    it.failed() -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                    else -> {
+                        val result = it.result()
+                        val itemsToRemove = ArrayList<String>()
+                        result.iterator().forEachRemaining { itemsToRemove.add(it.key) }
 
-                    performJedisWithRetry(REDIS_CLIENT) {
-                        it.hdelMany(etagKeyBase, itemsToRemove) {
-                            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                        performJedisWithRetry(REDIS_CLIENT) {
+                            it.hdelMany(etagKeyBase, itemsToRemove) {
+                                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                            }
                         }
                     }
                 }
@@ -81,10 +82,9 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
                                         resultHandler: Handler<AsyncResult<Boolean>>) {
         performJedisWithRetry(REDIS_CLIENT) {
             it.hset(etagItemListHashKey, etagKey, newEtag) {
-                if (it.failed()) {
-                    resultHandler.handle(Future.failedFuture(it.cause()))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                when {
+                    it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                 }
             }
         }
@@ -135,10 +135,10 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
                                resultHandler: Handler<AsyncResult<Boolean>>) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagKeyBase, key) {
-                if (it.succeeded() && it.result() != null && it.result() == etag) {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                when {
+                    it.succeeded() && it.result() != null && it.result() == etag ->
+                        resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                 }
             }
         }
@@ -152,10 +152,10 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
                     logger.debug("Stored etag: " + it.result() + ", request: " + etag)
                 }
 
-                if (it.succeeded() && it.result() != null && it.result() == etag) {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                when {
+                    it.succeeded() && it.result() != null && it.result() == etag ->
+                        resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                 }
             }
         }
@@ -165,10 +165,10 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
                                       resultHandler: Handler<AsyncResult<Boolean>>) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagItemListHashKey, etagKey) {
-                if (it.succeeded() && it.result() != null && it.result() == etag) {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                when {
+                    it.succeeded() && it.result() != null && it.result() == etag ->
+                        resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                 }
             }
         }

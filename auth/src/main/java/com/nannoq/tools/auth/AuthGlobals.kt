@@ -34,19 +34,19 @@ package com.nannoq.tools.auth
  * @version 17.11.2017
  */
 object AuthGlobals {
-    val VALID_JWT_REGISTRY_KEY = "_valid_jwt_registry"
-    val VALIDATION_REQUEST = "VALIDATION"
+    const val VALID_JWT_REGISTRY_KEY = "_valid_jwt_registry"
+    const val VALIDATION_REQUEST = "VALIDATION"
 
     // auth
-    val GLOBAL_AUTHORIZATION = "GLOBAL"
+    const val GLOBAL_AUTHORIZATION = "GLOBAL"
 
     // claims
-    val JWT_CLAIMS_USER_EMAIL = "email"
-    val JWT_CLAIMS_NAME = "name"
-    val JWT_CLAIMS_GIVEN_NAME = "givenName"
-    val JWT_CLAIMS_FAMILY_NAME = "familyName"
-    val JWT_CLAIMS_EMAIL_VERIFIED = "emailVerified"
+    const val JWT_CLAIMS_USER_EMAIL = "email"
+    const val JWT_CLAIMS_NAME = "name"
+    const val JWT_CLAIMS_GIVEN_NAME = "givenName"
+    const val JWT_CLAIMS_FAMILY_NAME = "familyName"
+    const val JWT_CLAIMS_EMAIL_VERIFIED = "emailVerified"
 
     // timers
-    val SEVEN_DAYS = 7L * (3600L * 1000L * 24L)
+    const val SEVEN_DAYS = 7L * (3600L * 1000L * 24L)
 }

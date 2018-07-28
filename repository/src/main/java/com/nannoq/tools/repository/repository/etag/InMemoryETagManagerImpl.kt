@@ -74,33 +74,36 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
     override fun removeProjectionsEtags(hash: Int, resultHandler: Handler<AsyncResult<Boolean>>) {
         val etagKeyBase = TYPE.simpleName + "_" + hash + "/projections"
 
-        if (vertx.isClustered) {
-            getClusteredObjectMap(etagKeyBase, Handler { clearClusteredMap(resultHandler, it) })
-        } else {
-            getLocalItemListMap(etagKeyBase).clear()
+        when {
+            vertx.isClustered -> getClusteredObjectMap(etagKeyBase, Handler { clearClusteredMap(resultHandler, it) })
+            else -> {
+                getLocalItemListMap(etagKeyBase).clear()
 
-            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+            }
         }
     }
 
     override fun destroyEtags(hash: Int, resultHandler: Handler<AsyncResult<Boolean>>) {
         val etagItemListHashKey = TYPE.simpleName + "_" + hash + "_" + "itemListEtags"
 
-        if (vertx.isClustered) {
-            getClusteredItemListMap(etagItemListHashKey, Handler { clearClusteredMap(resultHandler, it) })
-        } else {
-            getLocalItemListMap(etagItemListHashKey).clear()
+        when {
+            vertx.isClustered -> getClusteredItemListMap(etagItemListHashKey, Handler {
+                clearClusteredMap(resultHandler, it)
+            })
+            else -> {
+                getLocalItemListMap(etagItemListHashKey).clear()
 
-            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+            }
         }
     }
 
     private fun clearClusteredMap(resultHandler: Handler<AsyncResult<Boolean>>,
                                   mapRes: AsyncResult<AsyncMap<String, String>>) {
-        if (mapRes.failed()) {
-            resultHandler.handle(Future.failedFuture(mapRes.cause()))
-        } else {
-            mapRes.result().clear { clearRes ->
+        when {
+            mapRes.failed() -> resultHandler.handle(Future.failedFuture(mapRes.cause()))
+            else -> mapRes.result().clear { clearRes ->
                 if (clearRes.failed()) {
                     resultHandler.handle(Future.failedFuture(clearRes.cause()))
                 } else {
@@ -112,63 +115,67 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
 
     override fun replaceAggregationEtag(etagItemListHashKey: String, etagKey: String, newEtag: String,
                                         resultHandler: Handler<AsyncResult<Boolean>>) {
-        if (vertx.isClustered) {
-            getClusteredItemListMap(etagItemListHashKey, Handler {
-                if (it.failed()) {
-                    resultHandler.handle(Future.failedFuture<Boolean>(it.cause()))
-                } else {
-                    it.result().put(etagKey, newEtag, { setRes ->
-                        if (setRes.failed()) {
-                            logger.error("Unable to set etag!", setRes.cause())
+        when {
+            vertx.isClustered -> getClusteredItemListMap(etagItemListHashKey, Handler {
+                when {
+                    it.failed() -> resultHandler.handle(Future.failedFuture<Boolean>(it.cause()))
+                    else -> it.result().put(etagKey, newEtag, { setRes ->
+                        when {
+                            setRes.failed() -> {
+                                logger.error("Unable to set etag!", setRes.cause())
 
-                            resultHandler.handle(Future.failedFuture<Boolean>(setRes.cause()))
-                        } else {
-                            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                                resultHandler.handle(Future.failedFuture<Boolean>(setRes.cause()))
+                            }
+                            else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                         }
                     })
                 }
             })
-        } else {
-            getLocalItemListMap(etagItemListHashKey)[etagKey] = newEtag
+            else -> {
+                getLocalItemListMap(etagItemListHashKey)[etagKey] = newEtag
 
-            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+            }
         }
     }
 
     override fun setSingleRecordEtag(etagMap: Map<String, String>,
                                      resultHandler: Handler<AsyncResult<Boolean>>) {
-        if (vertx.isClustered) {
-            getClusteredObjectMap(Handler {
-                if (it.failed()) {
-                    logger.error("Failed etag setting for objects!", it.cause())
+        when {
+            vertx.isClustered -> getClusteredObjectMap(Handler {
+                when {
+                    it.failed() -> {
+                        logger.error("Failed etag setting for objects!", it.cause())
 
-                    resultHandler.handle(Future.failedFuture<Boolean>(it.cause()))
-                } else {
-                    val map = it.result()
-                    val setFutures = ArrayList<Future<*>>()
-
-                    etagMap.forEach { k, v ->
-                        val setFuture = Future.future<Void>()
-
-                        map.put(k, v, setFuture.completer())
-
-                        setFutures.add(setFuture)
+                        resultHandler.handle(Future.failedFuture<Boolean>(it.cause()))
                     }
+                    else -> {
+                        val map = it.result()
+                        val setFutures = ArrayList<Future<*>>()
 
-                    CompositeFuture.all(setFutures).setHandler {
-                        if (it.failed()) {
-                            resultHandler.handle(Future.failedFuture(it.cause()))
-                        } else {
-                            resultHandler.handle(Future.succeededFuture())
+                        etagMap.forEach { k, v ->
+                            val setFuture = Future.future<Void>()
+
+                            map.put(k, v, setFuture.completer())
+
+                            setFutures.add(setFuture)
+                        }
+
+                        CompositeFuture.all(setFutures).setHandler {
+                            when {
+                                it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                                else -> resultHandler.handle(Future.succeededFuture())
+                            }
                         }
                     }
                 }
             })
-        } else {
-            val localObjectMap = localObjectMap
-            etagMap.forEach({ k, v -> localObjectMap[k] = v })
+            else -> {
+                val localObjectMap = localObjectMap
+                etagMap.forEach({ k, v -> localObjectMap[k] = v })
 
-            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+            }
         }
     }
 
@@ -178,14 +185,13 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
             val key = TYPE.simpleName + "_" + hash + "/projections" + Arrays.hashCode(projections)
             val etag = item.etag
 
-            if (vertx.isClustered) {
-                getClusteredObjectMap(etagKeyBase, Handler { mapRes ->
+            when {
+                vertx.isClustered -> getClusteredObjectMap(etagKeyBase, Handler { mapRes ->
                     if (mapRes.succeeded()) {
                         mapRes.result().put(key, etag, { setRes -> })
                     }
                 })
-            } else {
-                getLocalObjectMap(etagKeyBase)[key] = etag
+                else -> getLocalObjectMap(etagKeyBase)[key] = etag
             }
         }
     }
@@ -197,55 +203,60 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
 
     private fun setItemListEtags(etagItemListHashKey: String, etagKey: String, etag: String?,
                                  itemListEtagFuture: Future<Boolean>) {
-        if (vertx.isClustered) {
-            getClusteredItemListMap(etagItemListHashKey, Handler {
-                if (it.failed()) {
-                    itemListEtagFuture.fail(it.cause())
-                } else {
-                    it.result().put(etagKey, etag, {
-                        if (it.failed()) {
-                            logger.error("Unable to set etag!", it.cause())
+        when {
+            vertx.isClustered -> getClusteredItemListMap(etagItemListHashKey, Handler {
+                when {
+                    it.failed() -> itemListEtagFuture.fail(it.cause())
+                    else -> it.result().put(etagKey, etag, {
+                        when {
+                            it.failed() -> {
+                                logger.error("Unable to set etag!", it.cause())
 
-                            itemListEtagFuture.fail(it.cause())
-                        } else {
-                            itemListEtagFuture.complete(java.lang.Boolean.TRUE)
+                                itemListEtagFuture.fail(it.cause())
+                            }
+                            else -> itemListEtagFuture.complete(java.lang.Boolean.TRUE)
                         }
                     })
                 }
             })
-        } else {
-            getLocalItemListMap(etagItemListHashKey)[etagKey] = etag
+            else -> {
+                getLocalItemListMap(etagItemListHashKey)[etagKey] = etag
 
-            itemListEtagFuture.complete(java.lang.Boolean.TRUE)
+                itemListEtagFuture.complete(java.lang.Boolean.TRUE)
+            }
         }
     }
 
     override fun checkItemEtag(etagKeyBase: String, key: String, etag: String,
                                resultHandler: Handler<AsyncResult<Boolean>>) {
-        if (vertx.isClustered) {
-            getClusteredObjectMap(etagKeyBase, Handler { checkEtagFromMap(key, etag, resultHandler, it) })
-        } else {
-            val s = localObjectMap[key]
+        when {
+            vertx.isClustered -> getClusteredObjectMap(etagKeyBase, Handler {
+                checkEtagFromMap(key, etag, resultHandler, it)
+            })
+            else -> {
+                val s = localObjectMap[key]
 
-            if (s != null) {
-                resultHandler.handle(Future.succeededFuture(s == etag))
-            } else {
-                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                when {
+                    s != null -> resultHandler.handle(Future.succeededFuture(s == etag))
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                }
             }
         }
     }
 
     override fun checkItemListEtag(etagItemListHashKey: String, etagKey: String, etag: String,
                                    resultHandler: Handler<AsyncResult<Boolean>>) {
-        if (vertx.isClustered) {
-            getClusteredItemListMap(etagItemListHashKey, Handler { checkEtagFromMap(etagKey, etag, resultHandler, it) })
-        } else {
-            val s = getLocalItemListMap(etagItemListHashKey)[etagKey]
+        when {
+            vertx.isClustered -> getClusteredItemListMap(etagItemListHashKey, Handler {
+                checkEtagFromMap(etagKey, etag, resultHandler, it)
+            })
+            else -> {
+                val s = getLocalItemListMap(etagItemListHashKey)[etagKey]
 
-            if (s != null) {
-                resultHandler.handle(Future.succeededFuture(s == etag))
-            } else {
-                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                when {
+                    s != null -> resultHandler.handle(Future.succeededFuture(s == etag))
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                }
             }
         }
     }
@@ -257,19 +268,19 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
 
     private fun checkEtagFromMap(key: String, etag: String, resultHandler: Handler<AsyncResult<Boolean>>,
                                  res: AsyncResult<AsyncMap<String, String>>) {
-        if (res.failed()) {
-            resultHandler.handle(Future.failedFuture(res.cause()))
-        } else {
-            res.result().get(key) { getRes ->
-                if (getRes.failed()) {
-                    logger.error("Unable to set etag!", getRes.cause())
+        when {
+            res.failed() -> resultHandler.handle(Future.failedFuture(res.cause()))
+            else -> res.result().get(key) { getRes ->
+                when {
+                    getRes.failed() -> {
+                        logger.error("Unable to set etag!", getRes.cause())
 
-                    resultHandler.handle(Future.failedFuture(getRes.cause()))
-                } else {
-                    if (getRes.result() != null && getRes.result() == etag) {
-                        resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
-                    } else {
-                        resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
+                        resultHandler.handle(Future.failedFuture(getRes.cause()))
+                    }
+                    else -> when {
+                        getRes.result() != null && getRes.result() == etag ->
+                            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                        else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                     }
                 }
             }

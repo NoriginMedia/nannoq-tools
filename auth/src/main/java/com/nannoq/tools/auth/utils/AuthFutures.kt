@@ -45,20 +45,20 @@ import io.vertx.serviceproxy.ServiceException
  * @version 13/11/17
  */
 object AuthFutures {
-    private val logger = LoggerFactory.getLogger(AuthFutures::class.java!!.getSimpleName())
+    private val logger = LoggerFactory.getLogger(AuthFutures::class.java.simpleName)
 
     fun getToken(routingContext: RoutingContext): Future<String> {
         val tokenFuture = Future.future<String>()
         val authentication = routingContext.request().getHeader(HttpHeaders.AUTHORIZATION)
 
-        if (authentication != null) {
-            if (authentication.startsWith("Bearer ")) {
-                tokenFuture.complete(authentication.substring("Bearer".length).trim({ it <= ' ' }))
-            } else {
-                tokenFuture.fail(IllegalArgumentException("Auth does not start with Bearer!"))
-            }
-        } else {
-            tokenFuture.fail(IllegalArgumentException("Auth is null!"))
+        when {
+            authentication != null ->
+                when {
+                    authentication.startsWith("Bearer ") ->
+                        tokenFuture.complete(authentication.substring("Bearer".length).trim({ it <= ' ' }))
+                    else -> tokenFuture.fail(IllegalArgumentException("Auth does not start with Bearer!"))
+                }
+            else -> tokenFuture.fail(IllegalArgumentException("Auth is null!"))
         }
 
         return tokenFuture
@@ -67,15 +67,14 @@ object AuthFutures {
     fun verifyToken(verifier: VerificationService, token: String): Future<Jws<Claims>> {
         val claimsFuture = Future.future<Jws<Claims>>()
 
-        verifier.verifyToken(token, Handler { resultHandler ->
-            if (resultHandler.failed()) {
-                if (resultHandler.cause() is ServiceException) {
-                    claimsFuture.fail(resultHandler.cause())
-                } else {
-                    claimsFuture.fail(SecurityException("Could not verify JWT..."))
-                }
-            } else {
-                claimsFuture.complete(resultHandler.result())
+        verifier.verifyToken(token, { resultHandler ->
+            when {
+                resultHandler.failed() ->
+                    when {
+                        resultHandler.cause() is ServiceException -> claimsFuture.fail(resultHandler.cause())
+                        else -> claimsFuture.fail(SecurityException("Could not verify JWT..."))
+                    }
+                else -> claimsFuture.complete(resultHandler.result())
             }
         })
 
@@ -93,13 +92,12 @@ object AuthFutures {
     fun <U> doAuthFailure(routingContext: RoutingContext, handler: AsyncResult<U>) {
         val errorMessage: String
 
-        if (handler.cause() is ServiceException) {
+        errorMessage = if (handler.cause() is ServiceException) {
             val se = handler.cause() as ServiceException
 
-            errorMessage = "AUTH ERROR: Authorization Cause is: " +
-                    se.message + " : " + se.debugInfo.encodePrettily()
+            "AUTH ERROR: Authorization Cause is: " + se.message + " : " + se.debugInfo.encodePrettily()
         } else {
-            errorMessage = "AUTH ERROR: Authorization Cause is: " + handler.cause().message
+            "AUTH ERROR: Authorization Cause is: " + handler.cause().message
         }
 
         addLogMessageToRequestLog(routingContext, errorMessage)
@@ -124,23 +122,21 @@ object AuthFutures {
     fun <U> doAuthFailureRedirect(routingContext: RoutingContext, handler: AsyncResult<U>, location: String?) {
         val errorMessage: String
 
-        if (handler.cause() is ServiceException) {
+        errorMessage = if (handler.cause() is ServiceException) {
             val se = handler.cause() as ServiceException
 
-            errorMessage = "AUTH ERROR: Authorization Cause is: " +
-                    se.message + " : " + se.debugInfo.encodePrettily()
+            "AUTH ERROR: Authorization Cause is: " + se.message + " : " + se.debugInfo.encodePrettily()
         } else {
-            errorMessage = "AUTH ERROR: Authorization Cause is: " + handler.cause().message
+            "AUTH ERROR: Authorization Cause is: " + handler.cause().message
         }
 
         addLogMessageToRequestLog(routingContext, errorMessage)
 
         routingContext.put(BODY_CONTENT_TAG, JsonObject().put("auth_error", errorMessage))
 
-        if (location == null) {
-            unAuthorizedRedirect(routingContext, handler.cause().message ?: "Error")
-        } else {
-            unAuthorizedRedirect(routingContext, location)
+        when (location) {
+            null -> unAuthorizedRedirect(routingContext, handler.cause().message ?: "Error")
+            else -> unAuthorizedRedirect(routingContext, location)
         }
     }
 
@@ -162,10 +158,9 @@ object AuthFutures {
     fun <U, T> doAuthFailure(handler: AsyncResult<U>, resultHandler: Handler<AsyncResult<T>>) {
         val errorMessage = "AUTH ERROR: Authentication Cause is: " + handler.cause().message
 
-        if (handler.cause() is ServiceException) {
-            resultHandler.handle(Future.failedFuture(handler.cause()))
-        } else {
-            resultHandler.handle(ServiceException.fail(500, errorMessage))
+        when {
+            handler.cause() is ServiceException -> resultHandler.handle(Future.failedFuture(handler.cause()))
+            else -> resultHandler.handle(ServiceException.fail(500, errorMessage))
         }
     }
 }

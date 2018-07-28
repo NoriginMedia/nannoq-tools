@@ -44,6 +44,7 @@ import javax.annotation.Nonnull;
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@SuppressWarnings({"UnusedReturnValue", "NullableProblems"})
 @ProxyGen
 @VertxGen
 public interface VerificationService {
@@ -68,6 +69,7 @@ public interface VerificationService {
         return this;
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Fluent
     @GenIgnore
     default VerificationService verifyAuthorization(Jws<Claims> claims, Authorization authorization,

@@ -157,17 +157,20 @@ open class DynamoDBRepository<E>(
 
         val COLLECTION: String
 
-        if (tableName.isPresent || Arrays.stream(TYPE.declaredAnnotations)
-                        .anyMatch { a -> a is DynamoDBDocument }) {
-            COLLECTION = tableName.orElseGet { TYPE.simpleName.substring(0, 1).toLowerCase() + TYPE.simpleName.substring(1) + "s" }
+        when {
+            tableName.isPresent || Arrays.stream(TYPE.declaredAnnotations)
+                    .anyMatch { a -> a is DynamoDBDocument } -> {
+                COLLECTION = tableName.orElseGet { TYPE.simpleName.substring(0, 1).toLowerCase() + TYPE.simpleName.substring(1) + "s" }
 
-            if (appConfig.getString("redis_host") != null) {
-                this.redisClient = RedisUtils.getRedisClient(vertx, appConfig)
+                if (appConfig.getString("redis_host") != null) {
+                    this.redisClient = RedisUtils.getRedisClient(vertx, appConfig)
+                }
             }
-        } else {
-            logger.error("Models must include the DynamoDBTable annotation, with the tablename!")
+            else -> {
+                logger.error("Models must include the DynamoDBTable annotation, with the tablename!")
 
-            throw IllegalArgumentException("Models must include the DynamoDBTable annotation, with the tablename")
+                throw IllegalArgumentException("Models must include the DynamoDBTable annotation, with the tablename")
+            }
         }
 
         when {
@@ -225,16 +228,17 @@ open class DynamoDBRepository<E>(
         val endPoint = fetchEndPoint(appConfig)
         val region = fetchRegion(appConfig)
 
-        dynamoDbMapper = if (dynamoDBId != null && dynamoDBKey != null) {
-            val creds = BasicAWSCredentials(dynamoDBId, dynamoDBKey)
-            val statCreds = AWSStaticCredentialsProvider(creds)
+        dynamoDbMapper = when {
+            dynamoDBId != null && dynamoDBKey != null -> {
+                val creds = BasicAWSCredentials(dynamoDBId, dynamoDBKey)
+                val statCreds = AWSStaticCredentialsProvider(creds)
 
-            DynamoDBMapper(AmazonDynamoDBAsyncClientBuilder.standard()
-                    .withCredentials(statCreds)
-                    .withEndpointConfiguration(EndpointConfiguration(endPoint, region))
-                    .build(), DynamoDBMapperConfig.DEFAULT, statCreds)
-        } else {
-            DynamoDBMapper(AmazonDynamoDBAsyncClientBuilder.standard()
+                DynamoDBMapper(AmazonDynamoDBAsyncClientBuilder.standard()
+                        .withCredentials(statCreds)
+                        .withEndpointConfiguration(EndpointConfiguration(endPoint, region))
+                        .build(), DynamoDBMapperConfig.DEFAULT, statCreds)
+            }
+            else -> DynamoDBMapper(AmazonDynamoDBAsyncClientBuilder.standard()
                     .withEndpointConfiguration(EndpointConfiguration(endPoint, region))
                     .build(), DynamoDBMapperConfig.DEFAULT)
         }
@@ -397,12 +401,14 @@ open class DynamoDBRepository<E>(
 
             return fieldObject.toString()
         } catch (e: Exception) {
-            if (TYPE.superclass != null && TYPE.superclass != java.lang.Object::class.java) {
-                return getFieldAsString(fieldName, `object`, TYPE.superclass)
-            } else {
-                logger.error("Cannot get " + fieldName + " as string from: " + Json.encodePrettily(`object`), e)
+            return when {
+                TYPE.superclass != null && TYPE.superclass != java.lang.Object::class.java ->
+                    getFieldAsString(fieldName, `object`, TYPE.superclass)
+                else -> {
+                    logger.error("Cannot get " + fieldName + " as string from: " + Json.encodePrettily(`object`), e)
 
-                throw UnknownError("Cannot find field!")
+                    throw UnknownError("Cannot find field!")
+                }
             }
         }
 
@@ -430,12 +436,14 @@ open class DynamoDBRepository<E>(
 
             return fieldObject.toString()
         } catch (e: Exception) {
-            if (klazz.superclass != null && klazz.superclass != java.lang.Object::class.java) {
-                return getFieldAsString(fieldName, `object`, klazz.superclass)
-            } else {
-                logger.error("Cannot get " + fieldName + " as string from: " + Json.encodePrettily(`object`) + ", klazzwise!", e)
+            return when {
+                klazz.superclass != null && klazz.superclass != java.lang.Object::class.java ->
+                    getFieldAsString(fieldName, `object`, klazz.superclass)
+                else -> {
+                    logger.error("Cannot get " + fieldName + " as string from: " + Json.encodePrettily(`object`) + ", klazzwise!", e)
 
-                throw UnknownError("Cannot find field!")
+                    throw UnknownError("Cannot find field!")
+                }
             }
         }
 
@@ -460,29 +468,30 @@ open class DynamoDBRepository<E>(
                 if (fieldType != null) typeMap[fieldName] = fieldType
             }
 
-            if (fieldType === java.lang.Long::class.java || fieldType === java.lang.Integer::class.java ||
-                    fieldType === java.lang.Double::class.java || fieldType === java.lang.Float::class.java ||
-                    fieldType === java.lang.Short::class.java ||
-                    fieldType === java.lang.Long::class.javaPrimitiveType || fieldType === java.lang.Integer::class.javaPrimitiveType ||
-                    fieldType === java.lang.Double::class.javaPrimitiveType || fieldType === java.lang.Float::class.javaPrimitiveType ||
-                    fieldType === java.lang.Short::class.javaPrimitiveType) {
-                field!!.isAccessible = true
+            when {
+                fieldType === java.lang.Long::class.java || fieldType === java.lang.Integer::class.java ||
+                        fieldType === java.lang.Double::class.java || fieldType === java.lang.Float::class.java ||
+                        fieldType === java.lang.Short::class.java ||
+                        fieldType === java.lang.Long::class.javaPrimitiveType || fieldType === java.lang.Integer::class.javaPrimitiveType ||
+                        fieldType === java.lang.Double::class.javaPrimitiveType || fieldType === java.lang.Float::class.javaPrimitiveType ||
+                        fieldType === java.lang.Short::class.javaPrimitiveType -> {
+                    field!!.isAccessible = true
 
-                return field
-            } else {
-                throw IllegalArgumentException("Not an incrementable field!")
+                    return field
+                }
+                else -> throw IllegalArgumentException("Not an incrementable field!")
             }
         } catch (e: NoSuchFieldException) {
-            return if (TYPE.superclass != null && TYPE.superclass != java.lang.Object::class.java) {
-                checkAndGetField(fieldName, TYPE.superclass)
-            } else {
-                throw IllegalArgumentException("Field does not exist!")
+            return when {
+                TYPE.superclass != null && TYPE.superclass != java.lang.Object::class.java ->
+                    checkAndGetField(fieldName, TYPE.superclass)
+                else -> throw IllegalArgumentException("Field does not exist!")
             }
         } catch (e: NullPointerException) {
-            return if (TYPE.superclass != null && TYPE.superclass != java.lang.Object::class.java) {
-                checkAndGetField(fieldName, TYPE.superclass)
-            } else {
-                throw IllegalArgumentException("Field does not exist!")
+            return when {
+                TYPE.superclass != null && TYPE.superclass != java.lang.Object::class.java ->
+                    checkAndGetField(fieldName, TYPE.superclass)
+                else -> throw IllegalArgumentException("Field does not exist!")
             }
         }
 
@@ -507,23 +516,24 @@ open class DynamoDBRepository<E>(
                 if (fieldType != null) typeMap[fieldName] = fieldType
             }
 
-            if (fieldType === java.lang.Long::class.java || fieldType === java.lang.Integer::class.java ||
-                    fieldType === java.lang.Double::class.java || fieldType === java.lang.Float::class.java ||
-                    fieldType === java.lang.Short::class.java ||
-                    fieldType === java.lang.Long::class.javaPrimitiveType || fieldType === java.lang.Integer::class.javaPrimitiveType ||
-                    fieldType === java.lang.Double::class.javaPrimitiveType || fieldType === java.lang.Float::class.javaPrimitiveType ||
-                    fieldType === java.lang.Short::class.javaPrimitiveType) {
-                field!!.isAccessible = true
+            when {
+                fieldType === java.lang.Long::class.java || fieldType === java.lang.Integer::class.java ||
+                        fieldType === java.lang.Double::class.java || fieldType === java.lang.Float::class.java ||
+                        fieldType === java.lang.Short::class.java ||
+                        fieldType === java.lang.Long::class.javaPrimitiveType || fieldType === java.lang.Integer::class.javaPrimitiveType ||
+                        fieldType === java.lang.Double::class.javaPrimitiveType || fieldType === java.lang.Float::class.javaPrimitiveType ||
+                        fieldType === java.lang.Short::class.javaPrimitiveType -> {
+                    field!!.isAccessible = true
 
-                return field
-            } else {
-                throw IllegalArgumentException("Not an incrementable field!")
+                    return field
+                }
+                else -> throw IllegalArgumentException("Not an incrementable field!")
             }
         } catch (e: NoSuchFieldException) {
-            return if (klazz.superclass != null && klazz.superclass != java.lang.Object::class.java) {
-                checkAndGetField(fieldName, klazz)
-            } else {
-                throw IllegalArgumentException("Field does not exist!")
+            return when {
+                klazz.superclass != null && klazz.superclass != java.lang.Object::class.java ->
+                    checkAndGetField(fieldName, klazz)
+                else -> throw IllegalArgumentException("Field does not exist!")
             }
         }
     }
@@ -591,12 +601,13 @@ open class DynamoDBRepository<E>(
                 if (fieldType != null) typeMap[alternateIndex] = fieldType
             }
 
-            return if (fieldType === java.util.Date::class.java) {
-                val dateObject = field?.get(`object`) as Date
+            return when {
+                fieldType === java.util.Date::class.java -> {
+                    val dateObject = field?.get(`object`) as Date
 
-                createAttributeValue(alternateIndex, dateObject.time.toString())
-            } else {
-                createAttributeValue(alternateIndex, field?.get(`object`).toString())
+                    createAttributeValue(alternateIndex, dateObject.time.toString())
+                }
+                else -> createAttributeValue(alternateIndex, field?.get(`object`).toString())
             }
         } catch (e: NoSuchFieldException) {
             if (`object`.javaClass.superclass != null && `object`.javaClass.superclass != java.lang.Object::class.java) {
@@ -635,12 +646,13 @@ open class DynamoDBRepository<E>(
                 if (fieldType != null) typeMap[alternateIndex] = fieldType
             }
 
-            return if (fieldType === java.util.Date::class.java) {
-                val dateObject = field.get(`object`) as Date
+            return when {
+                fieldType === java.util.Date::class.java -> {
+                    val dateObject = field.get(`object`) as Date
 
-                createAttributeValue(alternateIndex, dateObject.time.toString())
-            } else {
-                createAttributeValue(alternateIndex, field.get(`object`).toString())
+                    createAttributeValue(alternateIndex, dateObject.time.toString())
+                }
+                else -> createAttributeValue(alternateIndex, field.get(`object`).toString())
             }
         } catch (e: NoSuchFieldException) {
             if (klazz.superclass != null && klazz.superclass != java.lang.Object::class.java) {
@@ -672,108 +684,112 @@ open class DynamoDBRepository<E>(
             if (fieldType != null) typeMap[fieldName] = fieldType
         }
 
-        if (fieldType === java.lang.String::class.java) {
-            return AttributeValue().withS(valueAsString)
-        } else if (fieldType === java.lang.Integer::class.java || fieldType === java.lang.Double::class.java || fieldType === java.lang.Long::class.java) {
-            try {
-                if (fieldType === java.lang.Integer::class.java) {
-                    var value = Integer.parseInt(valueAsString)
+        when {
+            fieldType === java.lang.String::class.java -> return AttributeValue().withS(valueAsString)
+            fieldType === java.lang.Integer::class.java ||
+                    fieldType === java.lang.Double::class.java ||
+                    fieldType === java.lang.Long::class.java -> {
+                try {
+                    if (fieldType === java.lang.Integer::class.java) {
+                        var value = Integer.parseInt(valueAsString)
 
-                    if (modifier == ComparisonOperator.GE) value -= 1
-                    if (modifier == ComparisonOperator.LE) value += 1
+                        if (modifier == ComparisonOperator.GE) value -= 1
+                        if (modifier == ComparisonOperator.LE) value += 1
 
-                    return AttributeValue().withN(value.toString())
-                }
+                        return AttributeValue().withN(value.toString())
+                    }
 
-                if (fieldType === java.lang.Double::class.java) {
-                    var value = java.lang.Double.parseDouble(valueAsString)
+                    if (fieldType === java.lang.Double::class.java) {
+                        var value = java.lang.Double.parseDouble(valueAsString)
 
-                    if (modifier == ComparisonOperator.GE) value -= 0.1
-                    if (modifier == ComparisonOperator.LE) value += 0.1
+                        if (modifier == ComparisonOperator.GE) value -= 0.1
+                        if (modifier == ComparisonOperator.LE) value += 0.1
 
-                    return AttributeValue().withN(value.toString())
-                }
+                        return AttributeValue().withN(value.toString())
+                    }
 
-                if (fieldType === java.lang.Long::class.java) {
-                    var value = java.lang.Long.parseLong(valueAsString)
+                    if (fieldType === java.lang.Long::class.java) {
+                        var value = java.lang.Long.parseLong(valueAsString)
 
-                    if (modifier == ComparisonOperator.GE) value -= 1
-                    if (modifier == ComparisonOperator.LE) value += 1
+                        if (modifier == ComparisonOperator.GE) value -= 1
+                        if (modifier == ComparisonOperator.LE) value += 1
 
-                    return AttributeValue().withN(value.toString())
-                }
-            } catch (nfe: NumberFormatException) {
-                logger.error("Cannot recreate attribute!", nfe)
-            }
-
-            return AttributeValue().withN(valueAsString)
-        } else if (fieldType === java.lang.Boolean::class.java) {
-            if (valueAsString.equals("true", ignoreCase = true)) {
-                return AttributeValue().withN("1")
-            } else if (valueAsString.equals("false", ignoreCase = true)) {
-                return AttributeValue().withN("0")
-            }
-
-            try {
-                val boolValue = Integer.parseInt(valueAsString)
-
-                if (boolValue == 1 || boolValue == 0) {
-                    return AttributeValue().withN(boolValue.toString())
-                }
-
-                throw UnknownError("Cannot create AttributeValue!")
-            } catch (nfe: NumberFormatException) {
-                logger.error("Cannot rceate attribute!", nfe)
-            }
-
-        } else return if (fieldType === java.util.Date::class.java) {
-            try {
-                if (logger.isDebugEnabled) {
-                    logger.debug("Date received: $valueAsString")
-                }
-
-                val date: Date
-
-                date = try {
-                    Date(java.lang.Long.parseLong(valueAsString))
+                        return AttributeValue().withN(value.toString())
+                    }
                 } catch (nfe: NumberFormatException) {
-                    val df1 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX")
-                    df1.parse(valueAsString)
+                    logger.error("Cannot recreate attribute!", nfe)
                 }
 
-                val calendar = Calendar.getInstance()
-                calendar.time = date
-
-                if (modifier == ComparisonOperator.LE) calendar.add(Calendar.MILLISECOND, 1)
-                if (modifier == ComparisonOperator.GE) calendar.time = Date(calendar.time.time - 1)
-
-                val df2 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX")
-                df2.timeZone = TimeZone.getTimeZone("Z")
-                if (logger.isDebugEnabled) {
-                    logger.debug("DATE IS: " + df2.format(calendar.time))
-                }
-
-                AttributeValue().withS(df2.format(calendar.time))
-            } catch (e: ParseException) {
-                AttributeValue().withS(valueAsString)
+                return AttributeValue().withN(valueAsString)
             }
+            fieldType === java.lang.Boolean::class.java -> {
+                if (valueAsString.equals("true", ignoreCase = true)) {
+                    return AttributeValue().withN("1")
+                } else if (valueAsString.equals("false", ignoreCase = true)) {
+                    return AttributeValue().withN("0")
+                }
 
-        } else {
-            AttributeValue().withS(valueAsString)
+                try {
+                    val boolValue = Integer.parseInt(valueAsString)
+
+                    if (boolValue == 1 || boolValue == 0) {
+                        return AttributeValue().withN(boolValue.toString())
+                    }
+
+                    throw UnknownError("Cannot create AttributeValue!")
+                } catch (nfe: NumberFormatException) {
+                    logger.error("Cannot rceate attribute!", nfe)
+                }
+
+            }
+            else -> return when {
+                fieldType === java.util.Date::class.java -> try {
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Date received: $valueAsString")
+                    }
+
+                    val date: Date
+
+                    date = try {
+                        Date(java.lang.Long.parseLong(valueAsString))
+                    } catch (nfe: NumberFormatException) {
+                        val df1 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX")
+                        df1.parse(valueAsString)
+                    }
+
+                    val calendar = Calendar.getInstance()
+                    calendar.time = date
+
+                    if (modifier == ComparisonOperator.LE) calendar.add(Calendar.MILLISECOND, 1)
+                    if (modifier == ComparisonOperator.GE) calendar.time = Date(calendar.time.time - 1)
+
+                    val df2 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX")
+                    df2.timeZone = TimeZone.getTimeZone("Z")
+                    if (logger.isDebugEnabled) {
+                        logger.debug("DATE IS: " + df2.format(calendar.time))
+                    }
+
+                    AttributeValue().withS(df2.format(calendar.time))
+                } catch (e: ParseException) {
+                    AttributeValue().withS(valueAsString)
+                }
+                else -> AttributeValue().withS(valueAsString)
+            }
         }
 
         throw UnknownError("Cannot create attributevalue!")
     }
 
     fun fetchNewestRecord(type: Class<E>, hash: String, range: String?): E? {
-        if (range != null && hasRangeKey) {
-            if (logger.isDebugEnabled) {
-                logger.debug("Loading newest with range!")
-            }
+        when {
+            range != null && hasRangeKey -> {
+                if (logger.isDebugEnabled) {
+                    logger.debug("Loading newest with range!")
+                }
 
-            return dynamoDbMapper.load(TYPE, hash, range)
-        } else {
-            try {
+                return dynamoDbMapper.load(TYPE, hash, range)
+            }
+            else -> try {
                 if (logger.isDebugEnabled) {
                     logger.debug("Loading newest by hash query!")
                 }
@@ -793,17 +809,15 @@ open class DynamoDBRepository<E>(
                     logger.debug("Results received in: " + (System.currentTimeMillis() - timeBefore) + " ms")
                 }
 
-                return if (!items.isEmpty()) {
-                    items[0]
-                } else {
-                    null
+                return when {
+                    !items.isEmpty() -> items[0]
+                    else -> null
                 }
             } catch (e: Exception) {
                 logger.error("Error fetching newest!", e)
 
                 return null
             }
-
         }
     }
 
@@ -833,19 +847,17 @@ open class DynamoDBRepository<E>(
     }
 
     override fun update(record: E, resultHandler: Handler<AsyncResult<UpdateResult<E>>>) {
-        if (isVersioned) {
-            resultHandler.handle(ServiceException.fail(
+        when {
+            isVersioned -> resultHandler.handle(ServiceException.fail(
                     400, "This model is versioned, use the updateLogic method!"))
-        } else {
-            update(record, resultHandler)
+            else -> update(record, resultHandler)
         }
     }
 
     override fun update(record: E): Future<UpdateResult<E>> {
-        return if (!isVersioned) {
-            throw IllegalArgumentException("This model is versioned, use the updateLogic method!")
-        } else {
-            update(record)
+        return when {
+            !isVersioned -> throw IllegalArgumentException("This model is versioned, use the updateLogic method!")
+            else -> update(record)
         }
     }
 
@@ -942,10 +954,9 @@ open class DynamoDBRepository<E>(
 
     override fun remoteCreate(record: E, resultHandler: Handler<AsyncResult<E>>): InternalRepositoryService<E> {
         create(record, Handler {
-            if (it.failed()) {
-                resultHandler.handle(Future.failedFuture(it.cause()))
-            } else {
-                resultHandler.handle(Future.succeededFuture(it.result().item))
+            when {
+                it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                else -> resultHandler.handle(Future.succeededFuture(it.result().item))
             }
         })
 
@@ -954,10 +965,9 @@ open class DynamoDBRepository<E>(
 
     override fun remoteRead(identifiers: JsonObject, resultHandler: Handler<AsyncResult<E>>): InternalRepositoryService<E> {
         read(identifiers, Handler {
-            if (it.failed()) {
-                resultHandler.handle(Future.failedFuture(it.cause()))
-            } else {
-                resultHandler.handle(it.map(it.result().item))
+            when {
+                it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                else -> resultHandler.handle(it.map(it.result().item))
             }
         })
 
@@ -975,10 +985,9 @@ open class DynamoDBRepository<E>(
             @Suppress("UNCHECKED_CAST")
             it.setModifiables(record) as E
         }, Handler { res ->
-            if (res.failed()) {
-                resultHandler.handle(Future.failedFuture(res.cause()))
-            } else {
-                resultHandler.handle(Future.succeededFuture(res.result().item))
+            when {
+                res.failed() -> resultHandler.handle(Future.failedFuture(res.cause()))
+                else -> resultHandler.handle(Future.succeededFuture(res.result().item))
             }
         })
 
@@ -987,10 +996,9 @@ open class DynamoDBRepository<E>(
 
     override fun remoteDelete(identifiers: JsonObject, resultHandler: Handler<AsyncResult<E>>): InternalRepositoryService<E> {
         delete(identifiers, Handler {
-            if (it.failed()) {
-                resultHandler.handle(Future.failedFuture(it.cause()))
-            } else {
-                resultHandler.handle(Future.succeededFuture(it.result().item))
+            when {
+                it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                else -> resultHandler.handle(Future.succeededFuture(it.result().item))
             }
         })
 
@@ -1051,10 +1059,9 @@ open class DynamoDBRepository<E>(
             val config = appConfig ?: if (Vertx.currentContext() == null) null else Vertx.currentContext().config()
             val endPoint: String
 
-            endPoint = if (config == null) {
-                "http://localhost:8001"
-            } else {
-                config.getString("dynamo_endpoint")
+            endPoint = when (config) {
+                null -> "http://localhost:8001"
+                else -> config.getString("dynamo_endpoint")
             }
 
             return endPoint
@@ -1064,11 +1071,12 @@ open class DynamoDBRepository<E>(
             val config = appConfig ?: if (Vertx.currentContext() == null) null else Vertx.currentContext().config()
             var region: String?
 
-            if (config == null) {
-                region = "eu-west-1"
-            } else {
-                region = config.getString("dynamo_signing_region")
-                if (region == null) region = "eu-west-1"
+            when (config) {
+                null -> region = "eu-west-1"
+                else -> {
+                    region = config.getString("dynamo_signing_region")
+                    if (region == null) region = "eu-west-1"
+                }
             }
 
             return region
@@ -1158,10 +1166,9 @@ open class DynamoDBRepository<E>(
                         logger.debug("DynamoDB Ready")
                     }
 
-                    if (res.failed()) {
-                        resultHandler.handle(Future.failedFuture(res.cause()))
-                    } else {
-                        resultHandler.handle(Future.succeededFuture())
+                    when {
+                        res.failed() -> resultHandler.handle(Future.failedFuture(res.cause()))
+                        else -> resultHandler.handle(Future.succeededFuture())
                     }
                 }
             } catch (e: Exception) {
@@ -1187,20 +1194,23 @@ open class DynamoDBRepository<E>(
             val amazonDynamoDBAsync: AmazonDynamoDBAsync
             val dynamoDBMapper: DynamoDBMapper
 
-            if (dynamoDBId == null || dynamoDBKey == null) {
-                logger.warn("S3 Creds unavailable for initialize")
+            when {
+                dynamoDBId == null || dynamoDBKey == null -> {
+                    logger.warn("S3 Creds unavailable for initialize")
 
-                amazonDynamoDBAsync = amazonDynamoDBAsyncClientBuilder
-                        .build()
-                dynamoDBMapper = DynamoDBMapper(amazonDynamoDBAsync, DynamoDBMapperConfig.DEFAULT)
-            } else {
-                val creds = BasicAWSCredentials(dynamoDBId, dynamoDBKey)
-                val statCreds = AWSStaticCredentialsProvider(creds)
+                    amazonDynamoDBAsync = amazonDynamoDBAsyncClientBuilder
+                            .build()
+                    dynamoDBMapper = DynamoDBMapper(amazonDynamoDBAsync, DynamoDBMapperConfig.DEFAULT)
+                }
+                else -> {
+                    val creds = BasicAWSCredentials(dynamoDBId, dynamoDBKey)
+                    val statCreds = AWSStaticCredentialsProvider(creds)
 
-                amazonDynamoDBAsync = amazonDynamoDBAsyncClientBuilder
-                        .withCredentials(statCreds)
-                        .build()
-                dynamoDBMapper = DynamoDBMapper(amazonDynamoDBAsync, DynamoDBMapperConfig.DEFAULT, statCreds)
+                    amazonDynamoDBAsync = amazonDynamoDBAsyncClientBuilder
+                            .withCredentials(statCreds)
+                            .build()
+                    dynamoDBMapper = DynamoDBMapper(amazonDynamoDBAsync, DynamoDBMapperConfig.DEFAULT, statCreds)
+                }
             }
 
             initialize(amazonDynamoDBAsync, dynamoDBMapper, COLLECTION, TYPE, future.completer())
@@ -1231,50 +1241,52 @@ open class DynamoDBRepository<E>(
                         logger.debug("Table is available: $tableExists")
                     }
 
-                    if (tableExists) {
-                        if (logger.isDebugEnabled) {
-                            logger.debug("Table exists for: $COLLECTION, doing nothing...")
+                    when {
+                        tableExists -> {
+                            if (logger.isDebugEnabled) {
+                                logger.debug("Table exists for: $COLLECTION, doing nothing...")
+                            }
+
+                            resultHandler.handle(Future.succeededFuture())
                         }
+                        else -> {
+                            val req = mapper.generateCreateTableRequest(TYPE)
+                                    .withProvisionedThroughput(ProvisionedThroughput()
+                                            .withWriteCapacityUnits(DEFAULT_WRITE_TABLE)
+                                            .withReadCapacityUnits(DEFAULT_READ_TABLE))
 
-                        resultHandler.handle(Future.succeededFuture())
-                    } else {
-                        val req = mapper.generateCreateTableRequest(TYPE)
-                                .withProvisionedThroughput(ProvisionedThroughput()
-                                        .withWriteCapacityUnits(DEFAULT_WRITE_TABLE)
-                                        .withReadCapacityUnits(DEFAULT_READ_TABLE))
+                            val allProjection = Projection().withProjectionType(ProjectionType.ALL)
+                            req.setLocalSecondaryIndexes(req.localSecondaryIndexes.stream()
+                                    .peek { lsi -> lsi.projection = allProjection }
+                                    .collect(toList()))
+                            setAnyGlobalSecondaryIndexes(req, DEFAULT_READ_GSI, DEFAULT_WRITE_GSI)
 
-                        val allProjection = Projection().withProjectionType(ProjectionType.ALL)
-                        req.setLocalSecondaryIndexes(req.localSecondaryIndexes.stream()
-                                .peek { lsi -> lsi.projection = allProjection }
-                                .collect(toList()))
-                        setAnyGlobalSecondaryIndexes(req, DEFAULT_READ_GSI, DEFAULT_WRITE_GSI)
-
-                        client.createTableAsync(req, object : AsyncHandler<CreateTableRequest, CreateTableResult> {
-                            override fun onError(e: Exception) {
-                                logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
-                                if (logger.isDebugEnabled) {
-                                    logger.debug("Could not remoteCreate table for: $COLLECTION")
-                                }
-
-                                resultHandler.handle(Future.failedFuture(e))
-                            }
-
-                            override fun onSuccess(request: CreateTableRequest, createTableResult: CreateTableResult) {
-                                if (logger.isDebugEnabled) {
-                                    logger.debug("Table creation for: $COLLECTION is success: " + (
-                                            createTableResult.tableDescription
-                                                    .tableName == COLLECTION))
-                                }
-
-                                waitForTableAvailable(createTableResult, Handler { res ->
-                                    if (res.failed()) {
-                                        resultHandler.handle(Future.failedFuture<Void>(res.cause()))
-                                    } else {
-                                        resultHandler.handle(Future.succeededFuture())
+                            client.createTableAsync(req, object : AsyncHandler<CreateTableRequest, CreateTableResult> {
+                                override fun onError(e: Exception) {
+                                    logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
+                                    if (logger.isDebugEnabled) {
+                                        logger.debug("Could not remoteCreate table for: $COLLECTION")
                                     }
-                                })
-                            }
-                        })
+
+                                    resultHandler.handle(Future.failedFuture(e))
+                                }
+
+                                override fun onSuccess(request: CreateTableRequest, createTableResult: CreateTableResult) {
+                                    if (logger.isDebugEnabled) {
+                                        logger.debug("Table creation for: $COLLECTION is success: " + (
+                                                createTableResult.tableDescription
+                                                        .tableName == COLLECTION))
+                                    }
+
+                                    waitForTableAvailable(createTableResult, Handler { res ->
+                                        when {
+                                            res.failed() -> resultHandler.handle(Future.failedFuture<Void>(res.cause()))
+                                            else -> resultHandler.handle(Future.succeededFuture())
+                                        }
+                                    })
+                                }
+                            })
+                        }
                     }
                 }
 
@@ -1312,32 +1324,33 @@ open class DynamoDBRepository<E>(
 
                     val describeTableResult = client.describeTable(tableName)
 
-                    if (tableReady(describeTableResult)) {
-                        logger.debug("$tableName created and active: " + Json.encodePrettily(
-                                describeTableResult.table))
+                    when {
+                        tableReady(describeTableResult) -> {
+                            logger.debug("$tableName created and active: " + Json.encodePrettily(
+                                    describeTableResult.table))
 
-                        resultHandler.handle(Future.succeededFuture())
-                    } else {
-                        waitForActive(tableName, Handler {
-                            if (it.failed()) {
-                                waitForTableAvailable(createTableResult, resultHandler)
-                            } else {
-                                resultHandler.handle(Future.succeededFuture())
+                            resultHandler.handle(Future.succeededFuture())
+                        }
+                        else -> waitForActive(tableName, Handler {
+                            when {
+                                it.failed() -> waitForTableAvailable(createTableResult, resultHandler)
+                                else -> resultHandler.handle(Future.succeededFuture())
                             }
                         })
                     }
                 }
 
                 private fun tableReady(describeTableResult: DescribeTableResult): Boolean {
-                    return describeTableResult.table.tableStatus.equals("ACTIVE", ignoreCase = true) && describeTableResult.table.globalSecondaryIndexes.stream()
-                            .allMatch { i -> i.indexStatus == "ACTIVE" }
+                    return describeTableResult.table.tableStatus.equals("ACTIVE", ignoreCase = true) &&
+                            describeTableResult.table.globalSecondaryIndexes.stream()
+                                    .allMatch { it.indexStatus == "ACTIVE" }
                 }
 
                 private fun waitForActive(tableName: String, resHandle: Handler<AsyncResult<Void>>) {
-                    if (client.describeTable(tableName).table.tableStatus == "ACTIVE") {
-                        resHandle.handle(Future.succeededFuture())
-                    } else {
-                        resHandle.handle(Future.failedFuture("Not active!"))
+                    when {
+                        client.describeTable(tableName).table.tableStatus == "ACTIVE" ->
+                            resHandle.handle(Future.succeededFuture())
+                        else -> resHandle.handle(Future.failedFuture("Not active!"))
                     }
                 }
             })

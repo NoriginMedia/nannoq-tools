@@ -17,7 +17,7 @@ class DynamoDBUtils {
 
         server.start()
 
-        dbMap.put(port, server)
+        dbMap[port] = server
 
         return server
     }

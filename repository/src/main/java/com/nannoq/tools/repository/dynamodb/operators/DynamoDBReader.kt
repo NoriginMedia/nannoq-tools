@@ -92,39 +92,39 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         vertx.executeBlocking<E>({
             cacheManager.checkObjectCache(cacheId, Handler { result ->
-                if (result.failed()) {
-                    it.fail(result.cause())
-                } else {
-                    it.complete(result.result())
+                when {
+                    result.failed() -> it.fail(result.cause())
+                    else -> it.complete(result.result())
                 }
             })
         }, false, { checkResult ->
-            if (checkResult.succeeded()) {
-                resultHandler.handle(Future.succeededFuture(ItemResult(checkResult.result(), true)))
+            when {
+                checkResult.succeeded() -> {
+                    resultHandler.handle(Future.succeededFuture(ItemResult(checkResult.result(), true)))
 
-                if (logger.isDebugEnabled) {
-                    logger.debug("Served cached version of: $cacheId")
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Served cached version of: $cacheId")
+                    }
                 }
-            } else {
-                vertx.executeBlocking<E>({
+                else -> vertx.executeBlocking<E>({
                     val item = fetchItem(startTime, preOperationTime, operationTime, hash, range, true)
 
-                    if (item != null && cacheManager.isObjectCacheAvailable) {
-                        cacheManager.replaceObjectCache(cacheBase, item, it, arrayOf())
-                    } else {
-                        if (item == null) {
-                            it.fail(NoSuchElementException())
-                        } else {
-                            it.complete(item)
+                    when {
+                        item != null && cacheManager.isObjectCacheAvailable ->
+                            cacheManager.replaceObjectCache(cacheBase, item, it, arrayOf())
+                        else -> when (item) {
+                            null -> it.fail(NoSuchElementException())
+                            else -> it.complete(item)
                         }
                     }
                 }, false, {
-                    if (it.failed()) {
-                        doReadResult(postOperationTime, startTime, it, resultHandler)
-                    } else {
-                        postOperationTime.set(System.nanoTime() - startTime.get())
+                    when {
+                        it.failed() -> doReadResult(postOperationTime, startTime, it, resultHandler)
+                        else -> {
+                            postOperationTime.set(System.nanoTime() - startTime.get())
 
-                        returnTimedResult(it, preOperationTime, operationTime, postOperationTime, resultHandler)
+                            returnTimedResult(it, preOperationTime, operationTime, postOperationTime, resultHandler)
+                        }
                     }
                 })
             }
@@ -146,43 +146,43 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         vertx.executeBlocking<E>({ future ->
             cacheManager.checkObjectCache(cacheId, Handler { result ->
-                if (result.failed()) {
-                    future.fail(result.cause())
-                } else {
-                    future.complete(result.result())
+                when {
+                    result.failed() -> future.fail(result.cause())
+                    else -> future.complete(result.result())
                 }
             })
         }, false, { checkResult ->
-            if (checkResult.succeeded()) {
-                resultHandler.handle(Future.succeededFuture(ItemResult(checkResult.result(), true)))
+            when {
+                checkResult.succeeded() -> {
+                    resultHandler.handle(Future.succeededFuture(ItemResult(checkResult.result(), true)))
 
-                if (logger.isDebugEnabled) {
-                    logger.debug("Served cached version of: $cacheId")
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Served cached version of: $cacheId")
+                    }
                 }
-            } else {
-                vertx.executeBlocking<E>({ future ->
+                else -> vertx.executeBlocking<E>({ future ->
                     val item = fetchItem(startTime, preOperationTime, operationTime, hash, range, consistent)
 
                     item?.generateAndSetEtag(ConcurrentHashMap())
 
                     etagManager?.setProjectionEtags(projections ?: arrayOf(), identifiers.encode().hashCode(), item!!)
 
-                    if (item != null && cacheManager.isObjectCacheAvailable) {
-                        cacheManager.replaceObjectCache(cacheId, item, future, projections ?: arrayOf())
-                    } else {
-                        if (item == null) {
-                            future.fail(NoSuchElementException())
-                        } else {
-                            future.complete(item)
+                    when {
+                        item != null && cacheManager.isObjectCacheAvailable ->
+                            cacheManager.replaceObjectCache(cacheId, item, future, projections ?: arrayOf())
+                        else -> when (item) {
+                            null -> future.fail(NoSuchElementException())
+                            else -> future.complete(item)
                         }
                     }
                 }, false, { readResult ->
-                    if (readResult.failed()) {
-                        doReadResult(postOperationTime, startTime, readResult, resultHandler)
-                    } else {
-                        postOperationTime.set(System.nanoTime() - operationTime.get())
+                    when {
+                        readResult.failed() -> doReadResult(postOperationTime, startTime, readResult, resultHandler)
+                        else -> {
+                            postOperationTime.set(System.nanoTime() - operationTime.get())
 
-                        returnTimedResult(readResult, preOperationTime, operationTime, postOperationTime, resultHandler)
+                            returnTimedResult(readResult, preOperationTime, operationTime, postOperationTime, resultHandler)
+                        }
                     }
                 })
             }
@@ -191,40 +191,43 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
     private fun doReadResult(postOperationTime: AtomicLong, startTime: AtomicLong, readResult: AsyncResult<E>,
                              resultHandler: Handler<AsyncResult<ItemResult<E>>>) {
-        if (readResult.cause().javaClass == NoSuchElementException::class.java) {
-            postOperationTime.set(System.nanoTime() - startTime.get())
-            resultHandler.handle(ServiceException.fail(404, "Not found!",
-                    JsonObject(Json.encode(readResult.cause()))))
-        } else {
-            logger.error("Error in read!", readResult.cause())
+        when {
+            readResult.cause().javaClass == NoSuchElementException::class.java -> {
+                postOperationTime.set(System.nanoTime() - startTime.get())
+                resultHandler.handle(ServiceException.fail(404, "Not found!",
+                        JsonObject(Json.encode(readResult.cause()))))
+            }
+            else -> {
+                logger.error("Error in read!", readResult.cause())
 
-            postOperationTime.set(System.nanoTime() - startTime.get())
-            resultHandler.handle(ServiceException.fail(500, "Error in read!",
-                    JsonObject(Json.encode(readResult.cause()))))
+                postOperationTime.set(System.nanoTime() - startTime.get())
+                resultHandler.handle(ServiceException.fail(500, "Error in read!",
+                        JsonObject(Json.encode(readResult.cause()))))
+            }
         }
     }
 
     private fun fetchItem(startTime: AtomicLong, preOperationTime: AtomicLong, operationTime: AtomicLong,
                           hash: String, range: String?, consistent: Boolean): E? {
-        try {
-            return if (db.hasRangeKey()) {
-                if (range == null) {
-                    if (logger.isDebugEnabled) {
-                        logger.debug("Loading ranged item without range key!")
-                    }
+        return try {
+            when {
+                db.hasRangeKey() -> when (range) {
+                    null -> {
+                        if (logger.isDebugEnabled) {
+                            logger.debug("Loading ranged item without range key!")
+                        }
 
-                    fetchHashItem(hash, startTime, preOperationTime, operationTime, consistent)
-                } else {
-                    fetchHashAndRangeItem(hash, range, startTime, preOperationTime, operationTime)
+                        fetchHashItem(hash, startTime, preOperationTime, operationTime, consistent)
+                    }
+                    else -> fetchHashAndRangeItem(hash, range, startTime, preOperationTime, operationTime)
                 }
-            } else {
-                fetchHashItem(hash, startTime, preOperationTime, operationTime, consistent)
+                else -> fetchHashItem(hash, startTime, preOperationTime, operationTime, consistent)
             }
         } catch (e: Exception) {
             logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
-        }
 
-        return null
+            null
+        }
     }
 
     private fun fetchHashAndRangeItem(hash: String, range: String,
@@ -308,20 +311,21 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
                 future.fail(e)
             }
-        }, false, { readResult ->
-            if (readResult.failed()) {
-                logger.error("Error in readAll!", readResult.cause())
+        }, false, {
+            when {
+                it.failed() -> {
+                    logger.error("Error in readAll!", it.cause())
 
-                resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
-                        JsonObject(Json.encode(readResult.cause()))))
-            } else {
-                resultHandler.handle(Future.succeededFuture(readResult.result()))
+                    resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
+                            JsonObject(Json.encode(it.cause()))))
+                }
+                else -> resultHandler.handle(Future.succeededFuture(it.result()))
             }
         })
     }
 
     fun readAllPaginated(resultHandler: Handler<AsyncResult<PaginatedParallelScanList<E>>>) {
-        vertx.executeBlocking<PaginatedParallelScanList<E>>({ future ->
+        vertx.executeBlocking<PaginatedParallelScanList<E>>({
             try {
                 val timeBefore = System.currentTimeMillis()
 
@@ -331,7 +335,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                     logger.debug("Results received in: " + (System.currentTimeMillis() - timeBefore) + " ms")
                 }
 
-                future.complete(items)
+                it.complete(items)
             } catch (ase: AmazonServiceException) {
                 logger.error("Could not complete DynamoDB Operation, " +
                         "Error Message:  " + ase.message + ", " +
@@ -340,31 +344,32 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                         "Error Type:     " + ase.errorType + ", " +
                         "Request ID:     " + ase.requestId)
 
-                future.fail(ase)
+                it.fail(ase)
             } catch (ace: AmazonClientException) {
                 logger.error("Internal Dynamodb Error, " + "Error Message:  " + ace.message)
 
-                future.fail(ace)
+                it.fail(ace)
             } catch (e: Exception) {
                 logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
 
-                future.fail(e)
+                it.fail(e)
             }
-        }, false, { readResult ->
-            if (readResult.failed()) {
-                logger.error("Error in readAllPaginated!", readResult.cause())
+        }, false, {
+            when {
+                it.failed() -> {
+                    logger.error("Error in readAllPaginated!", it.cause())
 
-                resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
-                        JsonObject(Json.encode(readResult.cause()))))
-            } else {
-                resultHandler.handle(Future.succeededFuture(readResult.result()))
+                    resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
+                            JsonObject(Json.encode(it.cause()))))
+                }
+                else -> resultHandler.handle(Future.succeededFuture(it.result()))
             }
         })
     }
 
     fun readAll(identifiers: JsonObject, filterParameterMap: Map<String, List<FilterParameter>>,
                 resultHandler: Handler<AsyncResult<List<E>>>) {
-        vertx.executeBlocking<List<E>>({ future ->
+        vertx.executeBlocking<List<E>>({
             try {
                 val identifier = identifiers.getString("hash")
                 val filterExpression = dbParams.applyParameters(null, filterParameterMap)
@@ -386,7 +391,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                     logger.debug("Results received in: " + (System.currentTimeMillis() - timeBefore) + " ms")
                 }
 
-                future.complete(items)
+                it.complete(items)
             } catch (ase: AmazonServiceException) {
                 logger.error("Could not complete DynamoDB Operation, " +
                         "Error Message:  " + ase.message + ", " +
@@ -395,24 +400,25 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                         "Error Type:     " + ase.errorType + ", " +
                         "Request ID:     " + ase.requestId)
 
-                future.fail(ase)
+                it.fail(ase)
             } catch (ace: AmazonClientException) {
                 logger.error("Internal Dynamodb Error, " + "Error Message:  " + ace.message)
 
-                future.fail(ace)
+                it.fail(ace)
             } catch (e: Exception) {
                 logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
 
-                future.fail(e)
+                it.fail(e)
             }
-        }, false, { readResult ->
-            if (readResult.failed()) {
-                logger.error("Error in Read All!", readResult.cause())
+        }, false, {
+            when {
+                it.failed() -> {
+                    logger.error("Error in Read All!", it.cause())
 
-                resultHandler.handle(ServiceException.fail(500, "Error in readAllWithoutPagination!",
-                        JsonObject(Json.encode(readResult.cause()))))
-            } else {
-                resultHandler.handle(Future.succeededFuture(readResult.result()))
+                    resultHandler.handle(ServiceException.fail(500, "Error in readAllWithoutPagination!",
+                            JsonObject(Json.encode(it.cause()))))
+                }
+                else -> resultHandler.handle(Future.succeededFuture(it.result()))
             }
         })
     }
@@ -441,53 +447,55 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
 
         vertx.executeBlocking<ItemList<E>>({ future ->
-            cacheManager.checkItemListCache(cacheId, projections, Handler { result ->
-                if (result.failed()) {
-                    future.fail(result.cause())
-                } else {
-                    future.complete(result.result())
+            cacheManager.checkItemListCache(cacheId, projections, Handler {
+                when {
+                    it.failed() -> future.fail(it.cause())
+                    else -> future.complete(it.result())
                 }
             })
-        }, false, { checkResult ->
-            if (checkResult.succeeded()) {
-                resultHandler.handle(Future.succeededFuture(ItemListResult(checkResult.result(), true)))
-
-                if (logger.isDebugEnabled) {
-                    logger.debug("Served cached version of: $cacheId")
-                }
-            } else {
-                val orderByQueue = queryPack.orderByQueue
-                val params = queryPack.params
-                val indexName = queryPack.indexName
-                val limit = queryPack.limit
-
-                if (logger.isDebugEnabled) {
-                    logger.debug("Building expression with: " + Json.encodePrettily(queryPack))
-                }
-
-                var filterExpression: DynamoDBQueryExpression<E>? = null
-                val multiple = identifiers.getBoolean(MULTIPLE_KEY)
-
-                if ((multiple == null || !multiple) && (orderByQueue != null || params != null)) {
-                    filterExpression = dbParams.applyParameters(orderByQueue?.peek(), params)
-                    filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName, filterExpression)
-                    filterExpression.limit = if (limit == null || limit == 0) 20 else limit
+        }, false, {
+            when {
+                it.succeeded() -> {
+                    resultHandler.handle(Future.succeededFuture(ItemListResult(it.result(), true)))
 
                     if (logger.isDebugEnabled) {
-                        logger.debug("Custom filter is: " +
-                                "\nIndex: " + filterExpression.indexName +
-                                "\nLimit: " + filterExpression.limit +
-                                " (" + (limit ?: 20) + ") " +
-                                "\nExpression: " + filterExpression.filterExpression +
-                                "\nRange Key Condition: " + filterExpression.rangeKeyConditions +
-                                "\nAsc: " + filterExpression.isScanIndexForward)
+                        logger.debug("Served cached version of: $cacheId")
                     }
                 }
+                else -> {
+                    val orderByQueue = queryPack.orderByQueue
+                    val params = queryPack.params
+                    val indexName = queryPack.indexName
+                    val limit = queryPack.limit
 
-                val etagKey = queryPack.baseEtagKey
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Building expression with: " + Json.encodePrettily(queryPack))
+                    }
 
-                returnDatabaseContent(queryPack, identifiers, pageToken, hash, etagKey!!, cacheId,
-                        filterExpression, projections, GSI, startTime, resultHandler)
+                    var filterExpression: DynamoDBQueryExpression<E>? = null
+                    val multiple = identifiers.getBoolean(MULTIPLE_KEY)
+
+                    if ((multiple == null || !multiple) && (orderByQueue != null || params != null)) {
+                        filterExpression = dbParams.applyParameters(orderByQueue?.peek(), params)
+                        filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName, filterExpression)
+                        filterExpression.limit = if (limit == null || limit == 0) 20 else limit
+
+                        if (logger.isDebugEnabled) {
+                            logger.debug("Custom filter is: " +
+                                    "\nIndex: " + filterExpression.indexName +
+                                    "\nLimit: " + filterExpression.limit +
+                                    " (" + (limit ?: 20) + ") " +
+                                    "\nExpression: " + filterExpression.filterExpression +
+                                    "\nRange Key Condition: " + filterExpression.rangeKeyConditions +
+                                    "\nAsc: " + filterExpression.isScanIndexForward)
+                        }
+                    }
+
+                    val etagKey = queryPack.baseEtagKey
+
+                    returnDatabaseContent(queryPack, identifiers, pageToken, hash, etagKey!!, cacheId,
+                            filterExpression, projections, GSI, startTime, resultHandler)
+                }
             }
         })
     }
@@ -514,68 +522,70 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                     alternateIndex = db.getAlternativeIndexIdentifier(filteringExpression.indexName)
                 }
 
-                if (identifiers.isEmpty || identifiers.getString("hash") == null) {
-                    runRootQuery(queryPack.baseEtagKey, multiple, identifiers, hash, queryPack, filteringExpression,
+                when {
+                    identifiers.isEmpty || identifiers.getString("hash") == null ->
+                        runRootQuery(queryPack.baseEtagKey, multiple, identifiers, hash, queryPack, filteringExpression,
                             GSI, projections, pageToken, unFilteredIndex, alternateIndex, startTime,
                             itemListFuture.completer())
-                } else if (params != null && nameParams != null && dbParams.isIllegalRangedKeyQueryParams(nameParams)) {
-                    runIllegalRangedKeyQueryAsScan(queryPack.baseEtagKey, hash, queryPack,
+                    params != null && nameParams != null && dbParams.isIllegalRangedKeyQueryParams(nameParams) ->
+                        runIllegalRangedKeyQueryAsScan(queryPack.baseEtagKey, hash, queryPack,
                             GSI, projections, pageToken, unFilteredIndex, alternateIndex, startTime,
                             itemListFuture.completer())
-                } else {
-                    runStandardQuery(queryPack.baseEtagKey, multiple, identifiers, hash, filteringExpression,
+                    else -> runStandardQuery(queryPack.baseEtagKey, multiple, identifiers, hash, filteringExpression,
                             GSI, projections, pageToken, unFilteredIndex, alternateIndex, startTime,
                             itemListFuture.completer())
                 }
 
                 itemListFuture.setHandler { itemListResult ->
-                    if (itemListResult.failed()) {
-                        it.fail(itemListResult.cause())
-                    } else {
-                        val returnList = itemListResult.result()
-                        val itemList = returnList.itemList
-
-                        if (logger.isDebugEnabled) {
-                            logger.debug("Constructed items!")
-                        }
-                        val itemListCacheFuture = Future.future<Boolean>()
-
-                        if (cacheManager.isItemListCacheAvailable) {
-                            if (logger.isDebugEnabled) {
-                                logger.debug("Constructing cache!")
-                            }
-
-                            val cacheObject = itemList?.toJson(projections)
+                    when {
+                        itemListResult.failed() -> it.fail(itemListResult.cause())
+                        else -> {
+                            val returnList = itemListResult.result()
+                            val itemList = returnList.itemList
 
                             if (logger.isDebugEnabled) {
-                                logger.debug("Cache complete!")
+                                logger.debug("Constructed items!")
                             }
+                            val itemListCacheFuture = Future.future<Boolean>()
 
-                            val content = cacheObject?.encode()
+                            when {
+                                cacheManager.isItemListCacheAvailable -> {
+                                    if (logger.isDebugEnabled) {
+                                        logger.debug("Constructing cache!")
+                                    }
 
-                            if (logger.isDebugEnabled) {
-                                logger.debug("Cache encoded!")
-                            }
+                                    val cacheObject = itemList?.toJson(projections)
 
-                            cacheManager.replaceItemListCache(content!!, Supplier { cacheId }, Handler {
-                                if (logger.isDebugEnabled) {
-                                    logger.debug("Setting: " + etagKey + " with: " + itemList.etag)
+                                    if (logger.isDebugEnabled) {
+                                        logger.debug("Cache complete!")
+                                    }
+
+                                    val content = cacheObject?.encode()
+
+                                    if (logger.isDebugEnabled) {
+                                        logger.debug("Cache encoded!")
+                                    }
+
+                                    cacheManager.replaceItemListCache(content!!, Supplier { cacheId }, Handler {
+                                        if (logger.isDebugEnabled) {
+                                            logger.debug("Setting: " + etagKey + " with: " + itemList.etag)
+                                        }
+
+                                        val etagItemListHashKey = TYPE.simpleName + "_" +
+                                                identifiers.encode().hashCode() + "_" + "itemListEtags"
+
+                                        when {
+                                            etagManager != null ->
+                                                etagManager.setItemListEtags(etagItemListHashKey, etagKey, itemList, itemListCacheFuture)
+                                            else -> itemListCacheFuture.complete()
+                                        }
+                                    })
                                 }
+                                else -> itemListCacheFuture.complete()
+                            }
 
-                                val etagItemListHashKey = TYPE.simpleName + "_" +
-                                        identifiers.encode().hashCode() + "_" + "itemListEtags"
-
-                                if (etagManager != null) {
-                                    etagManager.setItemListEtags(etagItemListHashKey, etagKey, itemList, itemListCacheFuture)
-                                } else {
-                                    itemListCacheFuture.complete()
-                                }
-                            })
-                        } else {
-                            itemListCacheFuture.complete()
+                            itemListCacheFuture.setHandler { _ -> it.complete(returnList) }
                         }
-
-                        itemListCacheFuture.setHandler { _ -> it.complete(returnList) }
                     }
                 }
             } catch (ase: AmazonServiceException) {
@@ -596,12 +606,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
                 it.fail(e)
             }
-        }, false, { readAllResult ->
-            if (readAllResult.failed()) {
-                resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
-                        JsonObject(Json.encode(readAllResult.cause()))))
-            } else {
-                resultHandler.handle(Future.succeededFuture(readAllResult.result()))
+        }, false, {
+            when {
+                it.failed() -> resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
+                        JsonObject(Json.encode(it.cause()))))
+                else -> resultHandler.handle(Future.succeededFuture(it.result()))
             }
         })
     }
@@ -611,11 +620,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                                  filteringExpression: DynamoDBQueryExpression<E>?, GSI: String?, projections: Array<String>,
                                  pageToken: String?, unFilteredIndex: Boolean, alternateIndex: String?,
                                  startTime: AtomicLong, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
-        if (multiple != null && multiple) {
-            standardMultipleQuery(baseEtagKey, identifiers, hash, filteringExpression, pageToken, GSI, unFilteredIndex,
+        when {
+            multiple != null && multiple ->
+                standardMultipleQuery(baseEtagKey, identifiers, hash, filteringExpression, pageToken, GSI, unFilteredIndex,
                     alternateIndex, projections, startTime, resultHandler)
-        } else {
-            standardQuery(baseEtagKey, identifiers, hash, filteringExpression, pageToken, GSI, unFilteredIndex,
+            else -> standardQuery(baseEtagKey, identifiers, hash, filteringExpression, pageToken, GSI, unFilteredIndex,
                     alternateIndex, projections, startTime, resultHandler)
         }
     }
@@ -744,27 +753,31 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
             logger.debug("Running standard query...")
         }
 
-        if (filteringExpression == null) {
-            queryExpression = DynamoDBQueryExpression()
-            queryExpression.indexName = GSI ?: paginationIndex
-            queryExpression.limit = 20
-            queryExpression.isScanIndexForward = false
-            queryExpression.setExclusiveStartKey(getTokenMap(pageToken, GSI, PAGINATION_IDENTIFIER))
-        } else {
-            queryExpression = filteringExpression
-            queryExpression.setExclusiveStartKey(getTokenMap(pageToken, GSI,
-                    alternateIndex ?: PAGINATION_IDENTIFIER))
+        when (filteringExpression) {
+            null -> {
+                queryExpression = DynamoDBQueryExpression()
+                queryExpression.indexName = GSI ?: paginationIndex
+                queryExpression.limit = 20
+                queryExpression.isScanIndexForward = false
+                queryExpression.setExclusiveStartKey(getTokenMap(pageToken, GSI, PAGINATION_IDENTIFIER))
+            }
+            else -> {
+                queryExpression = filteringExpression
+                queryExpression.setExclusiveStartKey(getTokenMap(pageToken, GSI,
+                        alternateIndex ?: PAGINATION_IDENTIFIER))
+            }
         }
 
-        if (GSI == null) {
-            if (queryExpression.keyConditionExpression == null) {
-                val keyItem = TYPE.newInstance()
-                keyItem.hash = hash
-                keyItem.range = null
-                queryExpression.hashKeyValues = keyItem
+        when (GSI) {
+            null -> when {
+                queryExpression.keyConditionExpression == null -> {
+                    val keyItem = TYPE.newInstance()
+                    keyItem.hash = hash
+                    keyItem.range = null
+                    queryExpression.hashKeyValues = keyItem
+                }
             }
-        } else {
-            if (queryExpression.keyConditionExpression == null && hash != null) {
+            else -> if (queryExpression.keyConditionExpression == null && hash != null) {
                 setFilterExpressionKeyCondition(queryExpression, GSI, hash)
             }
         }
@@ -804,22 +817,25 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         val pagingToken: String
         val lastEvaluatedKey: Map<String, AttributeValue>?
 
-        if (!unFilteredIndex) {
-            pageCount = queryPageResults.count!!
-            itemList = queryPageResults.results
-                    .subList(0, if (pageCount < desiredCount) pageCount else desiredCount)
-            count = if (pageCount < desiredCount) pageCount else desiredCount
+        when {
+            !unFilteredIndex -> {
+                pageCount = queryPageResults.count!!
+                itemList = queryPageResults.results
+                        .subList(0, if (pageCount < desiredCount) pageCount else desiredCount)
+                count = if (pageCount < desiredCount) pageCount else desiredCount
 
-            pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, false)
-        } else {
-            count = queryPageResults.count!!
-            itemList = queryPageResults.results
-            lastEvaluatedKey = queryPageResults.lastEvaluatedKey
-            pagingToken = if (lastEvaluatedKey == null)
-                "END_OF_LIST"
-            else
-                setPageToken(lastEvaluatedKey, GSI, true, alternateIndex)
+                pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, false)
+            }
+            else -> {
+                count = queryPageResults.count!!
+                itemList = queryPageResults.results
+                lastEvaluatedKey = queryPageResults.lastEvaluatedKey
+                pagingToken = if (lastEvaluatedKey == null)
+                    "END_OF_LIST"
+                else
+                    setPageToken(lastEvaluatedKey, GSI, true, alternateIndex)
 
+            }
         }
 
         returnTimedItemListResult(baseEtagKey, resultHandler, count, pagingToken, itemList, projections,
@@ -846,10 +862,9 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         if (hash != null) conditionString += " AND $hashScanKey = $hashScanValue"
         scanExpression.filterExpression = conditionString
 
-        if (GSI == null) {
-            scanExpression.expressionAttributeNames[hashScanKey] = HASH_IDENTIFIER
-        } else {
-            scanExpression.expressionAttributeNames[hashScanKey] = GSI_KEY_MAP[GSI]?.getString("hash")
+        when (GSI) {
+            null -> scanExpression.expressionAttributeNames[hashScanKey] = HASH_IDENTIFIER
+            else -> scanExpression.expressionAttributeNames[hashScanKey] = GSI_KEY_MAP[GSI]?.getString("hash")
         }
 
         scanExpression.expressionAttributeValues[hashScanValue] = AttributeValue().withS(hash)
@@ -924,11 +939,13 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                              GSI: String?, projections: Array<String>, pageToken: String?, unFilteredIndex: Boolean,
                              alternateIndex: String?, startTime: AtomicLong,
                              resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
-        if (multiple != null && multiple) {
-            rootMultipleQuery(baseEtagKey, identifiers, hash, filteringExpression, GSI, pageToken, projections,
+        when {
+            multiple != null && multiple ->
+                rootMultipleQuery(baseEtagKey, identifiers, hash, filteringExpression, GSI, pageToken, projections,
                     unFilteredIndex, alternateIndex, startTime, resultHandler)
-        } else {
-            rootRootQuery(baseEtagKey, queryPack, GSI, pageToken, projections, unFilteredIndex, alternateIndex, startTime, resultHandler)
+            else ->
+                rootRootQuery(baseEtagKey, queryPack, GSI, pageToken, projections, unFilteredIndex, alternateIndex,
+                        startTime, resultHandler)
         }
     }
 
@@ -1086,10 +1103,9 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         if (projections != null && projections.isNotEmpty()) {
             scanExpression.withSelect("SPECIFIC_ATTRIBUTES")
 
-            if (projections.size == 1) {
-                scanExpression.withProjectionExpression(projections[0])
-            } else {
-                scanExpression.withProjectionExpression(projections.joinToString(", "))
+            when {
+                projections.size == 1 -> scanExpression.withProjectionExpression(projections[0])
+                else -> scanExpression.withProjectionExpression(projections.joinToString(", "))
             }
         }
     }
@@ -1098,10 +1114,9 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         if (projections != null && projections.isNotEmpty()) {
             queryExpression.withSelect("SPECIFIC_ATTRIBUTES")
 
-            if (projections.size == 1) {
-                queryExpression.withProjectionExpression(projections[0])
-            } else {
-                queryExpression.withProjectionExpression(projections.joinToString(", "))
+            when {
+                projections.size == 1 -> queryExpression.withProjectionExpression(projections[0])
+                else -> queryExpression.withProjectionExpression(projections.joinToString(", "))
             }
         }
     }
@@ -1110,21 +1125,22 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                                  GSI: String?, alternateIndex: String?, unFilteredIndex: Boolean): String {
         val pagingToken: String
 
-        if (pageCount > desiredCount) {
-            val lastItem = itemList[if (itemList.isEmpty()) 0 else itemList.size - 1]
+        when {
+            pageCount > desiredCount -> {
+                val lastItem = itemList[if (itemList.isEmpty()) 0 else itemList.size - 1]
 
-            val lastEvaluatedKey = setLastKey(lastItem, GSI, alternateIndex)
-            @Suppress("SENSELESS_COMPARISON")
-            pagingToken = if (lastEvaluatedKey == null)
-                "END_OF_LIST"
-            else
-                setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex)
+                val lastEvaluatedKey = setLastKey(lastItem, GSI, alternateIndex)
+                @Suppress("SENSELESS_COMPARISON")
+                pagingToken = if (lastEvaluatedKey == null)
+                    "END_OF_LIST"
+                else
+                    setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex)
 
-            if (logger.isDebugEnabled) {
-                logger.debug("Constructed pagingtoken: $pagingToken")
+                if (logger.isDebugEnabled) {
+                    logger.debug("Constructed pagingtoken: $pagingToken")
+                }
             }
-        } else {
-            pagingToken = "END_OF_LIST"
+            else -> pagingToken = "END_OF_LIST"
         }
 
         return pagingToken
@@ -1133,26 +1149,28 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
     private fun reduceByPageToken(allItems: List<E>, id: String): List<E> {
         val first = allItems.stream()
                 .filter { item ->
-                    if (hashOnlyModel()) {
-                        if (logger.isDebugEnabled) {
-                            logger.debug("Id is: " + id + ", Hash is: " + item.hash)
-                        }
+                    when {
+                        hashOnlyModel() -> {
+                            if (logger.isDebugEnabled) {
+                                logger.debug("Id is: " + id + ", Hash is: " + item.hash)
+                            }
 
-                        item.hash!! == id
-                    } else {
-                        if (logger.isDebugEnabled) {
-                            logger.debug("Id is: " + id + ", Range is: " + item.range)
+                            item.hash!! == id
                         }
+                        else -> {
+                            if (logger.isDebugEnabled) {
+                                logger.debug("Id is: " + id + ", Range is: " + item.range)
+                            }
 
-                        item.range!! == id
+                            item.range!! == id
+                        }
                     }
                 }
                 .findFirst()
 
-        return if (first.isPresent) {
-            allItems.subList(allItems.indexOf(first.get()) + 1, allItems.size)
-        } else {
-            allItems
+        return when {
+            first.isPresent -> allItems.subList(allItems.indexOf(first.get()) + 1, allItems.size)
+            else -> allItems
         }
     }
 
@@ -1178,14 +1196,16 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         keyMap[HASH_IDENTIFIER] = AttributeValue().withS(lastKey.hash)
         if (!hashOnlyModel) keyMap[IDENTIFIER!!] = AttributeValue().withS(lastKey.range)
 
-        if (index == null && !hashOnlyModel) {
-            keyMap[PAGINATION_IDENTIFIER!!] = db.getIndexValue(PAGINATION_IDENTIFIER, lastKey)
-        } else if (!hashOnlyModel) {
-            if (logger.isDebugEnabled) {
-                logger.debug("Fetching remoteIndex value!")
-            }
+        when {
+            index == null && !hashOnlyModel ->
+                keyMap[PAGINATION_IDENTIFIER!!] = db.getIndexValue(PAGINATION_IDENTIFIER, lastKey)
+            !hashOnlyModel -> {
+                if (logger.isDebugEnabled) {
+                    logger.debug("Fetching remoteIndex value!")
+                }
 
-            keyMap[index!!] = db.getIndexValue(index, lastKey)
+                keyMap[index!!] = db.getIndexValue(index, lastKey)
+            }
         }
 
         if (GSI != null) {
@@ -1206,7 +1226,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
     fun readAllWithoutPagination(identifier: String,
                                  resultHandler: Handler<AsyncResult<List<E>>>) {
-        vertx.executeBlocking<List<E>>({ future ->
+        vertx.executeBlocking<List<E>>({
             try {
                 val queryExpression = DynamoDBQueryExpression<E>()
                 val keyItem = TYPE.newInstance()
@@ -1228,7 +1248,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                             (System.currentTimeMillis() - timeBefore) + " ms")
                 }
 
-                future.complete(items)
+                it.complete(items)
             } catch (ase: AmazonServiceException) {
                 logger.error("Could not complete DynamoDB Operation, " +
                         "Error Message:  " + ase.message + ", " +
@@ -1237,24 +1257,25 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                         "Error Type:     " + ase.errorType + ", " +
                         "Request ID:     " + ase.requestId)
 
-                future.fail(ase)
+                it.fail(ase)
             } catch (ace: AmazonClientException) {
                 logger.error("Internal Dynamodb Error, " + "Error Message:  " + ace.message)
 
-                future.fail(ace)
+                it.fail(ace)
             } catch (e: Exception) {
                 logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
 
-                future.fail(e)
+                it.fail(e)
             }
-        }, false, { readResult ->
-            if (readResult.failed()) {
-                logger.error("Error in readAllWithoutPagination!", readResult.cause())
+        }, false, {
+            when {
+                it.failed() -> {
+                    logger.error("Error in readAllWithoutPagination!", it.cause())
 
-                resultHandler.handle(ServiceException.fail(500, "Error in readAllWithoutPagination!",
-                        JsonObject(Json.encode(readResult.cause()))))
-            } else {
-                resultHandler.handle(Future.succeededFuture(readResult.result()))
+                    resultHandler.handle(ServiceException.fail(500, "Error in readAllWithoutPagination!",
+                            JsonObject(Json.encode(it.cause()))))
+                }
+                else -> resultHandler.handle(Future.succeededFuture(it.result()))
             }
         })
     }
@@ -1279,7 +1300,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
             logger.debug("Running aggregation non pagination scan!")
         }
 
-        vertx.executeBlocking<List<E>>({ future ->
+        vertx.executeBlocking<List<E>>({
             try {
                 var scanExpression = DynamoDBScanExpression()
                 if (finalParams != null) scanExpression = dbParams.applyParameters(finalParams)
@@ -1303,7 +1324,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                             (System.currentTimeMillis() - timeBefore) + " ms")
                 }
 
-                future.complete(items)
+                it.complete(items)
             } catch (ase: AmazonServiceException) {
                 logger.error("Could not complete DynamoDB Operation, " +
                         "Error Message:  " + ase.message + ", " +
@@ -1312,24 +1333,25 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                         "Error Type:     " + ase.errorType + ", " +
                         "Request ID:     " + ase.requestId)
 
-                future.fail(ase)
+                it.fail(ase)
             } catch (ace: AmazonClientException) {
                 logger.error("Internal Dynamodb Error, " + "Error Message:  " + ace.message)
 
-                future.fail(ace)
+                it.fail(ace)
             } catch (e: Exception) {
                 logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
 
-                future.fail(e)
+                it.fail(e)
             }
-        }, false, { readResult ->
-            if (readResult.failed()) {
-                logger.error("Error in readAllWithoutPagination!", readResult.cause())
+        }, false, {
+            when {
+                it.failed() -> {
+                    logger.error("Error in readAllWithoutPagination!", it.cause())
 
-                resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
-                        JsonObject(Json.encode(readResult.cause()))))
-            } else {
-                resultHandler.handle(Future.succeededFuture(readResult.result()))
+                    resultHandler.handle(ServiceException.fail(500, "Error in readAll!",
+                            JsonObject(Json.encode(it.cause()))))
+                }
+                else -> resultHandler.handle(Future.succeededFuture(it.result()))
             }
         })
     }
@@ -1341,7 +1363,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
     fun readAllWithoutPagination(identifier: String, queryPack: QueryPack, projections: Array<String>?,
                                  GSI: String?, resultHandler: Handler<AsyncResult<List<E>>>) {
-        vertx.executeBlocking<List<E>>({ future ->
+        vertx.executeBlocking<List<E>>({
             try {
                 if (logger.isDebugEnabled) {
                     logger.debug("Running aggregation non pagination query with id: $identifier")
@@ -1357,30 +1379,34 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
                 var filterExpression: DynamoDBQueryExpression<E>
 
-                if (params != null) {
-                    filterExpression = dbParams.applyParameters(
-                            if (projections == null && orderByQueue != null) orderByQueue.peek() else null,
-                            params)
-                    if (projections == null) {
-                        filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName, filterExpression)
+                when {
+                    params != null -> {
+                        filterExpression = dbParams.applyParameters(
+                                if (projections == null && orderByQueue != null) orderByQueue.peek() else null,
+                                params)
+                        if (projections == null) {
+                            filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName, filterExpression)
+                        }
                     }
-                } else {
-                    filterExpression = DynamoDBQueryExpression()
+                    else -> filterExpression = DynamoDBQueryExpression()
                 }
 
-                if (GSI == null) {
-                    if (filterExpression.keyConditionExpression == null) {
-                        val keyItem = TYPE.newInstance()
-                        keyItem.hash = identifier
-                        filterExpression.hashKeyValues = keyItem
+                when (GSI) {
+                    null -> {
+                        if (filterExpression.keyConditionExpression == null) {
+                            val keyItem = TYPE.newInstance()
+                            keyItem.hash = identifier
+                            filterExpression.hashKeyValues = keyItem
+                        }
+
+                        filterExpression.setConsistentRead(true)
                     }
+                    else -> {
+                        filterExpression.indexName = GSI
 
-                    filterExpression.setConsistentRead(true)
-                } else {
-                    filterExpression.indexName = GSI
-
-                    if (filterExpression.keyConditionExpression == null) {
-                        setFilterExpressionKeyCondition(filterExpression, GSI, identifier)
+                        if (filterExpression.keyConditionExpression == null) {
+                            setFilterExpressionKeyCondition(filterExpression, GSI, identifier)
+                        }
                     }
                 }
 
@@ -1400,7 +1426,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                             " results received in: " + (System.currentTimeMillis() - timeBefore) + " ms")
                 }
 
-                future.complete(items)
+                it.complete(items)
             } catch (ase: AmazonServiceException) {
                 logger.error("Could not complete DynamoDB Operation, " +
                         "Error Message:  " + ase.message + ", " +
@@ -1409,24 +1435,25 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                         "Error Type:     " + ase.errorType + ", " +
                         "Request ID:     " + ase.requestId)
 
-                future.fail(ase)
+                it.fail(ase)
             } catch (ace: AmazonClientException) {
                 logger.error("Internal Dynamodb Error, " + "Error Message:  " + ace.message)
 
-                future.fail(ace)
+                it.fail(ace)
             } catch (e: Exception) {
                 logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
 
-                future.fail(e)
+                it.fail(e)
             }
-        }, false, { readResult ->
-            if (readResult.failed()) {
-                logger.error("Error in readAllWithoutPagination!", readResult.cause())
+        }, false, {
+            when {
+                it.failed() -> {
+                    logger.error("Error in readAllWithoutPagination!", it.cause())
 
-                resultHandler.handle(ServiceException.fail(500, "Error in readAllWithoutPagination!",
-                        JsonObject(Json.encode(readResult.cause()))))
-            } else {
-                resultHandler.handle(Future.succeededFuture(readResult.result()))
+                    resultHandler.handle(ServiceException.fail(500, "Error in readAllWithoutPagination!",
+                            JsonObject(Json.encode(it.cause()))))
+                }
+                else -> resultHandler.handle(Future.succeededFuture(it.result()))
             }
         })
     }

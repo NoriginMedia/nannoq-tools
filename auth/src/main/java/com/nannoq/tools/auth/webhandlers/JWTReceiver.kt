@@ -56,11 +56,9 @@ class JWTReceiver @JvmOverloads constructor(private val verifier: VerificationSe
     private val AUTHORIZATION_TYPE_HEADER: String
 
     init {
-
-        if (AUTHORIZATION_TYPE_HEADER == null) {
-            this.AUTHORIZATION_TYPE_HEADER = "X-Authorization-Type"
-        } else {
-            this.AUTHORIZATION_TYPE_HEADER = AUTHORIZATION_TYPE_HEADER
+        when (AUTHORIZATION_TYPE_HEADER) {
+            null -> this.AUTHORIZATION_TYPE_HEADER = "X-Authorization-Type"
+            else -> this.AUTHORIZATION_TYPE_HEADER = AUTHORIZATION_TYPE_HEADER
         }
     }
 
@@ -82,37 +80,32 @@ class JWTReceiver @JvmOverloads constructor(private val verifier: VerificationSe
         val idFuture = Future.future<VerifyResult>()
         val authorization = routingContext.request().getHeader(AUTHORIZATION_TYPE_HEADER)
 
-        logger.info("Incoming Auth Json Base64 is: " + authorization!!)
+        logger.info("Incoming Auth Json Base64 is: $authorization")
 
         try {
-            val authorizationPOJO: Authorization
+            val authorizationPOJO = when (authorization) {
+                null -> Authorization.global()
+                else -> {
+                    val json = String(Base64.getDecoder().decode(authorization))
 
-            @Suppress("SENSELESS_COMPARISON")
-            if (authorization == null) {
-                authorizationPOJO = Authorization.global()
-            } else {
-                val json = String(Base64.getDecoder().decode(authorization))
+                    logger.info("Incoming Auth Json is: $json")
 
-                logger.info("Incoming Auth Json is: $json")
-
-                authorizationPOJO = Json.decodeValue<Authorization>(json, Authorization::class.java)
+                    Json.decodeValue<Authorization>(json, Authorization::class.java)
+                }
             }
 
-            if (authorizationPOJO.domainIdentifier == VALIDATION_REQUEST) {
-                idFuture.complete(VerifyResult(claims.body.subject))
-            } else {
-                try {
+            when (VALIDATION_REQUEST) {
+                authorizationPOJO.domainIdentifier -> idFuture.complete(VerifyResult(claims.body.subject))
+                else -> try {
                     checkAuthorization(authorizationPOJO, claims, Handler {
-                        if (it.failed()) {
-                            idFuture.fail(SecurityException("You are not authorized for this action!"))
-                        } else {
-                            idFuture.complete(VerifyResult(claims.body.subject))
+                        when {
+                            it.failed() -> idFuture.fail(SecurityException("You are not authorized for this action!"))
+                            else -> idFuture.complete(VerifyResult(claims.body.subject))
                         }
                     })
                 } catch (e: IllegalAccessException) {
                     idFuture.fail(e)
                 }
-
             }
         } catch (e: DecodeException) {
             idFuture.fail(SecurityException("You are not authorized for this action, illegal AuthTypeToken!"))
@@ -134,23 +127,23 @@ class JWTReceiver @JvmOverloads constructor(private val verifier: VerificationSe
         }
 
         getToken(routingContext).compose({ token ->
-            revokeToken(token).compose(Handler { success.accept(it) },
-                    authFail<Any>(routingContext))
+            revokeToken(token).compose(Handler {
+                success.accept(it)
+            }, authFail<Any>(routingContext))
         }, authFail<Any>(routingContext))
     }
 
     private fun revokeToken(token: String): Future<Void> {
         val revokeFuture = Future.future<Void>()
 
-        verifier.revokeToken(token, Handler { revokeResult ->
-            if (revokeResult.failed()) {
-                if (revokeResult.cause() is ServiceException) {
-                    revokeFuture.fail(revokeResult.cause())
-                } else {
-                    revokeFuture.fail(SecurityException("Unable to revoke token..."))
-                }
-            } else {
-                revokeFuture.complete()
+        verifier.revokeToken(token, { revokeResult ->
+            when {
+                revokeResult.failed() ->
+                    when {
+                        revokeResult.cause() is ServiceException -> revokeFuture.fail(revokeResult.cause())
+                        else -> revokeFuture.fail(SecurityException("Unable to revoke token..."))
+                    }
+                else -> revokeFuture.complete()
             }
         })
 
@@ -158,6 +151,6 @@ class JWTReceiver @JvmOverloads constructor(private val verifier: VerificationSe
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(JWTReceiver::class.java!!.getSimpleName())
+        private val logger = LoggerFactory.getLogger(JWTReceiver::class.java!!.simpleName)
     }
 }

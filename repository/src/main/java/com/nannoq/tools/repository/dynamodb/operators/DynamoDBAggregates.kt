@@ -93,18 +93,17 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
 
     private fun doIdentifierBasedQuery(identifiers: JsonObject, queryPack: QueryPack, GSI: String??,
                                        res: Handler<AsyncResult<List<E>>>, projs: Array<Array<String>>) {
-        if (identifiers.isEmpty) {
-            if (GSI != null) {
-                db.readAllWithoutPagination(queryPack, addIdentifiers(projs[0]), GSI, res)
-            } else {
-                db.readAllWithoutPagination(queryPack, addIdentifiers(projs[0]), res)
-            }
-        } else {
-            if (GSI != null) {
-                db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, addIdentifiers(projs[0]), GSI, res)
-            } else {
-                db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, addIdentifiers(projs[0]), res)
-            }
+        when {
+            identifiers.isEmpty ->
+                when {
+                    GSI != null -> db.readAllWithoutPagination(queryPack, addIdentifiers(projs[0]), GSI, res)
+                    else -> db.readAllWithoutPagination(queryPack, addIdentifiers(projs[0]), res)
+                }
+            else ->
+                when {
+                    GSI != null -> db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, addIdentifiers(projs[0]), GSI, res)
+                    else -> db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, addIdentifiers(projs[0]), res)
+                }
         }
     }
 
@@ -155,15 +154,15 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         val result = ArrayList<E>()
         val min = ArrayList<E>()
 
-        records.forEach { r ->
-            if (min.isEmpty() || db.extractValueAsDouble(db.checkAndGetField(field), r) <
+        records.forEach {
+            if (min.isEmpty() || db.extractValueAsDouble(db.checkAndGetField(field), it) <
                     db.extractValueAsDouble(db.checkAndGetField(field), min[0])) {
-                min.add(r)
+                min.add(it)
                 result.clear()
-                result.add(r)
-            } else if (min.isNotEmpty() && db.extractValueAsDouble(db.checkAndGetField(field), r)
+                result.add(it)
+            } else if (min.isNotEmpty() && db.extractValueAsDouble(db.checkAndGetField(field), it)
                             .compareTo(db.extractValueAsDouble(db.checkAndGetField(field), min[0])) == 0) {
-                result.add(r)
+                result.add(it)
             }
         }
 
@@ -185,57 +184,63 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         val groupingParam = queryPack.aggregateFunction!!.groupBy
 
         cacheManager.checkAggregationCache(cacheKey, Handler { cacheRes ->
-            if (cacheRes.failed()) {
-                val res = Handler<AsyncResult<List<E>>> { allResult ->
-                    if (allResult.failed()) {
-                        resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
-                    } else {
-                        val records = allResult.result()
+            when {
+                cacheRes.failed() -> {
+                    val res = Handler<AsyncResult<List<E>>> { allResult ->
+                        when {
+                            allResult.failed() -> resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
+                            else -> {
+                                val records = allResult.result()
 
-                        if (records.isEmpty()) {
-                            setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey,
-                                    JsonObject().put("error", "Empty table!").encode(), resultHandler)
-                        } else {
-                            if (queryPack.aggregateFunction!!.hasGrouping()) {
-                                val maxItems = getAllItemsWithHighestValue(allResult.result(), field!!)
-                                val aggregatedItems = calculateGroupings(aggregateFunction, maxItems)
+                                when {
+                                    records.isEmpty() ->
+                                        setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey,
+                                                JsonObject().put("error", "Empty table!").encode(), resultHandler)
+                                    else ->
+                                        when {
+                                            queryPack.aggregateFunction!!.hasGrouping() -> {
+                                                val maxItems = getAllItemsWithHighestValue(allResult.result(), field!!)
+                                                val aggregatedItems = calculateGroupings(aggregateFunction, maxItems)
 
-                                setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, aggregatedItems.encode(), resultHandler)
-                            } else {
-                                val items = JsonArray()
-                                valueExtractor.apply(records, field!!).stream()
-                                        .map { o -> o.toJsonFormat() }
-                                        .forEach({ items.add(it) })
+                                                setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, aggregatedItems.encode(), resultHandler)
+                                            }
+                                            else -> {
+                                                val items = JsonArray()
+                                                valueExtractor.apply(records, field!!).stream()
+                                                        .map { o -> o.toJsonFormat() }
+                                                        .forEach({ items.add(it) })
 
-                                setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, items.encode(), resultHandler)
+                                                setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, items.encode(), resultHandler)
+                                            }
+                                        }
+                                }
                             }
                         }
                     }
-                }
 
-                val projs = if (projections == null) arrayOf(emptyArray()) else arrayOf(projections)
-                val finalProjections = projections ?: arrayOf()
+                    val projs = if (projections == null) arrayOf(emptyArray()) else arrayOf(projections)
+                    val finalProjections = projections ?: arrayOf()
 
-                calculateGroupingPageToken(groupingParam, projs, finalProjections)
+                    calculateGroupingPageToken(groupingParam, projs, finalProjections)
 
-                val finalProjections2 = if (projs.isEmpty()) arrayOf() else projs[0]
+                    val finalProjections2 = if (projs.isEmpty()) arrayOf() else projs[0]
 
-                if (field != null) {
-                    if (Arrays.stream(finalProjections2).noneMatch { p -> p.equals(field, ignoreCase = true) }) {
-                        val newProjectionArray = arrayOfNulls<String>(finalProjections2.size + 1)
-                        IntStream.range(0, finalProjections2.size).forEach { i -> newProjectionArray[i] = finalProjections2[i] }
-                        newProjectionArray[finalProjections2.size] = field
-                        projs[0] = newProjectionArray.requireNoNulls()
+                    if (field != null) {
+                        if (Arrays.stream(finalProjections2).noneMatch { p -> p.equals(field, ignoreCase = true) }) {
+                            val newProjectionArray = arrayOfNulls<String>(finalProjections2.size + 1)
+                            IntStream.range(0, finalProjections2.size).forEach { i -> newProjectionArray[i] = finalProjections2[i] }
+                            newProjectionArray[finalProjections2.size] = field
+                            projs[0] = newProjectionArray.requireNoNulls()
+                        }
                     }
-                }
 
-                if (logger.isDebugEnabled) {
-                    logger.debug("Projections: " + Arrays.toString(projs[0]))
-                }
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Projections: " + Arrays.toString(projs[0]))
+                    }
 
-                doIdentifierBasedQuery(identifiers, queryPack, GSI, res, projs)
-            } else {
-                resultHandler.handle(Future.succeededFuture(cacheRes.result()))
+                    doIdentifierBasedQuery(identifiers, queryPack, GSI, res, projs)
+                }
+                else -> resultHandler.handle(Future.succeededFuture(cacheRes.result()))
             }
         })
     }
@@ -276,15 +281,16 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         val result = ArrayList<E>()
         val max = ArrayList<E>()
 
-        records.forEach { r ->
-            if (max.isEmpty() || db.extractValueAsDouble(db.checkAndGetField(field), r) >
-                    db.extractValueAsDouble(db.checkAndGetField(field), max[0])) {
-                max.add(r)
-                result.clear()
-                result.add(r)
-            } else if (max.isNotEmpty() && db.extractValueAsDouble(db.checkAndGetField(field), r)
-                            .compareTo(db.extractValueAsDouble(db.checkAndGetField(field), max[0])) == 0) {
-                result.add(r)
+        records.forEach {
+            when {
+                max.isEmpty() || db.extractValueAsDouble(db.checkAndGetField(field), it) >
+                        db.extractValueAsDouble(db.checkAndGetField(field), max[0]) -> {
+                    max.add(it)
+                    result.clear()
+                    result.add(it)
+                }
+                max.isNotEmpty() && db.extractValueAsDouble(db.checkAndGetField(field), it)
+                        .compareTo(db.extractValueAsDouble(db.checkAndGetField(field), max[0])) == 0 -> result.add(it)
             }
         }
 
@@ -305,48 +311,54 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         val groupingParam = queryPack.aggregateFunction!!.groupBy
 
         cacheManager.checkAggregationCache(cacheKey, Handler { cacheRes ->
-            if (cacheRes.failed()) {
-                val res = Handler<AsyncResult<List<E>>> { allResult ->
-                    if (allResult.failed()) {
-                        resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
-                    } else {
-                        val records = allResult.result()
+            when {
+                cacheRes.failed() -> {
+                    val res = Handler<AsyncResult<List<E>>> { allResult ->
+                        when {
+                            allResult.failed() -> resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
+                            else -> {
+                                val records = allResult.result()
 
-                        if (records.isEmpty()) {
-                            setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey,
-                                    JsonObject().put("error", "Empty table!").encode(), resultHandler)
-                        } else {
-                            val avg: JsonObject
+                                when {
+                                    records.isEmpty() ->
+                                        setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey,
+                                                JsonObject().put("error", "Empty table!").encode(), resultHandler)
+                                    else -> {
+                                        val avg: JsonObject
 
-                            if (queryPack.aggregateFunction!!.hasGrouping()) {
-                                avg = avgGrouping(allResult.result(), aggregateFunction, field)
-                            } else {
-                                avg = JsonObject()
+                                        when {
+                                            queryPack.aggregateFunction!!.hasGrouping() ->
+                                                avg = avgGrouping(allResult.result(), aggregateFunction, field)
+                                            else -> {
+                                                avg = JsonObject()
 
-                                records.stream()
-                                        .mapToDouble({ r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) })
-                                        .filter({ Objects.nonNull(it) })
-                                        .average()
-                                        .ifPresent({ value -> avg.put("avg", value) })
+                                                records.stream()
+                                                        .mapToDouble({ r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) })
+                                                        .filter({ Objects.nonNull(it) })
+                                                        .average()
+                                                        .ifPresent({ value -> avg.put("avg", value) })
 
-                                if (avg.size() == 0) {
-                                    avg.put("avg", 0.0)
+                                                if (avg.size() == 0) {
+                                                    avg.put("avg", 0.0)
+                                                }
+                                            }
+                                        }
+
+                                        setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, avg.encode(), resultHandler)
+                                    }
                                 }
                             }
-
-                            setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, avg.encode(), resultHandler)
                         }
                     }
+
+                    val projections = arrayOf(arrayOf(field).requireNoNulls())
+                    val finalProjections = projections[0]
+
+                    calculateGroupingPageToken(groupingParam, projections, finalProjections)
+
+                    doIdentifierBasedQueryNoIdentifierAddition(identifiers, queryPack, GSI, res, projections)
                 }
-
-                val projections = arrayOf(arrayOf(field).requireNoNulls())
-                val finalProjections = projections[0]
-
-                calculateGroupingPageToken(groupingParam, projections, finalProjections)
-
-                doIdentifierBasedQueryNoIdentifierAddition(identifiers, queryPack, GSI, res, projections)
-            } else {
-                resultHandler.handle(Future.succeededFuture(cacheRes.result()))
+                else -> resultHandler.handle(Future.succeededFuture(cacheRes.result()))
             }
         })
     }
@@ -398,18 +410,17 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
 
     private fun doIdentifierBasedQueryNoIdentifierAddition(identifiers: JsonObject, queryPack: QueryPack, GSI: String?,
                                                            res: Handler<AsyncResult<List<E>>>, projections: Array<Array<String>>) {
-        if (identifiers.isEmpty) {
-            if (GSI != null) {
-                db.readAllWithoutPagination(queryPack, projections[0], GSI, res)
-            } else {
-                db.readAllWithoutPagination(queryPack, projections[0], res)
-            }
-        } else {
-            if (GSI != null) {
-                db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, projections[0], GSI, res)
-            } else {
-                db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, projections[0], res)
-            }
+        when {
+            identifiers.isEmpty ->
+                when {
+                    GSI != null -> db.readAllWithoutPagination(queryPack, projections[0], GSI, res)
+                    else -> db.readAllWithoutPagination(queryPack, projections[0], res)
+                }
+            else ->
+                when {
+                    GSI != null -> db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, projections[0], GSI, res)
+                    else -> db.readAllWithoutPagination(identifiers.getString("hash"), queryPack, projections[0], res)
+                }
         }
     }
 
@@ -427,40 +438,46 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         val groupingParam = queryPack.aggregateFunction!!.groupBy
 
         cacheManager.checkAggregationCache(cacheKey, Handler { cacheRes ->
-            if (cacheRes.failed()) {
-                val res = Handler<AsyncResult<List<E>>> { allResult ->
-                    if (allResult.failed()) {
-                        logger.error("Read all failed!", allResult.cause())
+            when {
+                cacheRes.failed() -> {
+                    val res = Handler<AsyncResult<List<E>>> { allResult ->
+                        when {
+                            allResult.failed() -> {
+                                logger.error("Read all failed!", allResult.cause())
 
-                        resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
-                    } else {
-                        val records = allResult.result()
+                                resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
+                            }
+                            else -> {
+                                val records = allResult.result()
 
-                        if (records.isEmpty()) {
-                            setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey,
-                                    JsonObject().put("error", "Empty table!").encode(), resultHandler)
-                        } else {
-                            val sum = if (aggregateFunction.hasGrouping())
-                                sumGrouping(allResult.result(), aggregateFunction, field)
-                            else
-                                JsonObject().put("sum", records.stream()
-                                        .mapToDouble({ r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) })
-                                        .filter({ Objects.nonNull(it) })
-                                        .sum())
+                                when {
+                                    records.isEmpty() ->
+                                        setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey,
+                                                JsonObject().put("error", "Empty table!").encode(), resultHandler)
+                                    else -> {
+                                        val sum = if (aggregateFunction.hasGrouping())
+                                            sumGrouping(allResult.result(), aggregateFunction, field)
+                                        else
+                                            JsonObject().put("sum", records.stream()
+                                                    .mapToDouble({ r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) })
+                                                    .filter({ Objects.nonNull(it) })
+                                                    .sum())
 
-                            setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, sum.encode(), resultHandler)
+                                        setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, sum.encode(), resultHandler)
+                                    }
+                                }
+                            }
                         }
                     }
+
+                    val projections = arrayOf(arrayOf(field).requireNoNulls())
+                    val finalProjections = projections[0]
+
+                    calculateGroupingPageToken(groupingParam, projections, finalProjections)
+
+                    doIdentifierBasedQueryNoIdentifierAddition(identifiers, queryPack, GSI, res, projections)
                 }
-
-                val projections = arrayOf(arrayOf(field).requireNoNulls())
-                val finalProjections = projections[0]
-
-                calculateGroupingPageToken(groupingParam, projections, finalProjections)
-
-                doIdentifierBasedQueryNoIdentifierAddition(identifiers, queryPack, GSI, res, projections)
-            } else {
-                resultHandler.handle(Future.succeededFuture(cacheRes.result()))
+                else -> resultHandler.handle(Future.succeededFuture(cacheRes.result()))
             }
         })
     }
@@ -513,34 +530,36 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 newEtagKeyPostfix + queryPack.aggregateFunction!!.groupBy!!.hashCode()
 
         cacheManager.checkAggregationCache(cacheKey, Handler { cacheRes ->
-            if (cacheRes.failed()) {
-                val aggregateFunction = queryPack.aggregateFunction
+            when {
+                cacheRes.failed() -> {
+                    val aggregateFunction = queryPack.aggregateFunction
 
-                val res = Handler<AsyncResult<List<E>>> {
-                    if (it.failed()) {
-                        resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
-                    } else {
-                        val count = if (aggregateFunction!!.hasGrouping())
-                            countGrouping(it.result(), aggregateFunction)
-                        else
-                            JsonObject().put("count", it.result().size)
+                    val res = Handler<AsyncResult<List<E>>> {
+                        when {
+                            it.failed() -> resultHandler.handle(Future.failedFuture("Could not remoteRead all records..."))
+                            else -> {
+                                val count = if (aggregateFunction!!.hasGrouping())
+                                    countGrouping(it.result(), aggregateFunction)
+                                else
+                                    JsonObject().put("count", it.result().size)
 
-                        setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, count.encode(), resultHandler)
+                                setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, count.encode(), resultHandler)
+                            }
+                        }
                     }
+
+                    val projections = if (!aggregateFunction!!.hasGrouping())
+                        arrayOf("etag")
+                    else
+                        aggregateFunction.groupBy!!
+                                .map({ it.groupBy })
+                                .distinct()
+                                .toTypedArray()
+                                .requireNoNulls()
+
+                    doIdentifierBasedQueryNoIdentifierAddition(identifiers, queryPack, GSI, res, projections)
                 }
-
-                val projections = if (!aggregateFunction!!.hasGrouping())
-                    arrayOf("etag")
-                else
-                    aggregateFunction.groupBy!!
-                            .map({ it.groupBy })
-                            .distinct()
-                            .toTypedArray()
-                            .requireNoNulls()
-
-                doIdentifierBasedQueryNoIdentifierAddition(identifiers, queryPack, GSI, res, projections)
-            } else {
-                resultHandler.handle(Future.succeededFuture(cacheRes.result()))
+                else -> resultHandler.handle(Future.succeededFuture(cacheRes.result()))
             }
         })
     }
@@ -595,96 +614,96 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         }
 
         @Suppress("SENSELESS_COMPARISON")
-        if (collect != null) {
-            val totalGroupCount = collect.size
-            val levelOneStream: Map<String, *> = if (levelOne.hasGroupRanging()) {
-                doRangedSorting(collect, levelOne)
-            } else {
-                doNormalSorting(collect, levelOne)
-            }
-
-            if (levelTwo == null) {
-                return if (levelOne.hasGroupRanging()) {
-                    doRangedGrouping(funcName, levelOneStream, levelOne, totalGroupCount)
-                } else {
-                    doNormalGrouping(funcName, levelOneStream, totalGroupCount)
+        when {
+            collect != null -> {
+                val totalGroupCount = collect.size
+                val levelOneStream: Map<String, *> = when {
+                    levelOne.hasGroupRanging() -> doRangedSorting(collect, levelOne)
+                    else -> doNormalSorting(collect, levelOne)
                 }
-            } else {
-                val levelTwoStream = levelOneStream.entries.stream().map { e ->
-                    val entry = e as Map.Entry<String, *>
-                    val superGroupedItems = entry.value as Map<String, *>
-                    val totalSubGroupCount = superGroupedItems.size
 
-                    if (levelThree == null) {
+                when (levelTwo) {
+                    null -> return when {
+                        levelOne.hasGroupRanging() -> doRangedGrouping(funcName, levelOneStream, levelOne, totalGroupCount)
+                        else -> doNormalGrouping(funcName, levelOneStream, totalGroupCount)
+                    }
+                    else -> {
+                        val levelTwoStream = levelOneStream.entries.stream().map { e ->
+                            val entry = e as Map.Entry<String, *>
+                            val superGroupedItems = entry.value as Map<String, *>
+                            val totalSubGroupCount = superGroupedItems.size
 
-                        if (levelTwo.hasGroupRanging()) {
-                            SimpleEntry(entry.key, doRangedGrouping(funcName,
-                                    doRangedSorting(superGroupedItems, levelTwo),
-                                    levelTwo, totalSubGroupCount))
-                        } else {
-                            SimpleEntry(entry.key,
-                                    doNormalGrouping(funcName,
-                                    doNormalSorting(superGroupedItems, levelTwo),
-                                            totalSubGroupCount))
-                        }
-                    } else {
-                        val levelTwoMap: Map<*, *> = if (levelTwo.hasGroupRanging()) {
-                            doRangedSorting(superGroupedItems, levelTwo)
-                        } else {
-                            doNormalSorting(superGroupedItems, levelTwo)
-                        }
+                            when (levelThree) {
+                                null -> when {
+                                    levelTwo.hasGroupRanging() ->
+                                        SimpleEntry(entry.key, doRangedGrouping(funcName,
+                                            doRangedSorting(superGroupedItems, levelTwo),
+                                            levelTwo, totalSubGroupCount))
+                                    else ->
+                                        SimpleEntry(entry.key,
+                                            doNormalGrouping(funcName,
+                                                    doNormalSorting(superGroupedItems, levelTwo),
+                                                    totalSubGroupCount))
+                                }
+                                else -> {
+                                    val levelTwoMap: Map<*, *> = when {
+                                        levelTwo.hasGroupRanging() -> doRangedSorting(superGroupedItems, levelTwo)
+                                        else -> doNormalSorting(superGroupedItems, levelTwo)
+                                    }
 
-                        val levelThreeStream = levelTwoMap.entries.stream().map { subE ->
-                            val subEntry = subE as Map.Entry<String, *>
-                            val subSuperGroupedItems = subEntry.value as Map<String, *>
+                                    val levelThreeStream = levelTwoMap.entries.stream().map { subE ->
+                                        val subEntry = subE as Map.Entry<String, *>
+                                        val subSuperGroupedItems = subEntry.value as Map<String, *>
 
-                            val totalSubSuperGroupCount = subSuperGroupedItems.size
+                                        val totalSubSuperGroupCount = subSuperGroupedItems.size
 
-                            if (levelThree.hasGroupRanging()) {
-                                SimpleEntry(subEntry.key,
-                                        doRangedGrouping(funcName, doRangedSorting(
-                                        subSuperGroupedItems, levelThree), levelThree, totalSubSuperGroupCount))
-                            } else {
-                                SimpleEntry(subEntry.key,
-                                        doNormalGrouping(funcName, doNormalSorting(
-                                        subSuperGroupedItems, levelThree), totalSubSuperGroupCount))
+                                        when {
+                                            levelThree.hasGroupRanging() ->
+                                                SimpleEntry(subEntry.key,
+                                                    doRangedGrouping(funcName, doRangedSorting(
+                                                            subSuperGroupedItems, levelThree), levelThree, totalSubSuperGroupCount))
+                                            else ->
+                                                SimpleEntry(subEntry.key,
+                                                    doNormalGrouping(funcName, doNormalSorting(
+                                                            subSuperGroupedItems, levelThree), totalSubSuperGroupCount))
+                                        }
+                                    }
+
+                                    @Suppress("RedundantSamConstructor")
+                                    val levelThreeMap = levelThreeStream.collect(toMap(
+                                            Function { it.key as String },
+                                            Function { it.value },
+                                            BinaryOperator { e1, _ -> e1 },
+                                            Supplier<Map<String, Any>> { mapOf() }
+                                    ))
+
+                                    when {
+                                        levelTwo.hasGroupRanging() -> SimpleEntry<Any, JsonObject>(entry.key,
+                                                doRangedGrouping(funcName, levelThreeMap, levelTwo, totalSubGroupCount))
+                                        else -> SimpleEntry<Any, JsonObject>(entry.key,
+                                                doNormalGrouping(funcName, levelThreeMap, totalSubGroupCount))
+                                    }
+                                }
                             }
                         }
 
                         @Suppress("RedundantSamConstructor")
-                        val levelThreeMap = levelThreeStream.collect(toMap(
+                        val levelTwoMap = levelTwoStream.collect(toMap(
                                 Function { it.key as String },
                                 Function { it.value },
                                 BinaryOperator { e1, _ -> e1 },
                                 Supplier<Map<String, Any>> { mapOf() }
                         ))
 
-                        if (levelTwo.hasGroupRanging()) {
-                            SimpleEntry<Any, JsonObject>(entry.key,
-                                    doRangedGrouping(funcName, levelThreeMap, levelTwo, totalSubGroupCount))
-                        } else {
-                            SimpleEntry<Any, JsonObject>(entry.key,
-                                    doNormalGrouping(funcName, levelThreeMap, totalSubGroupCount))
+                        return when {
+                            levelOne.hasGroupRanging() ->
+                                doRangedGrouping(funcName, levelTwoMap, levelOne, totalGroupCount)
+                            else -> doNormalGrouping(funcName, levelTwoMap, totalGroupCount)
                         }
                     }
                 }
-
-                @Suppress("RedundantSamConstructor")
-                val levelTwoMap = levelTwoStream.collect(toMap(
-                        Function { it.key as String },
-                        Function { it.value },
-                        BinaryOperator { e1, _ -> e1 },
-                        Supplier<Map<String, Any>> { mapOf() }
-                ))
-
-                return if (levelOne.hasGroupRanging()) {
-                    doRangedGrouping(funcName, levelTwoMap, levelOne, totalGroupCount)
-                } else {
-                    doNormalGrouping(funcName, levelTwoMap, totalGroupCount)
-                }
             }
-        } else {
-            throw InternalError()
+            else -> throw InternalError()
         }
     }
 
@@ -729,35 +748,35 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
             collect: Map<String, T>, groupingConfiguration: GroupingConfiguration): Map<String, T> {
         val asc = groupingConfiguration.groupingSortOrder.equals("asc", ignoreCase = true)
 
-        if (collect.isEmpty()) {
-            return collect.entries
+        when {
+            collect.isEmpty() -> return collect.entries
                     .map({ e -> SimpleEntry(e.key, e.value) })
                     .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
-        } else {
-            val next = collect.entries.iterator().next()
-            val isCollection = next.value is Collection<*> || next.value is Map<*, *>
-            val keyIsRanged = groupingConfiguration.hasGroupRanging()
+            else -> {
+                val next = collect.entries.iterator().next()
+                val isCollection = next.value is Collection<*> || next.value is Map<*, *>
+                val keyIsRanged = groupingConfiguration.hasGroupRanging()
 
-            val comp = when {
-                keyIsRanged -> comparing(Function <SimpleEntry<String, T>, JsonObject> { e -> JsonObject(e.key) },
-                        comparing<JsonObject, Long> { keyOne -> keyOne.getLong("floor") })
-                isCollection -> comparing<SimpleEntry<String, T>, String>({ it.key })
-                else -> comparing<SimpleEntry<String, T>, String>({ Json.encode(it.value) })
-            }
+                val comp = when {
+                    keyIsRanged -> comparing(Function <SimpleEntry<String, T>, JsonObject> { e -> JsonObject(e.key) },
+                            comparing<JsonObject, Long> { keyOne -> keyOne.getLong("floor") })
+                    isCollection -> comparing<SimpleEntry<String, T>, String>({ it.key })
+                    else -> comparing<SimpleEntry<String, T>, String>({ Json.encode(it.value) })
+                }
 
-            val sorted = collect.entries.stream()
-                    .map { e -> SimpleEntry(e.key, e.value) }
-                    .sorted(if (asc) comp else comp.reversed())
+                val sorted = collect.entries.stream()
+                        .map { e -> SimpleEntry(e.key, e.value) }
+                        .sorted(if (asc) comp else comp.reversed())
 
-            return if (groupingConfiguration.isFullList) {
-                sorted
-                        .collect(toList())
-                        .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
-            } else {
-                sorted
-                        .limit(groupingConfiguration.groupingListLimit.toLong())
-                        .collect(toList())
-                        .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                return when {
+                    groupingConfiguration.isFullList -> sorted
+                            .collect(toList())
+                            .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                    else -> sorted
+                            .limit(groupingConfiguration.groupingListLimit.toLong())
+                            .collect(toList())
+                            .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                }
             }
         }
     }
@@ -772,12 +791,11 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 .map { e -> SimpleEntry(e.key, e.value) }
                 .sorted(if (asc) comp else comp.reversed())
 
-        return if (groupingConfiguration.isFullList) {
-            sorted
+        return when {
+            groupingConfiguration.isFullList -> sorted
                     .collect(toList())
                     .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
-        } else {
-            sorted
+            else -> sorted
                     .limit(groupingConfiguration.groupingListLimit.toLong())
                     .collect(toList())
                     .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
@@ -789,45 +807,49 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
 
         try {
             groupingKey = db.getFieldAsString(groupingConfiguration!!.groupBy!!, item as Any)
+            @Suppress("SENSELESS_COMPARISON")
             if (groupingKey == null) throw UnknownError("Cannot find field!")
         } catch (e: NullPointerException) {
             throw UnknownError("Field is null!")
         }
 
-        if (groupingConfiguration.hasGroupRanging()) {
-            val groupByRangeUnit = groupingConfiguration.groupByUnit
-            val groupByRangeRange = groupingConfiguration.groupByRange
-            var groupingValue: Long? = null
-            var rangingValue: Double? = null
+        when {
+            groupingConfiguration.hasGroupRanging() -> {
+                val groupByRangeUnit = groupingConfiguration.groupByUnit
+                val groupByRangeRange = groupingConfiguration.groupByRange
+                var groupingValue: Long? = null
+                var rangingValue: Double? = null
 
-            if (groupByRangeUnit!!.equals("INTEGER", ignoreCase = true)) {
-                groupingValue = java.lang.Long.parseLong(groupByRangeRange!!.toString())
-                val value: Long = try {
-                    java.lang.Long.parseLong(groupingKey)
-                } catch (nfe: NumberFormatException) {
-                    java.lang.Double.parseDouble(groupingKey).toLong()
+                when {
+                    groupByRangeUnit!!.equals("INTEGER", ignoreCase = true) -> {
+                        groupingValue = java.lang.Long.parseLong(groupByRangeRange!!.toString())
+                        val value: Long = try {
+                            java.lang.Long.parseLong(groupingKey)
+                        } catch (nfe: NumberFormatException) {
+                            java.lang.Double.parseDouble(groupingKey).toLong()
+                        }
+
+                        rangingValue = Math.ceil((value / groupingValue).toDouble())
+                    }
+                    groupByRangeUnit.equals("DATE", ignoreCase = true) -> {
+                        val date : Date = db.getFieldAsObject(groupingConfiguration.groupBy!!, item as Any)
+                        groupingValue = getTimeRangeFromDateUnit(groupByRangeRange!!.toString())
+
+                        rangingValue = Math.ceil((date.time / groupingValue).toDouble())
+                    }
                 }
 
-                rangingValue = Math.ceil((value / groupingValue).toDouble())
-            } else if (groupByRangeUnit.equals("DATE", ignoreCase = true)) {
-                val date : Date = db.getFieldAsObject(groupingConfiguration.groupBy!!, item as Any)
-                groupingValue = getTimeRangeFromDateUnit(groupByRangeRange!!.toString())
-
-                rangingValue = Math.ceil((date.time / groupingValue).toDouble())
+                return when {
+                    rangingValue != null -> JsonObject()
+                            .put("floor", Math.floor(rangingValue).toLong() * groupingValue!!)
+                            .put("base", groupingValue)
+                            .put("ratio", rangingValue)
+                            .put("ceil", (Math.ceil(rangingValue).toLong() + 1L) * groupingValue)
+                            .encode()
+                    else -> throw UnknownError("Cannot find field!")
+                }
             }
-
-            return if (rangingValue != null) {
-                JsonObject()
-                        .put("floor", Math.floor(rangingValue).toLong() * groupingValue!!)
-                        .put("base", groupingValue)
-                        .put("ratio", rangingValue)
-                        .put("ceil", (Math.ceil(rangingValue).toLong() + 1L) * groupingValue)
-                        .encode()
-            } else {
-                throw UnknownError("Cannot find field!")
-            }
-        } else {
-            return groupingKey
+            else -> return groupingKey
         }
     }
 
@@ -852,16 +874,14 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 logger.error("Cache failed on agg!")
             }
 
-            if (eTagManager != null) {
-                eTagManager.replaceAggregationEtag(etagItemListHashKey, etagKey, newEtag, Handler {
-                    if (it.failed()) {
-                        resultHandler.handle(Future.failedFuture(it.cause()))
-                    } else {
-                        resultHandler.handle(Future.succeededFuture(content))
+            when {
+                eTagManager != null -> eTagManager.replaceAggregationEtag(etagItemListHashKey, etagKey, newEtag, Handler {
+                    when {
+                        it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                        else -> resultHandler.handle(Future.succeededFuture(content))
                     }
                 })
-            } else {
-                resultHandler.handle(Future.succeededFuture(content))
+                else -> resultHandler.handle(Future.succeededFuture(content))
             }
         })
     }

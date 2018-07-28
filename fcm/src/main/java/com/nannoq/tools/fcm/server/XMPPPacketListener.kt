@@ -146,57 +146,59 @@ class XMPPPacketListener internal constructor(private val server: FcmServer,
         val success = jsonMap.getInteger("success")
         val failure = jsonMap.getInteger("failure")
 
-        if (success != null && failure != null) {
-            logger.info("CCS reports ACK for Device Group message...")
+        when {
+            success != null && failure != null -> {
+                logger.info("CCS reports ACK for Device Group message...")
 
-            if (failure > 0) {
-                RedisUtils.performJedisWithRetry(redisClient) { redisClient ->
-                    redisClient.get(messageId) { result ->
-                        if (result.failed()) {
-                            logger.error("Failed to process message...", result.cause())
-                        } else {
-                            val messageAsJson = result.result()
+                if (failure > 0) {
+                    RedisUtils.performJedisWithRetry(redisClient) { redisClient ->
+                        redisClient.get(messageId) { result ->
+                            when {
+                                result.failed() -> logger.error("Failed to process message...", result.cause())
+                                else -> {
+                                    val messageAsJson = result.result()
 
-                            if (messageAsJson != null) {
-                                val failedIds = jsonMap.getJsonArray("failed_registration_ids")
+                                    when {
+                                        messageAsJson != null -> {
+                                            val failedIds = jsonMap.getJsonArray("failed_registration_ids")
 
-                                logger.info("Failed sending to following ids: " + failedIds.encodePrettily())
+                                            logger.info("Failed send to following ids: " + failedIds.encodePrettily())
 
-                                failedIds.forEach { regId ->
-                                    logger.info("Resending to failed id: $regId")
+                                            failedIds.forEach {
+                                                logger.info("Resending to failed id: $it")
 
-                                    sender.sendToNewRecipient(regId.toString(), messageAsJson)
+                                                sender.sendToNewRecipient(it.toString(), messageAsJson)
+                                            }
+                                        }
+                                        else -> logger.error("Message Json is null for: $messageId")
+                                    }
                                 }
-                            } else {
-                                logger.error("Message Json is null for: $messageId")
                             }
                         }
                     }
                 }
             }
-        } else {
-            RedisUtils.performJedisWithRetry(redisClient) {
+            else -> RedisUtils.performJedisWithRetry(redisClient) {
                 val transaction = it.transaction()
 
                 transaction.multi {
-                    transaction.hdel(REDIS_MESSAGE_HASH, messageId) { hDelResult ->
-                        if (hDelResult.failed()) {
+                    transaction.hdel(REDIS_MESSAGE_HASH, messageId) {
+                        if (it.failed()) {
                             logger.error("Could not remove message hash...")
                         }
                     }
 
-                    transaction.del(messageId + "_retry_count") { delResult ->
-                        if (delResult.failed()) {
+                    transaction.del(messageId + "_retry_count") {
+                        if (it.failed()) {
                             logger.error("Could not remove reply count...")
                         }
                     }
                 }
 
                 transaction.exec {
-                    if (it.failed()) {
-                        logger.error("Could not execute redis transaction...")
-                    } else {
-                        logger.info("Message sent successfully, purged from redis...")
+                    when {
+                        it.failed() -> logger.error("Could not execute redis transaction...")
+                        else -> logger.info("Message sent successfully, purged from redis...")
                     }
                 }
             }
@@ -221,24 +223,25 @@ class XMPPPacketListener internal constructor(private val server: FcmServer,
                 logger.error("Registration ID does not exist, deleting device...")
 
                 registrationService?.handleDeviceRemoval(messageId, registrationId, Handler {
-                    if (it.failed()) {
-                        logger.error("No FcmDevice received for device group removal...")
-                    } else {
-                        RedisUtils.performJedisWithRetry(redisClient) { inner ->
+                    when {
+                        it.failed() -> logger.error("No FcmDevice received for device group removal...")
+                        else -> RedisUtils.performJedisWithRetry(redisClient) { inner ->
                             inner.get(messageId) { result ->
-                                if (result.failed()) {
-                                    logger.error("Failed to process message...", result.cause())
-                                } else {
-                                    val messageAsJson = result.result()
+                                when {
+                                    result.failed() -> logger.error("Failed to process message...", result.cause())
+                                    else -> {
+                                        val messageAsJson = result.result()
 
-                                    if (messageAsJson != null) {
-                                        val packageName = JsonObject(messageAsJson)
-                                                .getString(RESTRICTED_PACKAGE_NAME_KEY_NOTATION)
-                                        val channelKey = packageName.substring(packageName.lastIndexOf(".") + 1)
+                                        when {
+                                            messageAsJson != null -> {
+                                                val packageName = JsonObject(messageAsJson)
+                                                        .getString(RESTRICTED_PACKAGE_NAME_KEY_NOTATION)
+                                                val channelKey = packageName.substring(packageName.lastIndexOf(".") + 1)
 
-                                        deleteDeviceFromFCM(it.result(), inner, channelKey)
-                                    } else {
-                                        logger.error("Message Json is null for: $messageId")
+                                                deleteDeviceFromFCM(it.result(), inner, channelKey)
+                                            }
+                                            else -> logger.error("Message Json is null for: $messageId")
+                                        }
                                     }
                                 }
                             }
@@ -265,10 +268,9 @@ class XMPPPacketListener internal constructor(private val server: FcmServer,
     private fun sendReply(messageId: String) {
         RedisUtils.performJedisWithRetry(redisClient) {
             it.hget(REDIS_MESSAGE_HASH, messageId) {
-                if (it.failed()) {
-                    logger.error("Unable to get map for message...")
-                } else {
-                    sender.send(messageId, it.result())
+                when {
+                    it.failed() -> logger.error("Unable to get map for message...")
+                    else -> sender.send(messageId, it.result())
                 }
             }
         }
@@ -280,13 +282,14 @@ class XMPPPacketListener internal constructor(private val server: FcmServer,
 
         RedisUtils.performJedisWithRetry(redisClient) {
             redisClient.hget(channelKey, notificationKeyName) {
-                if (it.failed()) {
-                    logger.error("Unable to fetch notificationkey...")
-                } else {
-                    val removeJson = Json.encode(MessageSender.createRemoveDeviceGroupJson(
-                            from, notificationKeyName, it.result()))
+                when {
+                    it.failed() -> logger.error("Unable to fetch notificationkey...")
+                    else -> {
+                        val removeJson = Json.encode(MessageSender.createRemoveDeviceGroupJson(
+                                from, notificationKeyName, it.result()))
 
-                    removeFromGroup(removeJson)
+                        removeFromGroup(removeJson)
+                    }
                 }
             }
         }
@@ -294,14 +297,13 @@ class XMPPPacketListener internal constructor(private val server: FcmServer,
 
     private fun removeFromGroup(removeJson: String) {
         val resultHandler = Handler<AsyncResult<Boolean>> {
-            if (it.succeeded()) {
-                if (it.result()) {
-                    logger.error("Failed Remove from Group...")
-                } else {
-                    logger.info("Completed Remove from Group...")
-                }
-            } else {
-                logger.error("Failed Remove from Group...")
+            when {
+                it.succeeded() ->
+                    when {
+                        it.result() -> logger.error("Failed Remove from Group...")
+                        else -> logger.info("Completed Remove from Group...")
+                    }
+                else -> logger.error("Failed Remove from Group...")
             }
         }
 

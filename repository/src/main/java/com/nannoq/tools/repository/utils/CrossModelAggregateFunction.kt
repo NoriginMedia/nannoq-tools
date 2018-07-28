@@ -80,7 +80,7 @@ class CrossModelAggregateFunction {
     }
 
     fun hasGrouping(): Boolean {
-        return groupBy != null && groupBy!!.size > 0
+        return groupBy != null && groupBy!!.isNotEmpty()
     }
 
     fun <E : ETagable> validateFieldForFunction(TYPE: Class<E>): Boolean {

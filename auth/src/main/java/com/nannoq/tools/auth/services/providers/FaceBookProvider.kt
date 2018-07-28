@@ -61,8 +61,7 @@ class FaceBookProvider(private val vertx: Vertx, appConfig: JsonObject) : Provid
             facebook.oAuthAccessToken = authToken
 
             try {
-                val user = facebook.getMe(Reading()
-                        .fields("id,email,name,first_name,middle_name,last_name,verified,picture"))
+                val user = facebook.getMe(Reading().fields(READING_FIELDS))
                 val faceBookUser = FaceBookUser(user)
                 faceBookUser.pictureUrl = facebook.users().getPictureURL(user.id, 400, 400).toString()
 
@@ -73,15 +72,16 @@ class FaceBookProvider(private val vertx: Vertx, appConfig: JsonObject) : Provid
                 it.fail(UnknownError())
             }
         }, false) {
-            if (it.succeeded()) {
-                resultHandler.handle(Future.succeededFuture(it.result()))
-            } else {
-                resultHandler.handle(Future.failedFuture(it.cause()))
+            when {
+                it.succeeded() -> resultHandler.handle(Future.succeededFuture(it.result()))
+                else -> resultHandler.handle(Future.failedFuture(it.cause()))
             }
         }
     }
 
     companion object {
         private val logger = LoggerFactory.getLogger(FaceBookProvider::class.java.simpleName)
+
+        private const val READING_FIELDS = "id,email,name,first_name,middle_name,last_name,verified,picture"
     }
 }

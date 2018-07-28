@@ -68,16 +68,19 @@ class InstaGram(private val vertx: Vertx, appConfig: JsonObject, callBackUrl: St
             try {
                 it.complete(InstaGramUser(instagram.currentUserInfo))
             } catch (e: InstagramException) {
-                LoggerFactory.getLogger(InstaGram::class.java.simpleName).error("$INSTAGRAM ERROR: $e")
+                logger.error("$INSTAGRAM ERROR: $e")
 
-                it.complete(null)
+                it.fail(RuntimeException("Could not verify JWT..."))
             }
         }, false) {
-            if (it.succeeded()) {
-                resultHandler.handle(Future.succeededFuture(it.result()))
-            } else {
-                resultHandler.handle(Future.failedFuture(it.cause()))
+            when {
+                it.succeeded() -> resultHandler.handle(Future.succeededFuture(it.result()))
+                else -> resultHandler.handle(Future.failedFuture(it.cause()))
             }
         }
+    }
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(InstaGram::class.java.simpleName)
     }
 }

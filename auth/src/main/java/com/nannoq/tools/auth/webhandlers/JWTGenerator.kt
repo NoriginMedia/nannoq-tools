@@ -62,7 +62,6 @@ import org.jsoup.Jsoup
 import org.jsoup.safety.Whitelist
 import java.security.NoSuchAlgorithmException
 import java.util.function.Consumer
-import java.util.function.Function
 
 /**
  * This class defines a Handler implementation that receives all traffic for endpoints that handle JWT generator, e.g.
@@ -71,6 +70,7 @@ import java.util.function.Function
  * @author Anders Mikkelsen
  * @version 13/11/17
  */
+@Suppress("unused")
 open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: JsonObject,
                         private val authenticator: AuthenticationService,
                         private val authPackageHandler: AuthPackageHandler,
@@ -82,7 +82,7 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
     protected val redisClient: RedisClient = RedisUtils.getRedisClient(vertx, appConfig)
     private val callbackUrl: String
     private val EMAIL_HASH_KEY_BASE: String
-    private var userIdFunction: Function<AuthPackage, String>? = null
+    private var userIdFunction: (AuthPackage) -> String
 
     init {
         val googleClientId = appConfig.getString("googleClientId")
@@ -102,24 +102,24 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
 
         this.EMAIL_HASH_KEY_BASE = appConfig.getString("emailHashKeybase")
 
-        userIdFunction = Function {
+        userIdFunction = {
             try {
-                return@Function ModelUtils.hashString(it.userProfile.email + EMAIL_HASH_KEY_BASE)
+                ModelUtils.hashString(it.userProfile.email + EMAIL_HASH_KEY_BASE)
             } catch (e: NoSuchAlgorithmException) {
                 logger.error("No Algorithm Available!", e)
 
-                return@Function it.userProfile.email
+                it.userProfile.email
             }
         }
     }
 
     @Fluent
-    fun withUserIdGenerator(userIdGenerator: Function<AuthPackage, String>): AuthenticationService {
+    fun withUserIdGenerator(userIdGenerator: (AuthPackage) -> String): AuthenticationService {
         return setUserIdFunction(userIdGenerator)
     }
 
     @Fluent
-    fun setUserIdFunction(userIdFunction: Function<AuthPackage, String>): AuthenticationService {
+    fun setUserIdFunction(userIdFunction: (AuthPackage) -> String): AuthenticationService {
         this.userIdFunction = userIdFunction
 
         return authenticator
@@ -153,8 +153,8 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         logger.info("Authing for google...")
 
         val resultHandler = Handler<AsyncResult<String>> {
-            if (it.succeeded()) {
-                if (it.result() != null) {
+            when {
+                it.succeeded() -> if (it.result() != null) {
                     logger.info("Completed Google Auth...")
 
                     handleAccessToken(authProvider, "Bearer " + it.result(), routingContext)
@@ -163,10 +163,11 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
 
                     unAuthorized(routingContext)
                 }
-            } else {
-                logger.error("Failed Google Auth...", it.cause())
+                else -> {
+                    logger.error("Failed Google Auth...", it.cause())
 
-                unAuthorized(routingContext)
+                    unAuthorized(routingContext)
+                }
             }
         }
 
@@ -177,24 +178,27 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
 
         val authHandler = Handler<Future<String>> {
             req.handler { response ->
-                if (response.statusCode() in 200..399) {
-                    logger.info("Google Status is: " + response.statusCode())
+                when {
+                    response.statusCode() in 200..399 -> {
+                        logger.info("Google Status is: " + response.statusCode())
 
-                    response.bodyHandler { body ->
-                        val res = body.toJsonObject()
+                        response.bodyHandler { body ->
+                            val res = body.toJsonObject()
 
-                        it.complete(res.getString("id_token"))
+                            it.complete(res.getString("id_token"))
+                        }
                     }
-                } else {
-                    logger.error(response.statusCode())
-                    logger.error(response.statusMessage())
-                    logger.error(response.bodyHandler { body ->
-                        logger.error("UNAUTHORIZED!")
+                    else -> {
+                        logger.error(response.statusCode())
+                        logger.error(response.statusMessage())
+                        logger.error(response.bodyHandler { body ->
+                            logger.error("UNAUTHORIZED!")
 
-                        logger.error(Json.encodePrettily(body.toJsonObject()))
+                            logger.error(Json.encodePrettily(body.toJsonObject()))
 
-                        it.fail(UnknownError(response.statusMessage()))
-                    })
+                            it.fail(UnknownError(response.statusMessage()))
+                        })
+                    }
                 }
             }.end("code=" + authToken + "&" +
                     "client_id=" + appConfig.getString("googleClientId") + "&" +
@@ -202,7 +206,6 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
                     "redirect_uri=" + callbackUrl.replace(":provider", "google") +
                     "&" + "grant_type=authorization_code")
         }
-
 
         APIManager.performRequestWithCircuitBreaker(resultHandler, authHandler, {
             logger.error("Failed Google Auth...")
@@ -215,7 +218,7 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         val appId = vertx.orCreateContext.config().getString("faceBookAppId")
         val appSecret = vertx.orCreateContext.config().getString("faceBookAppSecret")
 
-        vertx.executeBlocking<Any>({ future ->
+        vertx.executeBlocking<Any>({
             val cb = ConfigurationBuilder()
             cb.setAppSecretProofEnabled(true)
             cb.setOAuthAppId(appId)
@@ -236,7 +239,7 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
 
                 unAuthorized(routingContext)
             }
-        }, false, null)
+        }, false, {})
     }
 
     fun directAuth(routingContext: RoutingContext) {
@@ -246,55 +249,64 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         val authToken = request.getHeader("Authorization")
         val authProvider = request.getHeader("X-Authorization-Provider")
 
-        if (authToken != null && authProvider != null && authToken.startsWith("Bearer")) {
-            val token = Jsoup.clean(authToken, Whitelist.none()).substring("Bearer".length).trim({ it <= ' ' })
-            val upperedAuthProvider = Jsoup.clean(authProvider, Whitelist.none()).toUpperCase()
+        when {
+            authToken != null && authProvider != null && authToken.startsWith("Bearer") -> {
+                val token = Jsoup.clean(authToken, Whitelist.none()).substring("Bearer".length).trim({ it <= ' ' })
+                val upperedAuthProvider = Jsoup.clean(authProvider, Whitelist.none()).toUpperCase()
 
-            authenticator.createJwtFromProvider(token, upperedAuthProvider, {
-                if (it.failed()) {
-                    logger.error("AUTH Failed: " + sb.toString(), it.cause())
+                authenticator.createJwtFromProvider(token, upperedAuthProvider, {
+                    when {
+                        it.failed() -> {
+                            logger.error("AUTH Failed: " + sb.toString(), it.cause())
 
-                    routingContext.response().statusCode = 401
-                    routingContext.next()
-                } else {
-                    val authPackage = it.result()
+                            routingContext.response().statusCode = 401
+                            routingContext.next()
+                        }
+                        else -> {
+                            val authPackage = it.result()
 
-                    try {
-                        val userId = userIdFunction!!.apply(authPackage)
+                            try {
+                                val userId = userIdFunction(authPackage)
 
-                        authPackageHandler.processDirectAuth(authPackage, userId, Handler {
-                            if (it.failed()) {
-                                logger.error("Failed processing Direct Auth!",
-                                        it.cause())
+                                authPackageHandler.processDirectAuth(authPackage, userId, Handler {
+                                    when {
+                                        it.failed() -> {
+                                            logger.error("Failed processing Direct Auth!",
+                                                    it.cause())
 
-                                routingContext.response().statusCode = 422
-                                routingContext.next()
-                            } else {
-                                routingContext.response().statusCode = 200
-                                routingContext.put(BODY_CONTENT_TAG, it.result().encode())
+                                            routingContext.response().statusCode = 422
+                                            routingContext.next()
+                                        }
+                                        else -> {
+                                            routingContext.response().statusCode = 200
+                                            routingContext.put(BODY_CONTENT_TAG, it.result().encode())
+                                            routingContext.next()
+                                        }
+                                    }
+                                })
+                            } catch (e: Exception) {
+                                logger.error("AUTH Failed: " + sb.toString(), e)
+
+                                routingContext.response().statusCode = 500
                                 routingContext.next()
                             }
-                        })
-                    } catch (e: Exception) {
-                        logger.error("AUTH Failed: " + sb.toString(), e)
 
-                        routingContext.response().statusCode = 500
-                        routingContext.next()
+                        }
                     }
+                })
+            }
+            else -> {
+                logger.error("Invalid parameters!")
 
-                }
-            })
-        } else {
-            logger.error("Invalid parameters!")
+                val errorObject = JsonObject()
+                if (authToken == null) errorObject.put("header_error", "Authorization Header cannot be null!")
+                if (authProvider == null) errorObject.put("header_error", "X-Authorization-Provider Header cannot be null!")
+                if (domainIdentifier == null) errorObject.put("path_error", "FeedId cannot be null!")
 
-            val errorObject = JsonObject()
-            if (authToken == null) errorObject.put("header_error", "Authorization Header cannot be null!")
-            if (authProvider == null) errorObject.put("header_error", "X-Authorization-Provider Header cannot be null!")
-            if (domainIdentifier == null) errorObject.put("path_error", "FeedId cannot be null!")
-
-            routingContext.put(BODY_CONTENT_TAG, errorObject.encodePrettily())
-            routingContext.response().statusCode = 401
-            routingContext.next()
+                routingContext.put(BODY_CONTENT_TAG, errorObject.encodePrettily())
+                routingContext.response().statusCode = 401
+                routingContext.next()
+            }
         }
     }
 
@@ -311,28 +323,32 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
     private fun handleToken(authToken: String?, state: String, location: String?, authProvider: String?): Future<AuthPackage> {
         val authFuture = Future.future<AuthPackage>()
 
-        if (authToken != null && authProvider != null && location != null) {
-            if (authToken.startsWith("Bearer ")) {
-                val token = authToken.substring("Bearer".length).trim({ it <= ' ' })
-                authenticator.createJwtFromProvider(token, authProvider.toUpperCase(), { result ->
-                    if (result.failed()) {
-                        ServiceManager.handleResultFailed(result.cause())
+        when {
+            authToken != null && authProvider != null && location != null ->
+                when {
+                    authToken.startsWith("Bearer ") -> {
+                        val token = authToken.substring("Bearer".length).trim({ it <= ' ' })
+                        authenticator.createJwtFromProvider(token, authProvider.toUpperCase(), { result ->
+                            when {
+                                result.failed() -> {
+                                    ServiceManager.handleResultFailed(result.cause())
 
-                        authFuture.fail("$CMS_ROOT#code=401&error=Unauthorized")
-                    } else {
-                        val authPackage = result.result()
-                        logger.info("Result is: " + Json.encodePrettily(authPackage))
+                                    authFuture.fail("$CMS_ROOT#code=401&error=Unauthorized")
+                                }
+                                else -> {
+                                    val authPackage = result.result()
+                                    logger.info("Result is: " + Json.encodePrettily(authPackage))
 
-                        purgeState(authProvider, state)
+                                    purgeState(authProvider, state)
 
-                        authFuture.complete(authPackage)
+                                    authFuture.complete(authPackage)
+                                }
+                            }
+                        })
                     }
-                })
-            } else {
-                authFuture.fail("$CMS_ROOT#code=400&error=Invalid Auth headers")
-            }
-        } else {
-            authFuture.fail("$CMS_ROOT#code=401&error=Unauthorized")
+                    else -> authFuture.fail("$CMS_ROOT#code=400&error=Invalid Auth headers")
+                }
+            else -> authFuture.fail("$CMS_ROOT#code=401&error=Unauthorized")
         }
 
         return authFuture
@@ -356,11 +372,11 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         val stateFuture = Future.future<String>()
 
         RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
-            intRedis.get(state) { getResult ->
-                if (getResult.failed()) {
-                    stateFuture.fail(InternalError("$CMS_ROOT#code=422&error=Unable to verify user state..."))
-                } else {
-                    stateFuture.complete(getResult.result())
+            intRedis.get(state) {
+                when {
+                    it.failed() ->
+                        stateFuture.fail(InternalError("$CMS_ROOT#code=422&error=Unable to verify user state..."))
+                    else -> stateFuture.complete(it.result())
                 }
             }
         }
@@ -372,10 +388,10 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         val stateFuture = Future.future<String>()
         val stateParam = routingContext.request().getParam("state")
 
-        if (stateParam != null) {
-            stateFuture.complete(stateParam)
-        } else {
-            stateFuture.fail(IllegalArgumentException("$CMS_ROOT#code=400&error=State cannot be null from external"))
+        when {
+            stateParam != null -> stateFuture.complete(stateParam)
+            else -> stateFuture.fail(
+                    IllegalArgumentException("$CMS_ROOT#code=400&error=State cannot be null from external"))
         }
 
         return stateFuture
@@ -391,22 +407,23 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
 
         logger.debug("Url is: $finalUrl")
 
-        val userId = userIdFunction!!.apply(authPackage)
+        val userId = userIdFunction(authPackage)
 
         authPackageHandler.processOAuthFlow(authPackage, userId, finalUrl, Handler {
-            if (it.failed()) {
-                routingContext.response()
+            when {
+                it.failed() -> routingContext.response()
                         .setStatusCode(302)
                         .putHeader(HttpHeaders.LOCATION, "#code=500&error=UNKNOWN")
                         .end()
-            } else {
-                val res = it.result()
-                val location = res.getString("Location")
+                else -> {
+                    val res = it.result()
+                    val location = res.getString("Location")
 
-                routingContext.response()
-                        .setStatusCode(302)
-                        .putHeader(HttpHeaders.LOCATION, location)
-                        .end()
+                    routingContext.response()
+                            .setStatusCode(302)
+                            .putHeader(HttpHeaders.LOCATION, location)
+                            .end()
+                }
             }
         })
     }
@@ -422,9 +439,10 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         getProvider(routingContext).compose({ provider ->
             getUserState(routingContext).compose({ state ->
                 getLocation(routingContext, state).compose({ location ->
-                    setState(state, location).compose({ v ->
-                        constructAuthUrl(routingContext, state, location, provider).compose( Handler { success.accept(it) },
-                                authFailRedirect<Any>(routingContext))
+                    setState(state, location).compose({
+                        constructAuthUrl(routingContext, state, location, provider).compose( Handler {
+                            success.accept(it)
+                        }, authFailRedirect<Any>(routingContext))
                     }, authFailRedirect<Any>(routingContext))
                 }, authFailRedirect<Any>(routingContext))
             }, denyRequest<Any>(routingContext))
@@ -439,16 +457,14 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
             INSTAGRAM -> {
                 val forUserReference = routingContext.request().getParam("forUser")
 
-                if (forUserReference != null) {
-                    getInstagramUrl(state, forUserReference, location, Handler {
-                        if (it.failed()) {
-                            locationFuture.fail(InternalError(it.cause().message))
-                        } else {
-                            locationFuture.complete(it.result())
+                when {
+                    forUserReference != null -> getInstagramUrl(state, forUserReference, location, Handler {
+                        when {
+                            it.failed() -> locationFuture.fail(InternalError(it.cause().message))
+                            else -> locationFuture.complete(it.result())
                         }
                     })
-                } else {
-                    locationFuture.fail(SecurityException(location +
+                    else -> locationFuture.fail(SecurityException(location +
                             "#code=400&error=" + "InstaGram does not support emails from API, " +
                             "and can only be federated into an established user. " +
                             "Please add id as email of the user to federate into as a " +
@@ -469,10 +485,9 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
             }, false) {
                 val url = it.result()
 
-                if (url != null && !url.isEmpty()) {
-                    locationFuture.complete(it.result())
-                } else {
-                    locationFuture.fail(InternalError("$location#code=500&error=Unknown"))
+                when {
+                    url != null && !url.isEmpty() -> locationFuture.complete(it.result())
+                    else -> locationFuture.fail(InternalError("$location#code=500&error=Unknown"))
                 }
             }
             GOOGLE -> {
@@ -491,27 +506,33 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
 
         RedisUtils.performJedisWithRetry(redisClient) { internalRedis ->
             internalRedis.set(finalState, userRef) { res ->
-                if (res.failed()) {
-                    logger.error("Cannot set forUser, aborting instagram...", res.cause())
+                when {
+                    res.failed() -> {
+                        logger.error("Cannot set forUser, aborting instagram...", res.cause())
 
-                    RedisUtils.performJedisWithRetry(redisClient
-                    ) { intRedis -> intRedis.del(state) { delStateResult -> logger.info("Deleted state for " + state + " is " + delStateResult.result()) } }
+                        RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
+                            intRedis.del(state) {
+                                logger.info("Deleted state for " + state + " is " + it.result())
+                            }
+                        }
 
-                    resultHandler.handle(Future.failedFuture(
-                            "$location#code=500&error=Internal Server Error, Retry."))
-                } else {
-                    val clientId = appConfig.getString("instaClientId")
-                    val clientSecret = appConfig.getString("instaClientSecret")
+                        resultHandler.handle(Future.failedFuture(
+                                "$location#code=500&error=Internal Server Error, Retry."))
+                    }
+                    else -> {
+                        val clientId = appConfig.getString("instaClientId")
+                        val clientSecret = appConfig.getString("instaClientSecret")
 
-                    val instagram = InstagramAuthService()
-                            .apiKey(clientId)
-                            .apiSecret(clientSecret)
-                            .callback(callbackUrl.replace(":provider", "instagram"))
-                            .scope("basic public_content follower_list likes comments relationships")
-                            .build()
+                        val instagram = InstagramAuthService()
+                                .apiKey(clientId)
+                                .apiSecret(clientSecret)
+                                .callback(callbackUrl.replace(":provider", "instagram"))
+                                .scope("basic public_content follower_list likes comments relationships")
+                                .build()
 
-                    resultHandler.handle(Future.succeededFuture(
-                            instagram.authorizationUrl + "&state=" + state))
+                        resultHandler.handle(Future.succeededFuture(
+                                instagram.authorizationUrl + "&state=" + state))
+                    }
                 }
             }
         }
@@ -522,10 +543,10 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
 
         RedisUtils.performJedisWithRetry(redisClient) {
             it.set(state, location) {
-                if (it.failed()) {
-                    voidFuture.fail(InternalError("$location#code=500&error=Internal Server Error, Retry."))
-                } else {
-                    voidFuture.complete()
+                when {
+                    it.failed() -> voidFuture.fail(
+                            InternalError("$location#code=500&error=Internal Server Error, Retry."))
+                    else -> voidFuture.complete()
                 }
             }
         }
@@ -539,12 +560,12 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         var location: String? = routingContext.request().getParam("location")
         if (location == null) location = CMS_ROOT
 
-        if (state == null || state.length < 30) {
-            locationFuture.fail(IllegalArgumentException(location + "#code=400&error=" +
-                    "Must have a state query param, containing a random or " +
-                    "pseudo-random string of at least 30 characters."))
-        } else {
-            locationFuture.complete(location)
+        when {
+            state == null || state.length < 30 ->
+                locationFuture.fail(IllegalArgumentException(location + "#code=400&error=" +
+                        "Must have a state query param, containing a random or " +
+                        "pseudo-random string of at least 30 characters."))
+            else -> locationFuture.complete(location)
         }
 
         return locationFuture
@@ -554,10 +575,9 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         val providerFuture = Future.future<String>()
         val provider = routingContext.request().getParam("provider")
 
-        if (provider == null) {
-            providerFuture.fail(IllegalArgumentException())
-        } else {
-            providerFuture.complete(provider)
+        when (provider) {
+            null -> providerFuture.fail(IllegalArgumentException())
+            else -> providerFuture.complete(provider)
         }
 
         return providerFuture
@@ -567,10 +587,9 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         val stateFuture = Future.future<String>()
         val stateParam = routingContext.request().getParam("state")
 
-        if (stateParam != null) {
-            stateFuture.complete(stateParam)
-        } else {
-            stateFuture.fail(IllegalArgumentException("State cannot be null..."))
+        when {
+            stateParam != null -> stateFuture.complete(stateParam)
+            else -> stateFuture.fail(IllegalArgumentException("State cannot be null..."))
         }
 
         return stateFuture
@@ -584,8 +603,9 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         }
 
         getToken(routingContext).compose({ refreshToken ->
-            refreshToken(refreshToken).compose(Handler { success.accept(it) },
-                    authFail<Any>(routingContext))
+            refreshToken(refreshToken).compose(Handler {
+                success.accept(it)
+            }, authFail<Any>(routingContext))
         }, authFail<Any>(routingContext))
     }
 
@@ -593,10 +613,9 @@ open class JWTGenerator(protected val vertx: Vertx, protected val appConfig: Jso
         val tokenContainerFuture = Future.future<TokenContainer>()
 
         authenticator.refresh(refreshToken, {
-            if (it.failed()) {
-                tokenContainerFuture.fail(RuntimeException("Unable to refresh for: $refreshToken"))
-            } else {
-                tokenContainerFuture.complete(it.result())
+            when {
+                it.failed() -> tokenContainerFuture.fail(RuntimeException("Unable to refresh for: $refreshToken"))
+                else -> tokenContainerFuture.complete(it.result())
             }
         })
 

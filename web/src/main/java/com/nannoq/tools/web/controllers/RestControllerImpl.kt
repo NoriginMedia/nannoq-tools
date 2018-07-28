@@ -122,100 +122,102 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         val initialProcessNanoTime = System.nanoTime()
         val id = getAndVerifyId(routingContext)
 
-        if (id.isEmpty) {
-            setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
-        } else {
-            val projectionJson = routingContext.request().getParam(PROJECTION_KEY)
-            var projections: Array<String>? = null
+        when {
+            id.isEmpty -> setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
+            else -> {
+                val projectionJson = routingContext.request().getParam(PROJECTION_KEY)
+                var projections: Array<String>? = null
 
-            if (projectionJson != null) {
-                try {
-                    val projection = JsonObject(projectionJson)
-                    val array = projection.getJsonArray(PROJECTION_FIELDS_KEY, null)
+                if (projectionJson != null) {
+                    try {
+                        val projection = JsonObject(projectionJson)
+                        val array = projection.getJsonArray(PROJECTION_FIELDS_KEY, null)
 
-                    if (array != null) {
-                        projections = array.stream()
-                                .map { it.toString() }
-                                .collect(toList())
-                                .toTypedArray()
-                                .requireNoNulls()
+                        if (array != null) {
+                            projections = array.stream()
+                                    .map { it.toString() }
+                                    .collect(toList())
+                                    .toTypedArray()
+                                    .requireNoNulls()
 
-                        if (logger.isDebugEnabled) {
-                            addLogMessageToRequestLog(routingContext, "Projection ready!")
+                            if (logger.isDebugEnabled) {
+                                addLogMessageToRequestLog(routingContext, "Projection ready!")
+                            }
                         }
+                    } catch (e: DecodeException) {
+                        addLogMessageToRequestLog(routingContext, "Unable to parse projections: ", e)
+
+                        projections = null
+                    } catch (e: EncodeException) {
+                        addLogMessageToRequestLog(routingContext, "Unable to parse projections: ", e)
+                        projections = null
                     }
-                } catch (e: DecodeException) {
-                    addLogMessageToRequestLog(routingContext, "Unable to parse projections: ", e)
 
-                    projections = null
-                } catch (e: EncodeException) {
-                    addLogMessageToRequestLog(routingContext, "Unable to parse projections: ", e)
-                    projections = null
                 }
-
-            }
-
-            if (logger.isDebugEnabled) {
-                addLogMessageToRequestLog(routingContext, "Show projection: " + Arrays.toString(projections))
-            }
-
-            val finalProjections = projections
-
-            if (finalProjections != null && finalProjections.isNotEmpty()) {
-                val etag = routingContext.request().getHeader(HttpHeaders.IF_NONE_MATCH)
 
                 if (logger.isDebugEnabled) {
-                    addLogMessageToRequestLog(routingContext, "Etag is: " + etag!!)
+                    addLogMessageToRequestLog(routingContext, "Show projection: " + Arrays.toString(projections))
                 }
 
-                if (etag != null && eTagManager != null) {
-                    val hash = id.encode().hashCode()
-                    val etagKeyBase = TYPE.simpleName + "_" + hash + "/projections"
-                    val key = TYPE.simpleName + "_" + hash + "/projections" + Arrays.hashCode(finalProjections)
+                val finalProjections = projections
 
-                    if (logger.isDebugEnabled) {
-                        addLogMessageToRequestLog(routingContext, "Checking etag for show...")
-                    }
+                when {
+                    finalProjections != null && finalProjections.isNotEmpty() -> {
+                        val etag = routingContext.request().getHeader(HttpHeaders.IF_NONE_MATCH)
 
-                    eTagManager.checkItemEtag(etagKeyBase, key, etag, Handler {
-                        if (it.succeeded() && it.result()) {
-                            unChangedIndex(routingContext)
-                        } else {
-                            proceedWithRead(routingContext, id, finalProjections)
+                        if (logger.isDebugEnabled) {
+                            addLogMessageToRequestLog(routingContext, "Etag is: " + etag!!)
                         }
-                    })
-                } else {
-                    proceedWithRead(routingContext, id, finalProjections)
+
+                        when {
+                            etag != null && eTagManager != null -> {
+                                val hash = id.encode().hashCode()
+                                val etagKeyBase = TYPE.simpleName + "_" + hash + "/projections"
+                                val key = TYPE.simpleName + "_" + hash + "/projections" + Arrays.hashCode(finalProjections)
+
+                                if (logger.isDebugEnabled) {
+                                    addLogMessageToRequestLog(routingContext, "Checking etag for show...")
+                                }
+
+                                eTagManager.checkItemEtag(etagKeyBase, key, etag, Handler {
+                                    when {
+                                        it.succeeded() && it.result() -> unChangedIndex(routingContext)
+                                        else -> proceedWithRead(routingContext, id, finalProjections)
+                                    }
+                                })
+                            }
+                            else -> proceedWithRead(routingContext, id, finalProjections)
+                        }
+                    }
+                    else -> proceedWithRead(routingContext, id, finalProjections)
                 }
-            } else {
-                proceedWithRead(routingContext, id, finalProjections)
             }
         }
     }
 
     private fun proceedWithRead(routingContext: RoutingContext, id: JsonObject, finalProjections: Array<String>?) {
         REPOSITORY.read(id, false, finalProjections, Handler {
-            if (it.failed()) {
-                if (it.result() == null) {
-                    notFoundShow(routingContext)
-                } else {
-                    failedShow(routingContext, JsonObject().put("error", "Service Unavailable..."))
-                }
-            } else {
-                val etag = routingContext.request().getHeader(HttpHeaders.IF_NONE_MATCH)
-                val itemResult = it.result()
-                val item = itemResult.item
+            when {
+                it.failed() ->
+                    when {
+                        it.result() == null -> notFoundShow(routingContext)
+                        else -> failedShow(routingContext, JsonObject().put("error", "Service Unavailable..."))
+                    }
+                else -> {
+                    val etag = routingContext.request().getHeader(HttpHeaders.IF_NONE_MATCH)
+                    val itemResult = it.result()
+                    val item = itemResult.item
 
-                routingContext.response().putHeader(HttpHeaders.ETAG, item.etag)
-                routingContext.response().putHeader("X-Cache", if (itemResult.isCacheHit) "HIT" else "MISS")
-                routingContext.response().putHeader("X-Repository-Pre-Operation-Nanos", "" + itemResult.preOperationProcessingTime)
-                routingContext.response().putHeader("X-Repository-Operation-Nanos", "" + itemResult.operationProcessingTime)
-                routingContext.response().putHeader("X-Repository-Post-Operation-Nanos", "" + itemResult.postOperationProcessingTime)
+                    routingContext.response().putHeader(HttpHeaders.ETAG, item.etag)
+                    routingContext.response().putHeader("X-Cache", if (itemResult.isCacheHit) "HIT" else "MISS")
+                    routingContext.response().putHeader("X-Repository-Pre-Operation-Nanos", "" + itemResult.preOperationProcessingTime)
+                    routingContext.response().putHeader("X-Repository-Operation-Nanos", "" + itemResult.operationProcessingTime)
+                    routingContext.response().putHeader("X-Repository-Post-Operation-Nanos", "" + itemResult.postOperationProcessingTime)
 
-                if (etag != null && item.etag!!.equals(etag, ignoreCase = true)) {
-                    unChangedShow(routingContext)
-                } else {
-                    postShow(routingContext, item, finalProjections ?: arrayOf())
+                    when {
+                        etag != null && item.etag!!.equals(etag, ignoreCase = true) -> unChangedShow(routingContext)
+                        else -> postShow(routingContext, item, finalProjections ?: arrayOf())
+                    }
                 }
             }
         })
@@ -226,12 +228,13 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         routingContext.put(CONTROLLER_START_TIME, initialProcessNanoTime)
         val query = customQuery ?: routingContext.request().query()
 
-        if (query == null || query.isEmpty()) {
-            preProcessQuery(routingContext, ConcurrentHashMap())
-        } else {
-            val queryMap = splitQuery(query)
+        when {
+            query == null || query.isEmpty() -> preProcessQuery(routingContext, ConcurrentHashMap())
+            else -> {
+                val queryMap = splitQuery(query)
 
-            preProcessQuery(routingContext, queryMap)
+                preProcessQuery(routingContext, queryMap)
+            }
         }
     }
 
@@ -397,59 +400,67 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         var ids: JsonArray? = null
         if (multiple != null && multiple) ids = identifiers.getJsonArray("range")
 
-        if (multiple != null && multiple && ids != null && ids.isEmpty) {
-            routingContext.put(BODY_CONTENT_TAG, Json.encodePrettily(JsonObject().put("error",
-                    "You cannot request multiple ids with an empty array!")))
-
-            setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
-        } else {
-            if (logger.isDebugEnabled) {
-                addLogMessageToRequestLog(routingContext, "Started index!")
-            }
-
-            if (pageToken != null && pageToken.equals(END_OF_PAGING_KEY, ignoreCase = true)) {
+        when {
+            multiple != null && multiple && ids != null && ids.isEmpty -> {
                 routingContext.put(BODY_CONTENT_TAG, Json.encodePrettily(JsonObject().put("error",
-                        "You cannot page for the " + END_OF_PAGING_KEY + ", " +
-                                "this message means you have reached the end of the results requested.")))
+                        "You cannot request multiple ids with an empty array!")))
 
                 setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
-            } else {
-                val queryPack = QueryPack.builder(TYPE)
-                        .withRoutingContext(routingContext)
-                        .withPageToken(pageToken)
-                        .withRequestEtag(etag)
-                        .withOrderByQueue(orderByQueue)
-                        .withFilterParameters(params)
-                        .withAggregateFunction(aggregateFunction)
-                        .withProjections(projections)
-                        .withIndexName(indexName)
-                        .withLimit(limit)
-                        .build()
+            }
+            else -> {
+                if (logger.isDebugEnabled) {
+                    addLogMessageToRequestLog(routingContext, "Started index!")
+                }
 
-                if (queryPack.aggregateFunction != null) {
-                    proceedWithAggregationIndex(routingContext, etag, identifiers, queryPack, projections)
-                } else {
-                    val hash = identifiers.encode().hashCode()
-                    val etagItemListHashKey = TYPE.simpleName + "_" + hash + "_" + "itemListEtags"
-                    val etagKey = queryPack.baseEtagKey
+                when {
+                    pageToken != null && pageToken.equals(END_OF_PAGING_KEY, ignoreCase = true) -> {
+                        routingContext.put(BODY_CONTENT_TAG, Json.encodePrettily(JsonObject().put("error",
+                                "You cannot page for the " + END_OF_PAGING_KEY + ", " +
+                                        "this message means you have reached the end of the results requested.")))
 
-                    if (logger.isDebugEnabled) {
-                        logger.debug("EtagKey is: " + etagKey!!)
-
-                        addLogMessageToRequestLog(routingContext, "Querypack ok, fetching etag for $etagKey")
+                        setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
                     }
+                    else -> {
+                        val queryPack = QueryPack.builder(TYPE)
+                                .withRoutingContext(routingContext)
+                                .withPageToken(pageToken)
+                                .withRequestEtag(etag)
+                                .withOrderByQueue(orderByQueue)
+                                .withFilterParameters(params)
+                                .withAggregateFunction(aggregateFunction)
+                                .withProjections(projections)
+                                .withIndexName(indexName)
+                                .withLimit(limit)
+                                .build()
 
-                    if (etag != null && eTagManager != null) {
-                        eTagManager.checkItemListEtag(etagItemListHashKey, etagKey!!, etag, Handler {
-                            if (it.succeeded() && it.result()) {
-                                unChangedIndex(routingContext)
-                            } else {
-                                proceedWithPagedIndex(identifiers, pageToken,
-                                        queryPack, projections, routingContext)
+                        when {
+                            queryPack.aggregateFunction != null ->
+                                proceedWithAggregationIndex(routingContext, etag, identifiers, queryPack, projections)
+                            else -> {
+                                val hash = identifiers.encode().hashCode()
+                                val etagItemListHashKey = TYPE.simpleName + "_" + hash + "_" + "itemListEtags"
+                                val etagKey = queryPack.baseEtagKey
+
+                                if (logger.isDebugEnabled) {
+                                    logger.debug("EtagKey is: " + etagKey!!)
+
+                                    addLogMessageToRequestLog(routingContext, "Querypack ok, fetching etag for $etagKey")
+                                }
+
+                                when {
+                                    etag != null && eTagManager != null ->
+                                        eTagManager.checkItemListEtag(etagItemListHashKey, etagKey!!, etag, Handler {
+                                            when {
+                                                it.succeeded() && it.result() -> unChangedIndex(routingContext)
+                                                else -> proceedWithPagedIndex(identifiers, pageToken,
+                                                        queryPack, projections, routingContext)
+                                            }
+                                    })
+                                    else -> proceedWithPagedIndex(identifiers, pageToken,
+                                            queryPack, projections, routingContext)
+                                }
                             }
-                        })
-                    } else {
-                        proceedWithPagedIndex(identifiers, pageToken, queryPack, projections, routingContext)
+                        }
                     }
                 }
             }
@@ -459,35 +470,41 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
     override fun proceedWithPagedIndex(id: JsonObject, pageToken: String?, queryPack: QueryPack,
                                        projections: Array<String>, routingContext: RoutingContext) {
         REPOSITORY.readAll(id, pageToken, queryPack, projections, Handler {
-            if (it.failed()) {
-                addLogMessageToRequestLog(routingContext, "FAILED: " + if (it.result() == null)
-                    null
-                else
-                    it.result().items, it.cause())
+            when {
+                it.failed() -> {
+                    addLogMessageToRequestLog(routingContext, "FAILED: " + if (it.result() == null)
+                        null
+                    else
+                        it.result().items, it.cause())
 
-                failedIndex(routingContext, JsonObject().put("error", "Service unavailable..."))
-            } else {
-                val itemsResult = it.result()
-                val items = itemsResult.itemList
+                    failedIndex(routingContext, JsonObject().put("error", "Service unavailable..."))
+                }
+                else -> {
+                    val itemsResult = it.result()
+                    val items = itemsResult.itemList
 
-                routingContext.response().putHeader("X-Cache", if (itemsResult.isCacheHit) "HIT" else "MISS")
-                routingContext.response().putHeader("X-Repository-Pre-Operation-Nanos", "" + itemsResult.preOperationProcessingTime)
-                routingContext.response().putHeader("X-Repository-Operation-Nanos", "" + itemsResult.operationProcessingTime)
-                routingContext.response().putHeader("X-Repository-Post-Operation-Nanos", "" + itemsResult.postOperationProcessingTime)
+                    routingContext.response().putHeader("X-Cache", if (itemsResult.isCacheHit) "HIT" else "MISS")
+                    routingContext.response().putHeader("X-Repository-Pre-Operation-Nanos", "" + itemsResult.preOperationProcessingTime)
+                    routingContext.response().putHeader("X-Repository-Operation-Nanos", "" + itemsResult.operationProcessingTime)
+                    routingContext.response().putHeader("X-Repository-Post-Operation-Nanos", "" + itemsResult.postOperationProcessingTime)
 
-                if (items != null) {
-                    routingContext.response().putHeader(HttpHeaders.ETAG, items.etag)
+                    when {
+                        items != null -> {
+                            routingContext.response().putHeader(HttpHeaders.ETAG, items.etag)
 
-                    if (logger.isDebugEnabled) {
-                        addLogMessageToRequestLog(routingContext,
-                                "Projections for output is: " + Arrays.toString(projections))
+                            if (logger.isDebugEnabled) {
+                                addLogMessageToRequestLog(routingContext,
+                                        "Projections for output is: " + Arrays.toString(projections))
+                            }
+
+                            postIndex(routingContext, items, projections)
+                        }
+                        else -> {
+                            addLogMessageToRequestLog(routingContext, "FAILED ITEMS!")
+
+                            failedIndex(routingContext, JsonObject().put("error", "Returned items is null!"))
+                        }
                     }
-
-                    postIndex(routingContext, items, projections)
-                } else {
-                    addLogMessageToRequestLog(routingContext, "FAILED ITEMS!")
-
-                    failedIndex(routingContext, JsonObject().put("error", "Returned items is null!"))
                 }
             }
         })
@@ -511,43 +528,49 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
             else -> throw IllegalArgumentException("Illegal Function!")
         }
 
-        if (etag != null && eTagManager != null) {
-            val hash = id.encode().hashCode()
-            val etagItemListHashKey = TYPE.simpleName + "_" + hash + "_" + "itemListEtags"
+        when {
+            etag != null && eTagManager != null -> {
+                val hash = id.encode().hashCode()
+                val etagItemListHashKey = TYPE.simpleName + "_" + hash + "_" + "itemListEtags"
 
-            eTagManager.checkAggregationEtag(etagItemListHashKey, etagKey, etag, Handler {
-                if (it.succeeded() && it.result()) {
-                    unChangedIndex(routingContext)
-                } else {
-                    doAggregation(routingContext, id, queryPack, projections)
-                }
-            })
-        } else {
-            doAggregation(routingContext, id, queryPack, projections)
+                eTagManager.checkAggregationEtag(etagItemListHashKey, etagKey, etag, Handler {
+                    when {
+                        it.succeeded() && it.result() -> unChangedIndex(routingContext)
+                        else -> doAggregation(routingContext, id, queryPack, projections)
+                    }
+                })
+            }
+            else -> doAggregation(routingContext, id, queryPack, projections)
         }
     }
 
     protected fun doAggregation(routingContext: RoutingContext, id: JsonObject,
                                 queryPack: QueryPack, projections: Array<String>) {
         REPOSITORY.aggregation(id, queryPack, projections, Handler {
-            if (it.failed()) {
-                addLogMessageToRequestLog(routingContext,
-                        "FAILED AGGREGATION: " + Json.encodePrettily(queryPack), it.cause())
-
-                failedIndex(routingContext, JsonObject().put("error", "Aggregation Index failed..."))
-            } else {
-                val output = it.result()
-
-                if (output != null) {
-                    val newEtag = ModelUtils.returnNewEtag(output.hashCode().toLong())
-
-                    routingContext.response().putHeader(HttpHeaders.ETAG, newEtag)
-
-                    postAggregation(routingContext, output)
-                } else {
-                    addLogMessageToRequestLog(routingContext, "FAILED AGGREGATION, NULL")
+            when {
+                it.failed() -> {
+                    addLogMessageToRequestLog(routingContext,
+                            "FAILED AGGREGATION: " + Json.encodePrettily(queryPack), it.cause())
 
                     failedIndex(routingContext, JsonObject().put("error", "Aggregation Index failed..."))
+                }
+                else -> {
+                    val output = it.result()
+
+                    when {
+                        output != null -> {
+                            val newEtag = ModelUtils.returnNewEtag(output.hashCode().toLong())
+
+                            routingContext.response().putHeader(HttpHeaders.ETAG, newEtag)
+
+                            postAggregation(routingContext, output)
+                        }
+                        else -> {
+                            addLogMessageToRequestLog(routingContext, "FAILED AGGREGATION, NULL")
+
+                            failedIndex(routingContext, JsonObject().put("error", "Aggregation Index failed..."))
+                        }
+                    }
                 }
             }
         })
@@ -562,30 +585,29 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
     override fun parseBodyForCreate(routingContext: RoutingContext) {
         val initialProcessNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
 
-        if (routingContext.body.bytes.isEmpty()) {
-            try {
-                preVerifyNotExists(TYPE.newInstance(), routingContext)
-            } catch (e: InstantiationException) {
-                addLogMessageToRequestLog(routingContext, "Unable to create empty body!", e)
+        when {
+            routingContext.body.bytes.isEmpty() ->
+                try {
+                    preVerifyNotExists(TYPE.newInstance(), routingContext)
+                } catch (e: InstantiationException) {
+                    addLogMessageToRequestLog(routingContext, "Unable to create empty body!", e)
 
-                setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
-            } catch (e: IllegalAccessException) {
-                addLogMessageToRequestLog(routingContext, "Unable to create empty body!", e)
-                setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
-            }
+                    setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
+                } catch (e: IllegalAccessException) {
+                    addLogMessageToRequestLog(routingContext, "Unable to create empty body!", e)
+                    setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
+                }
+            else ->
+                try {
+                    val json = routingContext.bodyAsString
+                    val newRecord = Json.decodeValue(json, TYPE)
 
-        } else {
-            try {
-                val json = routingContext.bodyAsString
-                val newRecord = Json.decodeValue(json, TYPE)
+                    preVerifyNotExists(newRecord, routingContext)
+                } catch (e: DecodeException) {
+                    addLogMessageToRequestLog(routingContext, "Unable to parse body!", e)
 
-                preVerifyNotExists(newRecord, routingContext)
-            } catch (e: DecodeException) {
-                addLogMessageToRequestLog(routingContext, "Unable to parse body!", e)
-
-                setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
-            }
-
+                    setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
+                }
         }
     }
 
@@ -596,17 +618,19 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         try {
             val e = TYPE.newInstance()
 
-            if (e == null) {
-                logger.error("Could not instantiate object of type: " + TYPE.simpleName)
+            when (e) {
+                null -> {
+                    logger.error("Could not instantiate object of type: " + TYPE.simpleName)
 
-                setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
-            } else {
-                REPOSITORY.read(id, Handler {
-                    if (it.succeeded()) {
-                        setStatusCodeAndAbort(409, routingContext, initialProcessNanoTime)
-                    } else {
-                        e.setInitialValues(newRecord)
-                        postVerifyNotExists(e, routingContext)
+                    setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
+                }
+                else -> REPOSITORY.read(id, Handler {
+                    when {
+                        it.succeeded() -> setStatusCodeAndAbort(409, routingContext, initialProcessNanoTime)
+                        else -> {
+                            e.setInitialValues(newRecord)
+                            postVerifyNotExists(e, routingContext)
+                        }
                     }
                 })
             }
@@ -623,22 +647,25 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
 
     override fun performCreate(newRecord: E, routingContext: RoutingContext) {
         REPOSITORY.create(newRecord, Handler {
-            if (it.failed()) {
-                addLogMessageToRequestLog(routingContext, "Could not create item!", it.cause())
+            when {
+                it.failed() -> {
+                    addLogMessageToRequestLog(routingContext, "Could not create item!", it.cause())
 
-                val errorObject = JsonObject()
-                        .put("create_error", "Unable to create record...")
+                    val errorObject = JsonObject()
+                            .put("create_error", "Unable to create record...")
 
-                failedCreate(routingContext, errorObject)
-            } else {
-                val finalRecordResult = it.result()
-                val finalRecord = finalRecordResult.item
+                    failedCreate(routingContext, errorObject)
+                }
+                else -> {
+                    val finalRecordResult = it.result()
+                    val finalRecord = finalRecordResult.item
 
-                routingContext.response()
-                        .putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-                        .putHeader(HttpHeaders.ETAG, finalRecord.etag)
+                    routingContext.response()
+                            .putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                            .putHeader(HttpHeaders.ETAG, finalRecord.etag)
 
-                postCreate(finalRecord, routingContext)
+                    postCreate(finalRecord, routingContext)
+                }
             }
         })
     }
@@ -647,10 +674,9 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         val initialProcessNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
         val json = routingContext.bodyAsString
 
-        if (json == null) {
-            setStatusCodeAndAbort(422, routingContext, initialProcessNanoTime)
-        } else {
-            try {
+        when (json) {
+            null -> setStatusCodeAndAbort(422, routingContext, initialProcessNanoTime)
+            else -> try {
                 val newRecord = Json.decodeValue(json, TYPE)
 
                 preVerifyExistsForUpdate(newRecord, routingContext)
@@ -659,7 +685,6 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
 
                 setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
             }
-
         }
     }
 
@@ -667,16 +692,16 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         val initialProcessNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
         val id = getAndVerifyId(routingContext)
 
-        if (id.isEmpty) {
-            setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
-        } else {
-            REPOSITORY.read(id, Handler {
-                if (it.failed()) {
-                    setStatusCodeAndAbort(404, routingContext, initialProcessNanoTime)
-                } else {
-                    val record = it.result().item
+        when {
+            id.isEmpty -> setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
+            else -> REPOSITORY.read(id, Handler {
+                when {
+                    it.failed() -> setStatusCodeAndAbort(404, routingContext, initialProcessNanoTime)
+                    else -> {
+                        val record = it.result().item
 
-                    preSanitizeForUpdate(record, newRecord, routingContext)
+                        preSanitizeForUpdate(record, newRecord, routingContext)
+                    }
                 }
             })
         }
@@ -684,17 +709,18 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
 
     override fun performUpdate(updatedRecord: E, setNewValues: Function<E, E>, routingContext: RoutingContext) {
         REPOSITORY.update(updatedRecord, setNewValues, Handler {
-            if (it.failed()) {
-                failedUpdate(routingContext, JsonObject().put("error", "Unable to update record..."))
-            } else {
-                val finalRecordResult = it.result()
-                val finalRecord = finalRecordResult.item
+            when {
+                it.failed() -> failedUpdate(routingContext, JsonObject().put("error", "Unable to update record..."))
+                else -> {
+                    val finalRecordResult = it.result()
+                    val finalRecord = finalRecordResult.item
 
-                routingContext.response()
-                        .putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
-                        .putHeader(HttpHeaders.ETAG, finalRecord.etag)
+                    routingContext.response()
+                            .putHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                            .putHeader(HttpHeaders.ETAG, finalRecord.etag)
 
-                postUpdate(finalRecord, routingContext)
+                    postUpdate(finalRecord, routingContext)
+                }
             }
         })
     }
@@ -703,16 +729,16 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         val initialProcessNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
         val id = getAndVerifyId(routingContext)
 
-        if (id.isEmpty) {
-            setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
-        } else {
-            REPOSITORY.read(id, Handler {
-                if (it.failed()) {
-                    logger.error("Could not find record!", it.cause())
+        when {
+            id.isEmpty -> setStatusCodeAndAbort(400, routingContext, initialProcessNanoTime)
+            else -> REPOSITORY.read(id, Handler {
+                when {
+                    it.failed() -> {
+                        logger.error("Could not find record!", it.cause())
 
-                    setStatusCodeAndAbort(404, routingContext, initialProcessNanoTime)
-                } else {
-                    postVerifyExistsForDestroy(it.result().item, routingContext)
+                        setStatusCodeAndAbort(404, routingContext, initialProcessNanoTime)
+                    }
+                    else -> postVerifyExistsForDestroy(it.result().item, routingContext)
                 }
             })
         }
@@ -722,13 +748,14 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         val id = getAndVerifyId(routingContext)
 
         REPOSITORY.delete(id, Handler {
-            if (it.failed()) {
-                failedDestroy(routingContext, JsonObject().put("error", "Unable to destroy record!"))
-            } else {
-                val finalRecordResult = it.result()
-                val finalRecord = finalRecordResult.item
+            when {
+                it.failed() -> failedDestroy(routingContext, JsonObject().put("error", "Unable to destroy record!"))
+                else -> {
+                    val finalRecordResult = it.result()
+                    val finalRecord = finalRecordResult.item
 
-                postDestroy(finalRecord, routingContext)
+                    postDestroy(finalRecord, routingContext)
+                }
             }
         })
     }

@@ -42,32 +42,36 @@ import io.vertx.serviceproxy.ServiceException
  * @version 17.11.2017
  */
 object CircuitBreakerUtils {
-    private val logger = LoggerFactory.getLogger(CircuitBreakerUtils::class.java!!.getSimpleName())
+    private val logger = LoggerFactory.getLogger(CircuitBreakerUtils::class.java!!.simpleName)
 
     fun <T> performRequestWithCircuitBreaker(circuitBreaker: CircuitBreaker,
                                              resultHandler: Handler<AsyncResult<T>>,
                                              handler: Handler<Future<T>>,
                                              backup: (Throwable) -> Unit) {
         val result = Future.future<T>()
-        result.setHandler { operationResult ->
-            logger.debug("Received " + circuitBreaker.name() + " Result: " + operationResult.succeeded())
+        result.setHandler {
+            logger.debug("Received " + circuitBreaker.name() + " Result: " + it.succeeded())
 
-            if (operationResult.succeeded()) {
-                resultHandler.handle(Future.succeededFuture(operationResult.result()))
-            } else {
-                logger.debug("Failed: " + operationResult.cause())
+            when {
+                it.succeeded() -> resultHandler.handle(Future.succeededFuture(it.result()))
+                else -> {
+                    logger.debug("Failed: " + it.cause())
 
-                if (operationResult.cause() is ServiceException) {
-                    ServiceManager.handleResultFailed(operationResult.cause())
+                    when {
+                        it.cause() is ServiceException -> {
+                            ServiceManager.handleResultFailed(it.cause())
 
-                    resultHandler.handle(Future.failedFuture(operationResult.cause()))
-                } else {
-                    if (operationResult.cause() != null && operationResult.cause().message == "operation timeout") {
-                        logger.error(circuitBreaker.name() + " Timeout, failures: " +
-                                circuitBreaker.failureCount() + ", state: " + circuitBreaker.state().name)
+                            resultHandler.handle(Future.failedFuture(it.cause()))
+                        }
+                        else -> {
+                            if (it.cause() != null && it.cause().message == "operation timeout") {
+                                logger.error(circuitBreaker.name() + " Timeout, failures: " +
+                                        circuitBreaker.failureCount() + ", state: " + circuitBreaker.state().name)
+                            }
+
+                            backup(it.cause())
+                        }
                     }
-
-                    backup(operationResult.cause())
                 }
             }
         }

@@ -43,16 +43,21 @@ import java.util.concurrent.ConcurrentHashMap
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class APIManager @JvmOverloads constructor(private val vertx: Vertx, appConfig: JsonObject, private val apiHostProducer: APIHostProducer? = null) {
+class APIManager @JvmOverloads constructor(
+        private val vertx: Vertx,
+        appConfig: JsonObject,
+        private val apiHostProducer: APIHostProducer? = null) {
     private val circuitBreakerMap: MutableMap<String, CircuitBreaker>
     private val circuitBreakerMessageConsumerMap: Map<String, MessageConsumer<JsonObject>>
 
     private val publicHost: String
     private val privateHost: String
 
-    constructor(appConfig: JsonObject) : this(Vertx.currentContext().owner(), appConfig, null)
+    constructor(appConfig: JsonObject) :
+            this(Vertx.currentContext().owner(), appConfig, null)
 
-    constructor(appConfig: JsonObject, apiHostProducer: APIHostProducer) : this(Vertx.currentContext().owner(), appConfig, apiHostProducer)
+    constructor(appConfig: JsonObject, apiHostProducer: APIHostProducer) :
+            this(Vertx.currentContext().owner(), appConfig, apiHostProducer)
 
     init {
         circuitBreakerMap = ConcurrentHashMap()
@@ -78,10 +83,9 @@ class APIManager @JvmOverloads constructor(private val vertx: Vertx, appConfig: 
             }
 
             CompositeFuture.all(unRegisterFutures).setHandler {
-                if (it.failed()) {
-                    stopFuture.fail(it.cause())
-                } else {
-                    stopFuture.complete()
+                when {
+                    it.failed() -> stopFuture.fail(it.cause())
+                    else -> stopFuture.complete()
                 }
             }
         }
@@ -133,7 +137,7 @@ class APIManager @JvmOverloads constructor(private val vertx: Vertx, appConfig: 
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(APIManager::class.java!!.getSimpleName())
+        private val logger = LoggerFactory.getLogger(APIManager::class.java!!.simpleName)
 
         private const val GENERIC_HTTP_REQUEST_CIRCUITBREAKER = "com.apis.generic.circuitbreaker"
         private const val API_CIRCUIT_BREAKER_BASE = "com.apis.circuitbreaker."

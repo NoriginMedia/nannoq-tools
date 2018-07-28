@@ -27,9 +27,7 @@ package com.nannoq.tools.repository.utils
 
 import com.nannoq.tools.repository.models.ValidationError
 import org.apache.commons.lang3.StringUtils
-
-import java.util.ArrayList
-import java.util.Objects
+import java.util.*
 
 /**
  * This class defines projection configurations for cross table queries.
@@ -60,11 +58,10 @@ class CrossTableProjection @JvmOverloads constructor(val models: List<String>? =
         } ?: errors.add(ValidationError(
                 "models_error", "Models cannot be null for!"))
 
-        if (fields == null && function != AggregateFunctions.COUNT) {
-            errors.add(ValidationError(
+        when {
+            fields == null && function != AggregateFunctions.COUNT -> errors.add(ValidationError(
                     "fields_error", "Fields cannot be null for: " + function.name))
-        } else if (fields != null && function != AggregateFunctions.COUNT) {
-            fields.forEach { field ->
+            fields != null && function != AggregateFunctions.COUNT -> fields.forEach { field ->
                 if (StringUtils.countMatches(field, ".") != 1) {
                     errors.add(ValidationError(
                             "$field invalid! Must be in this format: <modelNamePluralized>.<fieldName>",
@@ -78,8 +75,7 @@ class CrossTableProjection @JvmOverloads constructor(val models: List<String>? =
                             "$field is not pluralized!", "fields_$field"))
                 }
             }
-        } else if (fields != null) {
-            errors.add(ValidationError(
+            fields != null -> errors.add(ValidationError(
                     "fields_error", "Fields must be null for: " + function.name))
         }
 

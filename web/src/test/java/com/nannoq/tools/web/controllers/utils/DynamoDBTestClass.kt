@@ -40,7 +40,7 @@ abstract class DynamoDBTestClass : ConfigSupport {
 
     @JvmField
     @Rule
-    val timeout = Timeout.seconds(30)
+    val timeout: Timeout = Timeout.seconds(30)
 
     @JvmField
     @Rule

@@ -47,6 +47,8 @@ import io.jsonwebtoken.*
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
+import io.vertx.core.Future.future
+import io.vertx.core.Future.succeededFuture
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
 import io.vertx.core.json.DecodeException
@@ -55,6 +57,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
 import io.vertx.serviceproxy.ServiceException
+import io.vertx.serviceproxy.ServiceException.fail
 import org.apache.commons.codec.digest.DigestUtils
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
@@ -66,6 +69,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 import javax.xml.bind.DatatypeConverter
 
+@Suppress("unused")
 /**
  * This class defines an authenticator. The authenticator receives an external token and converts it into an internal
  * JWT.
@@ -78,7 +82,6 @@ constructor(vertx: Vertx, appConfig: JsonObject,
             private val setPermissionOnClaims: Function<PermissionPack, MutableMap<String, Any>>,
             KEY_BASE: String) : AuthenticationService {
     private val CALLBACK_URL: String
-
     private val EMAIL_HASH_KEY_BASE: String
 
     private val ISSUER: String
@@ -95,30 +98,16 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     private val facebookProvider: FaceBookProvider
     private val instaGramProvider: InstaGram
 
-    companion object {
-        private val logger = LoggerFactory.getLogger(AuthenticationServiceImpl::class.java.simpleName)
-
-        private var KEY_ALGORITHM = "HmacSHA512"
-
-        const val GOOGLE = "GOOGLE"
-        const val FACEBOOK = "FACEBOOK"
-        const val INSTAGRAM = "INSTAGRAM"
-
-        internal const val REFRESH_TOKEN_SPLITTER = "____"
-    }
-
     init {
         this.SIGNING_KEY = SecretKeySpec(DatatypeConverter.parseHexBinary(KEY_BASE), KEY_ALGORITHM)
-
-        val GOOGLE_CLIENT_IDS = appConfig.getJsonArray("gcmIds").list
         this.EMAIL_HASH_KEY_BASE = appConfig.getString("emailHashKeybase")
         val CALL_BACK_PROVIDER_URL = appConfig.getString("callbackProviderUrl")
         this.CALLBACK_URL = appConfig.getString("callBackRoot") + CALL_BACK_PROVIDER_URL
         this.ISSUER = appConfig.getString("authJWTIssuer")
         this.AUDIENCE = appConfig.getString("authJWTAudience")
         this.googleProvider = Google(vertx)
-        @Suppress("UNCHECKED_CAST")
-        this.googleProvider.withClientIds(GOOGLE_CLIENT_IDS as List<String>)
+        val GOOGLE_CLIENT_IDS = appConfig.getJsonArray("gcmIds").list.map { it.toString() }
+        this.googleProvider.withClientIds(GOOGLE_CLIENT_IDS)
         this.facebookProvider = FaceBookProvider(vertx, appConfig)
         this.instaGramProvider = InstaGram(vertx, appConfig, CALLBACK_URL)
 
@@ -182,39 +171,48 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     @Fluent
     override fun createJwtFromProvider(token: String, authProvider: String,
                                        resultHandler: Handler<AsyncResult<AuthPackage>>): AuthenticationService {
-        val unableToParseException = ServiceException.fail<AuthPackage>(500, "Unable to parse Token: ")
+        val unableToParseException = fail<AuthPackage>(500, "Unable to parse Token: ")
 
         when (authProvider.toUpperCase()) {
             GOOGLE -> googleProvider.checkJWT(token, Handler {
-                if (it.failed()) {
-                    logger.error("Unable to process Google Token!", it.cause())
+                when {
+                    it.failed() -> {
+                        logger.error("Unable to process Google Token!", it.cause())
 
-                    resultHandler.handle(unableToParseException)
-                } else {
-                    buildAuthPackage(it.result(), Handler { resultHandler.handle(Future.succeededFuture(it.result())) })
+                        resultHandler.handle(unableToParseException)
+                    }
+                    else -> buildAuthPackage(it.result(), Handler {
+                        resultHandler.handle(succeededFuture(it.result()))
+                    })
                 }
             })
             FACEBOOK -> facebookProvider.checkJWT(token, Handler {
-                if (it.failed()) {
-                    logger.error("Unable to process Facebook Token!", it.cause())
+                when {
+                    it.failed() -> {
+                        logger.error("Unable to process Facebook Token!", it.cause())
 
-                    resultHandler.handle(unableToParseException)
-                } else {
-                    buildAuthPackage(it.result(), Handler { resultHandler.handle(Future.succeededFuture(it.result())) })
+                        resultHandler.handle(unableToParseException)
+                    }
+                    else -> buildAuthPackage(it.result(), Handler {
+                        resultHandler.handle(succeededFuture(it.result()))
+                    })
                 }
             })
             INSTAGRAM -> instaGramProvider.checkJWT(token, Handler {
-                if (it.failed()) {
-                    logger.error("Unable to process Instagram Token!", it.cause())
+                when {
+                    it.failed() -> {
+                        logger.error("Unable to process Instagram Token!", it.cause())
 
-                    resultHandler.handle(unableToParseException)
-                } else {
-                    buildAuthPackage(it.result(), Handler { resultHandler.handle(Future.succeededFuture(it.result())) })
+                        resultHandler.handle(unableToParseException)
+                    }
+                    else -> buildAuthPackage(it.result(), Handler {
+                        resultHandler.handle(succeededFuture(it.result()))
+                    })
                 }
             })
             else -> {
                 logger.error("ERROR JwtGenerator: Unknown AuthProvider: $authProvider")
-                resultHandler.handle(ServiceException.fail(400, "Unknown Provider..."))
+                resultHandler.handle(fail(400, "Unknown Provider..."))
             }
         }
 
@@ -225,7 +223,8 @@ constructor(vertx: Vertx, appConfig: JsonObject,
         val userId = try {
             ModelUtils.hashString(userProfile.email + EMAIL_HASH_KEY_BASE)
         } catch (e: NoSuchAlgorithmException) {
-            e.printStackTrace()
+            logger.error("No such alg", e)
+
             userProfile.email
         }
 
@@ -250,7 +249,8 @@ constructor(vertx: Vertx, appConfig: JsonObject,
         val userId = try {
             ModelUtils.hashString(userProfile.email + EMAIL_HASH_KEY_BASE)
         } catch (e: NoSuchAlgorithmException) {
-            e.printStackTrace()
+            logger.error("No such alg", e)
+
             userProfile.email
         }
 
@@ -264,14 +264,13 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     private fun doTokenCreation(userProfile: UserProfile, resultHandler: Handler<AsyncResult<AuthPackage>>,
                                 claimsMap: MutableMap<String, Any>, email: String) {
         createTokenContainer(email, claimsMap, Handler {
-            if (it.result() != null) {
-                resultHandler.handle(Future.succeededFuture(AuthPackage(
-                        it.result(), userProfile)))
-            } else {
-                logger.error("TokenContainer is null...", it.cause())
+            when {
+                it.result() != null -> resultHandler.handle(succeededFuture(AuthPackage(it.result(), userProfile)))
+                else -> {
+                    logger.error("TokenContainer is null...", it.cause())
 
-                resultHandler.handle(
-                        ServiceException.fail(500, "TokenContainer is null..."))
+                    resultHandler.handle(fail(500, "TokenContainer is null..."))
+                }
             }
         })
     }
@@ -309,20 +308,21 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
             calendar.add(Calendar.DAY_OF_MONTH, refreshTokenExpirationInDays)
             val newRefreshToken = DigestUtils.sha1Hex(id + UUID.randomUUID().toString())
-            val refreshTokenWithExpireKey = newRefreshToken + REFRESH_TOKEN_SPLITTER + calendar.time.time
+            val refreshWithExpireKey = newRefreshToken + REFRESH_TOKEN_SPLITTER + calendar.time.time
 
-            createTokenContainer(id, jwtId, email, newRefreshToken, newClaims,
-                    jwt, refreshTokenWithExpireKey, resultHandler)
+            createTokenContainer(id, jwtId, email, newRefreshToken, newClaims, jwt, refreshWithExpireKey, resultHandler)
         } catch (e: JwtException) {
             logger.error("Failed Token Container Creation!", e)
 
-            resultHandler.handle(ServiceException.fail(500, "" + e))
+            resultHandler.handle(fail(500, "" + e))
         } catch (e: IllegalArgumentException) {
             logger.error("Failed Token Container Creation!", e)
-            resultHandler.handle(ServiceException.fail(500, "" + e))
+
+            resultHandler.handle(fail(500, "" + e))
         } catch (e: NoSuchAlgorithmException) {
             logger.error("Failed Token Container Creation!", e)
-            resultHandler.handle(ServiceException.fail(500, "" + e))
+
+            resultHandler.handle(fail(500, "" + e))
         }
 
     }
@@ -338,14 +338,15 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
             transaction.multi {
                 transaction.hset(mapId, jwtId, expireToken) { result ->
-                    if (result.failed()) {
-                        logger.error("Could not set valid jwt for: $email", result.cause())
-                    } else {
-                        val encodedClaims = Json.encode(claims)
+                    when {
+                        result.failed() -> logger.error("Could not set valid jwt for: $email", result.cause())
+                        else -> {
+                            val encodedClaims = Json.encode(claims)
 
-                        transaction.set(newRefreshToken, encodedClaims) {
-                            if (it.failed()) {
-                                logger.error("Could not store refreshtoken for: $email", it.cause())
+                            transaction.set(newRefreshToken, encodedClaims) {
+                                if (it.failed()) {
+                                    logger.error("Could not store refreshtoken for: $email", it.cause())
+                                }
                             }
                         }
                     }
@@ -353,18 +354,22 @@ constructor(vertx: Vertx, appConfig: JsonObject,
             }
 
             transaction.exec { execResult ->
-                if (execResult.failed()) {
-                    resultHandler.handle(ServiceException.fail(
-                            500, "Could not set valid jwt for: $email"))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(TokenContainer(jwt, newRefreshToken)))
+                when {
+                    execResult.failed() -> resultHandler.handle(fail(500, "Could not set valid jwt for: $email"))
+                    else -> resultHandler.handle(succeededFuture(TokenContainer(jwt, newRefreshToken)))
                 }
             }
         }
     }
 
     @Throws(IllegalArgumentException::class)
-    private fun createJwt(id: String, jwtId: String, claims: Map<String, Any>, now: Date, notBefore: Date, then: Date): String {
+    private fun createJwt(
+            id: String,
+            jwtId: String,
+            claims: Map<String, Any>,
+            now: Date,
+            notBefore: Date,
+            then: Date): String {
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuer(ISSUER)
@@ -380,7 +385,13 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     }
 
     @Throws(IllegalArgumentException::class)
-    private fun createJwt(id: String, jwtId: String, claims: Jws<Claims>, now: Date, notBefore: Date, then: Date): String {
+    private fun createJwt(
+            id: String,
+            jwtId: String,
+            claims: Jws<Claims>,
+            now: Date,
+            notBefore: Date,
+            then: Date): String {
         return Jwts.builder()
                 .setClaims(claims.body)
                 .setIssuer(ISSUER)
@@ -395,7 +406,10 @@ constructor(vertx: Vertx, appConfig: JsonObject,
                 .compact()
     }
 
-    private fun generatePermissions(userId: String, claims: MutableMap<String, Any>, authOrigin: String): MutableMap<String, Any> {
+    private fun generatePermissions(
+            userId: String,
+            claims: MutableMap<String, Any>,
+            authOrigin: String): MutableMap<String, Any> {
         claims.putIfAbsent(domainIdentifier, userId)
 
         return setPermissionOnClaims.apply(PermissionPack(userId, claims, authOrigin))
@@ -410,7 +424,7 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
                 getTokenContainer(it).compose({ tokenContainer ->
                     deleteOld(it, refreshToken, oldId, tokenContainer).compose({
-                        container -> resultHandler.handle(Future.succeededFuture(container))
+                        container -> resultHandler.handle(succeededFuture(container))
                     }, authFail<Any, TokenContainer>(resultHandler))
                 }, authFail<Any, TokenContainer>(resultHandler))
             }, authFail<Any, TokenContainer>(resultHandler))
@@ -421,12 +435,13 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
     private fun deleteOld(claims: MutableMap<String, Any>, refreshToken: String, oldId: String,
                           tokenContainer: TokenContainer): Future<TokenContainer> {
-        val tokenContainerFuture = Future.future<TokenContainer>()
+        val tokenContainerFuture = future<TokenContainer>()
         val email = claims[JWT_CLAIMS_USER_EMAIL].toString()
         val userId = try {
             ModelUtils.hashString(email + EMAIL_HASH_KEY_BASE)
         } catch (e: NoSuchAlgorithmException) {
             logger.error("No Algorithm!", e)
+
             email
         }
 
@@ -439,25 +454,22 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
             transaction.multi {
                 transaction.del(refreshToken) {
-                    if (it.failed()) {
-                        logger.debug("Del RefreshToken failed!")
-                    }
+                    if (it.failed()) { logger.debug("Del RefreshToken failed!") }
                 }
 
                 transaction.hdel(registry, oldId) {
-                    if (it.failed()) {
-                        logger.debug("Del JwtValidity failed!")
-                    }
+                    if (it.failed()) { logger.debug("Del JwtValidity failed!") }
                 }
             }
 
             transaction.exec {
-                if (it.failed()) {
-                    tokenContainerFuture.fail(InternalError("Unable to purge old refresh..."))
-                } else {
-                    logger.debug("Purged all remnants of old refresh...")
+                when {
+                    it.failed() -> tokenContainerFuture.fail(InternalError("Unable to purge old refresh..."))
+                    else -> {
+                        logger.debug("Purged all remnants of old refresh...")
 
-                    tokenContainerFuture.complete(tokenContainer)
+                        tokenContainerFuture.complete(tokenContainer)
+                    }
                 }
             }
         }
@@ -466,12 +478,11 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     }
 
     private fun getClaims(tokenCache: String?): Future<MutableMap<String, Any>> {
-        val claimsFuture = Future.future<MutableMap<String, Any>>()
+        val claimsFuture = future<MutableMap<String, Any>>()
 
-        if (tokenCache == null) {
-            claimsFuture.fail(ServiceException(500, "TokenCache cannot be null..."))
-        } else {
-            try {
+        when (tokenCache) {
+            null -> claimsFuture.fail(ServiceException(500, "TokenCache cannot be null..."))
+            else -> try {
                 val claims = Json.decodeValue(tokenCache, Map::class.java)
 
                 @Suppress("UNCHECKED_CAST")
@@ -479,21 +490,19 @@ constructor(vertx: Vertx, appConfig: JsonObject,
             } catch (e: DecodeException) {
                 claimsFuture.fail(e)
             }
-
         }
 
         return claimsFuture
     }
 
     private fun getTokenContainer(claims: MutableMap<String, Any>): Future<TokenContainer> {
-        val tokenContainerFuture = Future.future<TokenContainer>()
+        val tokenContainerFuture = future<TokenContainer>()
         val email = claims[JWT_CLAIMS_USER_EMAIL].toString()
 
         createTokenContainer(email, claims, Handler {
-            if (it.failed()) {
-                tokenContainerFuture.fail(it.cause())
-            } else {
-                tokenContainerFuture.complete(it.result())
+            when {
+                it.failed() -> tokenContainerFuture.fail(it.cause())
+                else -> tokenContainerFuture.complete(it.result())
             }
         })
 
@@ -501,14 +510,13 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     }
 
     private fun getTokenCache(refreshToken: String): Future<String> {
-        val tokenCacheFuture = Future.future<String>()
+        val tokenCacheFuture = future<String>()
 
         RedisUtils.performJedisWithRetry(redisClient) {
             it.get(refreshToken) { getResult ->
-                if (getResult.failed()) {
-                    tokenCacheFuture.fail(getResult.cause())
-                } else {
-                    tokenCacheFuture.complete(getResult.result())
+                when {
+                    getResult.failed() -> tokenCacheFuture.fail(getResult.cause())
+                    else -> tokenCacheFuture.complete(getResult.result())
                 }
             }
         }
@@ -557,19 +565,31 @@ constructor(vertx: Vertx, appConfig: JsonObject,
         } catch (e: JwtException) {
             logger.error("Failed Token Container Creation!", e)
 
-            resultHandler.handle(ServiceException.fail(500, "" + e))
+            resultHandler.handle(fail(500, "" + e))
         } catch (e: IllegalArgumentException) {
             logger.error("Failed Token Container Creation!", e)
 
-            resultHandler.handle(ServiceException.fail(500, "" + e))
+            resultHandler.handle(fail(500, "" + e))
         } catch (e: NoSuchAlgorithmException) {
             logger.error("Failed Token Container Creation!", e)
 
-            resultHandler.handle(ServiceException.fail(500, "" + e))
+            resultHandler.handle(fail(500, "" + e))
         }
     }
 
     override fun close() {
-        redisClient.close { closerResult -> logger.debug("RedisClient closed for AuthenticationService: " + closerResult.succeeded()) }
+        redisClient.close { logger.debug("RedisClient closed for AuthenticationService: " + it.succeeded()) }
+    }
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(AuthenticationServiceImpl::class.java.simpleName)
+
+        private var KEY_ALGORITHM = "HmacSHA512"
+
+        const val GOOGLE = "GOOGLE"
+        const val FACEBOOK = "FACEBOOK"
+        const val INSTAGRAM = "INSTAGRAM"
+
+        internal const val REFRESH_TOKEN_SPLITTER = "____"
     }
 }

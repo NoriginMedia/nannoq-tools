@@ -73,99 +73,101 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
                         params: MutableMap<String, List<FilterParameter>>, limit: IntArray,
                         orderByQueue: Queue<OrderByParameter>, indexName: Array<String>): JsonObject {
         queryMap.keys.forEach { key ->
-            if (key.equals(LIMIT_KEY, ignoreCase = true) || key.equals(MULTIPLE_IDS_KEY, ignoreCase = true) ||
-                    key.equals(ORDER_BY_KEY, ignoreCase = true) || key.equals(PROJECTION_KEY, ignoreCase = true) ||
-                    db.hasField(fields, key)) {
-                val values = queryMap[key]
+            when {
+                key.equals(LIMIT_KEY, ignoreCase = true) ||
+                        key.equals(MULTIPLE_IDS_KEY, ignoreCase = true) ||
+                        key.equals(ORDER_BY_KEY, ignoreCase = true) ||
+                        key.equals(PROJECTION_KEY, ignoreCase = true) ||
+                        db.hasField(fields, key) -> {
+                    val values = queryMap[key]
 
-                if (key.equals(PROJECTION_KEY, ignoreCase = true) || key.equals(MULTIPLE_IDS_KEY, ignoreCase = true)) {
-                    if (logger.isDebugEnabled) {
-                        logger.debug("Ignoring Projection Key...")
-                    }
-                } else {
-                    if (values == null) {
-                        errors.put("field_null", "Value in '$key' cannot be null!")
-                    } else if (key.equals(ORDER_BY_KEY, ignoreCase = true)) {
-                        var jsonArray: JsonArray
+                    when {
+                        key.equals(PROJECTION_KEY, ignoreCase = true) ||
+                                key.equals(MULTIPLE_IDS_KEY, ignoreCase = true) -> when {
+                                    logger.isDebugEnabled -> logger.debug("Ignoring Projection Key...")
+                                }
+                        else -> when {
+                            values == null -> errors.put("field_null", "Value in '$key' cannot be null!")
+                            key.equals(ORDER_BY_KEY, ignoreCase = true) -> {
+                                var jsonArray: JsonArray
 
-                        try {
-                            jsonArray = JsonArray(values[0])
-                        } catch (arrayParseException: Exception) {
-                            jsonArray = JsonArray()
-                            jsonArray.add(JsonObject(values[0]))
-                        }
-
-                        val orderByParamCount = intArrayOf(0)
-
-                        if (jsonArray.size() == 1) {
-                            jsonArray.stream().forEach { orderByParam ->
-                                val orderByParameter = Json.decodeValue<OrderByParameter>(orderByParam.toString(), OrderByParameter::class.java)
-                                if (orderByParameter.isValid) {
-                                    Arrays.stream(methods).forEach { method ->
-                                        val indexRangeKey = method.getDeclaredAnnotation<DynamoDBIndexRangeKey>(DynamoDBIndexRangeKey::class.java)
-
-                                        if (indexRangeKey != null && stripGet(method.name) == orderByParameter.field) {
-                                            indexName[0] = indexRangeKey.localSecondaryIndexName
-                                            orderByQueue.add(orderByParameter)
-                                        }
-                                    }
-
-                                    if (indexName.isEmpty() || orderByQueue.isEmpty()) {
-                                        errors.put("orderBy_parameter_" + orderByParamCount[0] + "_error",
-                                                "This is not a valid remoteIndex!")
-                                    }
-                                } else {
-                                    errors.put("orderBy_parameter_" + orderByParamCount[0] + "_error",
-                                            "Field cannot be null!")
+                                try {
+                                    jsonArray = JsonArray(values[0])
+                                } catch (arrayParseException: Exception) {
+                                    jsonArray = JsonArray()
+                                    jsonArray.add(JsonObject(values[0]))
                                 }
 
-                                orderByParamCount[0]++
+                                val orderByParamCount = intArrayOf(0)
+
+                                when {
+                                    jsonArray.size() == 1 -> jsonArray.stream().forEach { orderByParam ->
+                                        val orderByParameter = Json.decodeValue<OrderByParameter>(orderByParam.toString(), OrderByParameter::class.java)
+
+                                        when {
+                                            orderByParameter.isValid -> {
+                                                Arrays.stream(methods).forEach { method ->
+                                                    val indexRangeKey = method.getDeclaredAnnotation<DynamoDBIndexRangeKey>(DynamoDBIndexRangeKey::class.java)
+
+                                                    if (indexRangeKey != null && stripGet(method.name) == orderByParameter.field) {
+                                                        indexName[0] = indexRangeKey.localSecondaryIndexName
+                                                        orderByQueue.add(orderByParameter)
+                                                    }
+                                                }
+
+                                                if (indexName.isEmpty() || orderByQueue.isEmpty()) {
+                                                    errors.put("orderBy_parameter_" + orderByParamCount[0] + "_error",
+                                                            "This is not a valid remoteIndex!")
+                                                }
+                                            }
+                                            else -> errors.put("orderBy_parameter_" + orderByParamCount[0] + "_error",
+                                                    "Field cannot be null!")
+                                        }
+
+                                        orderByParamCount[0]++
+                                    }
+                                    else -> errors.put("orderBy_limit_error", "You must and may only order by a single remoteIndex!")
+                                }
                             }
-                        } else {
-                            errors.put("orderBy_limit_error", "You must and may only order by a single remoteIndex!")
-                        }
-                    } else if (key.equals(LIMIT_KEY, ignoreCase = true)) {
-                        try {
-                            if (logger.isDebugEnabled) {
-                                logger.debug("Parsing limit..")
+                            key.equals(LIMIT_KEY, ignoreCase = true) -> try {
+                                if (logger.isDebugEnabled) {
+                                    logger.debug("Parsing limit..")
+                                }
+
+                                limit[0] = Integer.parseInt(values[0])
+
+                                if (logger.isDebugEnabled) {
+                                    logger.debug("Limit is: " + limit[0])
+                                }
+
+                                when {
+                                    limit[0] < 1 -> errors.put(key + "_negative_error", "Limit must be a whole positive Integer!")
+                                    limit[0] > 100 -> errors.put(key + "_exceed_max_error", "Maximum limit is 100!")
+                                }
+                            } catch (nfe: NumberFormatException) {
+                                errors.put(key + "_error", "Limit must be a whole positive Integer!")
                             }
+                            else -> try {
+                                db.parseParam(TYPE, values[0], key, params, errors)
+                            } catch (e: Exception) {
+                                if (logger.isDebugEnabled) {
+                                    logger.debug("Could not parse filterParams as a JsonObject, attempting array...", e)
+                                }
 
-                            limit[0] = Integer.parseInt(values[0])
+                                try {
+                                    val jsonArray = JsonArray(values[0])
 
-                            if (logger.isDebugEnabled) {
-                                logger.debug("Limit is: " + limit[0])
-                            }
+                                    jsonArray.forEach { jsonObjectAsString -> db.parseParam(TYPE, jsonObjectAsString.toString(), key, params, errors) }
+                                } catch (arrayException: Exception) {
+                                    logger.error("Unable to parse json as array:" + values[0])
 
-                            if (limit[0] < 1) {
-                                errors.put(key + "_negative_error", "Limit must be a whole positive Integer!")
-                            } else if (limit[0] > 100) {
-                                errors.put(key + "_exceed_max_error", "Maximum limit is 100!")
-                            }
-                        } catch (nfe: NumberFormatException) {
-                            errors.put(key + "_error", "Limit must be a whole positive Integer!")
-                        }
-                    } else {
-                        try {
-                            db.parseParam(TYPE, values[0], key, params, errors)
-                        } catch (e: Exception) {
-                            if (logger.isDebugEnabled) {
-                                logger.debug("Could not parse filterParams as a JsonObject, attempting array...", e)
-                            }
-
-                            try {
-                                val jsonArray = JsonArray(values[0])
-
-                                jsonArray.forEach { jsonObjectAsString -> db.parseParam(TYPE, jsonObjectAsString.toString(), key, params, errors) }
-                            } catch (arrayException: Exception) {
-                                logger.error("Unable to parse json as array:" + values[0])
-
-                                errors.put(key + "_value_json_error", "Unable to parse this json...")
+                                    errors.put(key + "_value_json_error", "Unable to parse this json...")
+                                }
                             }
                         }
                     }
                 }
-            } else {
-                errors.put(key + "_field_error", "This field does not exist on the selected resource.")
+                else -> errors.put(key + "_field_error", "This field does not exist on the selected resource.")
             }
         }
 
@@ -196,221 +198,223 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 val orderCounter = intArrayOf(0)
                 keyConditionString[0] += "("
 
-                if (paramList.size > 1 && isRangeKey(peek, paramList[0]) &&
-                        !isIllegalRangedKeyQueryParams(paramList)) {
-                    buildMultipleRangeKeyCondition(filterExpression, params.size, paramList,
-                            if (peek != null) peek.field else paramList[0].field)
-                } else {
-                    paramList.forEach { param ->
-                        val fieldName = if (param.field!![param.field!!.length - 2] == '_')
-                            param.field!!.substring(0, param.field!!.length - 2)
-                        else
-                            param.field
-                        if (fieldName != null) ean["#name" + count[0]] = fieldName
+                when {
+                    paramList.size > 1 && isRangeKey(peek, paramList[0]) &&
+                            !isIllegalRangedKeyQueryParams(paramList) ->
+                        buildMultipleRangeKeyCondition(filterExpression, params.size, paramList,
+                                if (peek != null) peek.field else paramList[0].field)
+                    else -> {
+                        paramList.forEach { param ->
+                            val fieldName = if (param.field!![param.field!!.length - 2] == '_')
+                                param.field!!.substring(0, param.field!!.length - 2)
+                            else
+                                param.field
+                            if (fieldName != null) ean["#name" + count[0]] = fieldName
+
+                            when {
+                                param.isEq -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.EQ, param.type,
+                                            db.createAttributeValue(fieldName, param.eq!!.toString()))
+                                } else {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.eq!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " = :val" + curCount
+                                }
+                                param.isNe -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.NE, param.type,
+                                            db.createAttributeValue(fieldName, param.eq!!.toString()))
+                                } else {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ne!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " <> :val" + curCount
+                                }
+                                param.isBetween -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.BETWEEN, param.type,
+                                            db.createAttributeValue(fieldName, param.gt!!.toString()),
+                                            db.createAttributeValue(fieldName, param.lt!!.toString()))
+                                } else {
+                                    val curCount = count[0]
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.gt!!.toString())
+                                    eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.lt!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " > :val" + curCount + " and " +
+                                            " #name" + curCount + " < " + " :val" + (curCount + 1)
+
+                                    count[0] = curCount + 2
+                                }
+                                param.isGt -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.GT, param.type,
+                                            db.createAttributeValue(fieldName, param.gt!!.toString()))
+                                } else {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.gt!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " > :val" + curCount
+                                }
+                                param.isLt -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.LT, param.type,
+                                            db.createAttributeValue(fieldName, param.lt!!.toString()))
+                                } else {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.lt!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " < :val" + curCount
+                                }
+                                param.isInclusiveBetween -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.BETWEEN, param.type,
+                                            db.createAttributeValue(fieldName, param.ge!!.toString(), ComparisonOperator.GE),
+                                            db.createAttributeValue(fieldName, param.le!!.toString(), ComparisonOperator.LE))
+                                } else {
+                                    val curCount = count[0]
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ge!!.toString())
+                                    eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.le!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " >= :val" + curCount + " and " +
+                                            " #name" + curCount + " =< " + " :val" + (curCount + 1)
+
+                                    count[0] = curCount + 2
+                                }
+                                param.isGeLtVariableBetween -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.BETWEEN, param.type,
+                                            db.createAttributeValue(fieldName, param.ge!!.toString(), ComparisonOperator.GE),
+                                            db.createAttributeValue(fieldName, param.lt!!.toString()))
+                                } else {
+                                    val curCount = count[0]
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ge!!.toString())
+                                    eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.lt!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " >= :val" + curCount + " and " +
+                                            " #name" + curCount + " < " + " :val" + (curCount + 1)
+
+                                    count[0] = curCount + 2
+                                }
+                                param.isLeGtVariableBetween -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.BETWEEN, param.type,
+                                            db.createAttributeValue(fieldName, param.gt!!.toString()),
+                                            db.createAttributeValue(fieldName, param.le!!.toString(), ComparisonOperator.LE))
+                                } else {
+                                    val curCount = count[0]
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.le!!.toString())
+                                    eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.gt!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " <= :val" + curCount + " and " +
+                                            " #name" + curCount + " > " + " :val" + (curCount + 1)
+
+                                    count[0] = curCount + 2
+                                }
+                                param.isGe -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.GE, param.type,
+                                            db.createAttributeValue(fieldName, param.ge!!.toString()))
+                                } else {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ge!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " >= :val" + curCount
+                                }
+                                param.isLe -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.LE, param.type,
+                                            db.createAttributeValue(fieldName, param.le!!.toString()))
+                                } else {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.le!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " <= :val" + curCount
+                                }
+                                param.isContains -> {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.contains!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") +
+                                            "contains(" + "#name" + curCount + ", :val" + curCount + ")"
+                                }
+                                param.isNotContains -> {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.notContains!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") +
+                                            "not contains(" + "#name" + curCount + ", :val" + curCount + ")"
+                                }
+                                param.isBeginsWith -> if (isRangeKey(peek, fieldName, param)) {
+                                    buildRangeKeyCondition(filterExpression, params.size,
+                                            if (peek != null) peek.field else param.field,
+                                            ComparisonOperator.BEGINS_WITH, param.type,
+                                            db.createAttributeValue(fieldName, param.beginsWith!!.toString()))
+                                } else {
+                                    val curCount = count[0]++
+                                    eav[":val$curCount"] = db.createAttributeValue(fieldName, param.beginsWith!!.toString())
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") +
+                                            "begins_with(" + "#name" + curCount + ", :val" + curCount + ")"
+                                }
+                                param.isIn -> {
+                                    val inList = inQueryToStringChain(fieldName!!, param.`in`)
+
+                                    val keys = ConcurrentLinkedQueue<String>()
+                                    val valCounter = AtomicInteger()
+                                    inList.l.forEach { av ->
+                                        val currentValKey = ":inVal" + valCounter.getAndIncrement()
+                                        keys.add(currentValKey)
+                                        eav[currentValKey] = av
+                                    }
+
+                                    val curCount = count[0]++
+
+                                    keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
+                                            curCount + " IN (" + keys.stream().collect(joining(", ")) + ")"
+                                }
+                            }
+
+                            orderCounter[0]++
+                        }
 
                         when {
-                            param.isEq -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.EQ, param.type,
-                                        db.createAttributeValue(fieldName, param.eq!!.toString()))
-                            } else {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.eq!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " = :val" + curCount
+                            keyConditionString[0].endsWith("(") -> when {
+                                keyConditionString[0].equals("(", ignoreCase = true) -> keyConditionString[0] = ""
+                                else -> keyConditionString[0] = keyConditionString[0].substring(0, keyConditionString[0].lastIndexOf(")"))
                             }
-                            param.isNe -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.NE, param.type,
-                                        db.createAttributeValue(fieldName, param.eq!!.toString()))
-                            } else {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ne!!.toString())
+                            else -> {
+                                keyConditionString[0] += ")"
 
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " <> :val" + curCount
-                            }
-                            param.isBetween -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.BETWEEN, param.type,
-                                        db.createAttributeValue(fieldName, param.gt!!.toString()),
-                                        db.createAttributeValue(fieldName, param.lt!!.toString()))
-                            } else {
-                                val curCount = count[0]
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.gt!!.toString())
-                                eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.lt!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " > :val" + curCount + " and " +
-                                        " #name" + curCount + " < " + " :val" + (curCount + 1)
-
-                                count[0] = curCount + 2
-                            }
-                            param.isGt -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.GT, param.type,
-                                        db.createAttributeValue(fieldName, param.gt!!.toString()))
-                            } else {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.gt!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " > :val" + curCount
-                            }
-                            param.isLt -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.LT, param.type,
-                                        db.createAttributeValue(fieldName, param.lt!!.toString()))
-                            } else {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.lt!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " < :val" + curCount
-                            }
-                            param.isInclusiveBetween -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.BETWEEN, param.type,
-                                        db.createAttributeValue(fieldName, param.ge!!.toString(), ComparisonOperator.GE),
-                                        db.createAttributeValue(fieldName, param.le!!.toString(), ComparisonOperator.LE))
-                            } else {
-                                val curCount = count[0]
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ge!!.toString())
-                                eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.le!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " >= :val" + curCount + " and " +
-                                        " #name" + curCount + " =< " + " :val" + (curCount + 1)
-
-                                count[0] = curCount + 2
-                            }
-                            param.isGeLtVariableBetween -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.BETWEEN, param.type,
-                                        db.createAttributeValue(fieldName, param.ge!!.toString(), ComparisonOperator.GE),
-                                        db.createAttributeValue(fieldName, param.lt!!.toString()))
-                            } else {
-                                val curCount = count[0]
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ge!!.toString())
-                                eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.lt!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " >= :val" + curCount + " and " +
-                                        " #name" + curCount + " < " + " :val" + (curCount + 1)
-
-                                count[0] = curCount + 2
-                            }
-                            param.isLeGtVariableBetween -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.BETWEEN, param.type,
-                                        db.createAttributeValue(fieldName, param.gt!!.toString()),
-                                        db.createAttributeValue(fieldName, param.le!!.toString(), ComparisonOperator.LE))
-                            } else {
-                                val curCount = count[0]
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.le!!.toString())
-                                eav[":val" + (curCount + 1)] = db.createAttributeValue(fieldName, param.gt!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " <= :val" + curCount + " and " +
-                                        " #name" + curCount + " > " + " :val" + (curCount + 1)
-
-                                count[0] = curCount + 2
-                            }
-                            param.isGe -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.GE, param.type,
-                                        db.createAttributeValue(fieldName, param.ge!!.toString()))
-                            } else {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.ge!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " >= :val" + curCount
-                            }
-                            param.isLe -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.LE, param.type,
-                                        db.createAttributeValue(fieldName, param.le!!.toString()))
-                            } else {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.le!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " <= :val" + curCount
-                            }
-                            param.isContains -> {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.contains!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") +
-                                        "contains(" + "#name" + curCount + ", :val" + curCount + ")"
-                            }
-                            param.isNotContains -> {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.notContains!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") +
-                                        "not contains(" + "#name" + curCount + ", :val" + curCount + ")"
-                            }
-                            param.isBeginsWith -> if (isRangeKey(peek, fieldName, param)) {
-                                buildRangeKeyCondition(filterExpression, params.size,
-                                        if (peek != null) peek.field else param.field,
-                                        ComparisonOperator.BEGINS_WITH, param.type,
-                                        db.createAttributeValue(fieldName, param.beginsWith!!.toString()))
-                            } else {
-                                val curCount = count[0]++
-                                eav[":val$curCount"] = db.createAttributeValue(fieldName, param.beginsWith!!.toString())
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") +
-                                        "begins_with(" + "#name" + curCount + ", :val" + curCount + ")"
-                            }
-                            param.isIn -> {
-                                val inList = inQueryToStringChain(fieldName!!, param.`in`)
-
-                                val keys = ConcurrentLinkedQueue<String>()
-                                val valCounter = AtomicInteger()
-                                inList.l.forEach { av ->
-                                    val currentValKey = ":inVal" + valCounter.getAndIncrement()
-                                    keys.add(currentValKey)
-                                    eav[currentValKey] = av
+                                if (paramSize > 1 && paramCount[0] < paramSize - 1) {
+                                    keyConditionString[0] += " AND "
                                 }
-
-                                val curCount = count[0]++
-
-                                keyConditionString[0] += (if (orderCounter[0] == 0) "" else " " + param.type + " ") + "#name" +
-                                        curCount + " IN (" + keys.stream().collect(joining(", ")) + ")"
                             }
                         }
 
-                        orderCounter[0]++
+                        paramCount[0]++
                     }
-
-                    if (keyConditionString[0].endsWith("(")) {
-                        if (keyConditionString[0].equals("(", ignoreCase = true)) {
-                            keyConditionString[0] = ""
-                        } else {
-                            keyConditionString[0] = keyConditionString[0].substring(0, keyConditionString[0].lastIndexOf(")"))
-                        }
-                    } else {
-                        keyConditionString[0] += ")"
-
-                        if (paramSize > 1 && paramCount[0] < paramSize - 1) {
-                            keyConditionString[0] += " AND "
-                        }
-                    }
-
-                    paramCount[0]++
                 }
             }
 
@@ -658,48 +662,40 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         val paramTwo = paramList[1]
         val condition = Condition()
 
-        if (paramOne.isGt && paramTwo.isLt) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+        when {
+            paramOne.isGt && paramTwo.isLt -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramOne.field, paramOne.gt!!.toString()),
                             db.createAttributeValue(paramTwo.field, paramTwo.lt!!.toString()))
-        } else if (paramOne.isLt && paramTwo.isGt) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+            paramOne.isLt && paramTwo.isGt -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramTwo.field, paramTwo.gt!!.toString()),
                             db.createAttributeValue(paramOne.field, paramOne.lt!!.toString()))
-        } else if (paramOne.isLe && paramTwo.isGe) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+            paramOne.isLe && paramTwo.isGe -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramTwo.field, paramTwo.ge!!.toString()),
                             db.createAttributeValue(paramOne.field, paramOne.le!!.toString()))
-        } else if (paramOne.isGe && paramTwo.isLe) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+            paramOne.isGe && paramTwo.isLe -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramOne.field, paramOne.ge!!.toString()),
                             db.createAttributeValue(paramTwo.field, paramTwo.le!!.toString()))
-        } else if (paramOne.isGe && paramTwo.isLt) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+            paramOne.isGe && paramTwo.isLt -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramOne.field, paramOne.ge!!.toString()),
                             db.createAttributeValue(paramTwo.field, paramTwo.lt!!.toString()))
-        } else if (paramOne.isLt && paramTwo.isGe) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+            paramOne.isLt && paramTwo.isGe -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramTwo.field, paramTwo.ge!!.toString()),
                             db.createAttributeValue(paramOne.field, paramOne.lt!!.toString()))
-        } else if (paramOne.isLe && paramTwo.isGt) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+            paramOne.isLe && paramTwo.isGt -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramTwo.field, paramTwo.gt!!.toString()),
                             db.createAttributeValue(paramOne.field, paramOne.le!!.toString()))
-        } else if (paramOne.isGt && paramTwo.isLe) {
-            condition.withComparisonOperator(ComparisonOperator.BETWEEN)
+            paramOne.isGt && paramTwo.isLe -> condition.withComparisonOperator(ComparisonOperator.BETWEEN)
                     .withAttributeValueList(
                             db.createAttributeValue(paramOne.field, paramOne.gt!!.toString()),
                             db.createAttributeValue(paramTwo.field, paramTwo.le!!.toString()))
-        } else {
-            throw IllegalArgumentException("This is an invalid query!")
+            else -> throw IllegalArgumentException("This is an invalid query!")
         }
 
         filterExpression.withRangeKeyCondition(rangeKeyName, condition)
@@ -709,20 +705,19 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
 
     internal fun applyOrderBy(orderByQueue: Queue<OrderByParameter>?, GSI: String?, indexName: String?,
                               filterExpression: DynamoDBQueryExpression<E>): DynamoDBQueryExpression<E> {
-        if (orderByQueue == null || orderByQueue.size == 0) {
-            if (GSI != null) {
-                filterExpression.setIndexName(GSI)
-            } else {
-                filterExpression.setIndexName(paginationIndex)
-            }
+        when {
+            orderByQueue == null || orderByQueue.size == 0 -> {
+                when {
+                    GSI != null -> filterExpression.setIndexName(GSI)
+                    else -> filterExpression.setIndexName(paginationIndex)
+                }
 
-            filterExpression.setScanIndexForward(false)
-        } else {
-            orderByQueue.forEach { orderByParameter ->
-                if (GSI != null) {
-                    filterExpression.setIndexName(GSI)
-                } else {
-                    filterExpression.setIndexName(indexName)
+                filterExpression.setScanIndexForward(false)
+            }
+            else -> orderByQueue.forEach { orderByParameter ->
+                when {
+                    GSI != null -> filterExpression.setIndexName(GSI)
+                    else -> filterExpression.setIndexName(indexName)
                 }
 
                 filterExpression.setScanIndexForward(orderByParameter.isAsc)
@@ -842,10 +837,9 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         }
 
         val pageToken = JsonObject()
-        val indexValue: Any? = if (index == null && alternateIndex == null) {
-            null
-        } else {
-            extractIndexValue(lastEvaluatedKey[alternateIndex ?: index])
+        val indexValue: Any? = when {
+            index == null && alternateIndex == null -> null
+            else -> extractIndexValue(lastEvaluatedKey[alternateIndex ?: index])
         }
 
         if (logger.isDebugEnabled) {
@@ -879,15 +873,12 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
     private fun extractIndexValue(attributeValue: AttributeValue?): Any? {
         if (attributeValue == null) return null
 
-        if (attributeValue.s != null) {
-            return attributeValue.s
-        } else if (attributeValue.bool != null) {
-            return attributeValue.bool
-        } else if (attributeValue.n != null) {
-            return attributeValue.n
+        return when {
+            attributeValue.s != null -> attributeValue.s
+            attributeValue.bool != null -> attributeValue.bool
+            attributeValue.n != null -> attributeValue.n
+            else -> throw UnknownError("Cannot find indexvalue!")
         }
-
-        throw UnknownError("Cannot find indexvalue!")
     }
 
     companion object {
