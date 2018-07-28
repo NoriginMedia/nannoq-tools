@@ -166,3 +166,4 @@ build
 */build
 */node_modules
 !gradle/
+!gradle/wrapper/gradle-wrapper.jar
