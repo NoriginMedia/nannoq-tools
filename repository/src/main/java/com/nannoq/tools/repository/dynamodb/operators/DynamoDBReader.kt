@@ -470,7 +470,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
                 if ((multiple == null || !multiple) && (orderByQueue != null || params != null)) {
                     filterExpression = dbParams.applyParameters(orderByQueue?.peek(), params)
-                    filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName!!, filterExpression)
+                    filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName, filterExpression)
                     filterExpression.limit = if (limit == null || limit == 0) 20 else limit
 
                     if (logger.isDebugEnabled) {
@@ -1362,7 +1362,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                             if (projections == null && orderByQueue != null) orderByQueue.peek() else null,
                             params)
                     if (projections == null) {
-                        filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName!!, filterExpression)
+                        filterExpression = dbParams.applyOrderBy(orderByQueue, GSI, indexName, filterExpression)
                     }
                 } else {
                     filterExpression = DynamoDBQueryExpression()

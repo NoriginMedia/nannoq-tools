@@ -707,7 +707,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         if (count > 1) filterExpression.withConditionalOperator("AND")
     }
 
-    internal fun applyOrderBy(orderByQueue: Queue<OrderByParameter>?, GSI: String?, indexName: String,
+    internal fun applyOrderBy(orderByQueue: Queue<OrderByParameter>?, GSI: String?, indexName: String?,
                               filterExpression: DynamoDBQueryExpression<E>): DynamoDBQueryExpression<E> {
         if (orderByQueue == null || orderByQueue.size == 0) {
             if (GSI != null) {
