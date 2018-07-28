@@ -31,6 +31,7 @@ import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.AsyncResult
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import org.jsoup.Jsoup
 import org.jsoup.safety.Whitelist
@@ -62,6 +63,6 @@ interface RegistrationService {
     }
 
     companion object {
-        val logger = LoggerFactory.getLogger(RegistrationService::class.java.simpleName)
+        val logger: Logger = LoggerFactory.getLogger(RegistrationService::class.java.simpleName)
     }
 }

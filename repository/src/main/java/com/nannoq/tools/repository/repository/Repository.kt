@@ -70,15 +70,15 @@ interface Repository<E : Model> {
 
     fun create(record: E, resultHandler: Handler<AsyncResult<CreateResult<E>>>) {
         batchCreate(listOf(record), Handler {
-            if (it.failed()) {
-                resultHandler.handle(Future.failedFuture<CreateResult<E>>(it.cause()))
-            } else {
-                val iterator = it.result().iterator()
+            when {
+                it.failed() -> resultHandler.handle(Future.failedFuture<CreateResult<E>>(it.cause()))
+                else -> {
+                    val iterator = it.result().iterator()
 
-                if (iterator.hasNext()) {
-                    resultHandler.handle(Future.succeededFuture(iterator.next()))
-                } else {
-                    resultHandler.handle(Future.failedFuture(NullPointerException()))
+                    when {
+                        iterator.hasNext() -> resultHandler.handle(Future.succeededFuture(iterator.next()))
+                        else -> resultHandler.handle(Future.failedFuture(NullPointerException()))
+                    }
                 }
             }
         })
@@ -88,10 +88,9 @@ interface Repository<E : Model> {
         val createFuture = Future.future<CreateResult<E>>()
 
         create(record, Handler {
-            if (it.failed()) {
-                createFuture.fail(it.cause())
-            } else {
-                createFuture.complete(it.result())
+            when {
+                it.failed() -> createFuture.fail(it.cause())
+                else -> createFuture.complete(it.result())
             }
         })
 
@@ -102,10 +101,9 @@ interface Repository<E : Model> {
         doWrite(true, records.stream()
                 .map { r -> SimpleEntry<E, Function<E, E>>(r, Function { record -> record }) }
                 .collect(toMap({ it.key }, { it.value })), Handler { res ->
-            if (res.failed()) {
-                resultHandler.handle(Future.failedFuture<List<CreateResult<E>>>(res.cause()))
-            } else {
-                resultHandler.handle(Future.succeededFuture(res.result().stream()
+            when {
+                res.failed() -> resultHandler.handle(Future.failedFuture<List<CreateResult<E>>>(res.cause()))
+                else -> resultHandler.handle(Future.succeededFuture(res.result().stream()
                         .map({ CreateResult(it) })
                         .collect(toList<CreateResult<E>>())))
             }
@@ -116,10 +114,9 @@ interface Repository<E : Model> {
         val createFuture = Future.future<List<CreateResult<E>>>()
 
         batchCreate(records, Handler {
-            if (it.failed()) {
-                createFuture.fail(it.cause())
-            } else {
-                createFuture.complete(it.result())
+            when {
+                it.failed() -> createFuture.fail(it.cause())
+                else -> createFuture.complete(it.result())
             }
         })
 
@@ -136,10 +133,9 @@ interface Repository<E : Model> {
         val updateFuture = Future.future<UpdateResult<E>>()
 
         update(record, Function { r -> r }, Handler {
-            if (it.failed()) {
-                updateFuture.fail(it.cause())
-            } else {
-                updateFuture.complete(it.result())
+            when {
+                it.failed() -> updateFuture.fail(it.cause())
+                else -> updateFuture.complete(it.result())
             }
         })
 
@@ -151,15 +147,15 @@ interface Repository<E : Model> {
     }
 
     fun doUpdate(resultHandler: Handler<AsyncResult<UpdateResult<E>>>, res: AsyncResult<List<UpdateResult<E>>>) {
-        if (res.failed()) {
-            resultHandler.handle(Future.failedFuture(res.cause()))
-        } else {
-            val iterator = res.result().iterator()
+        when {
+            res.failed() -> resultHandler.handle(Future.failedFuture(res.cause()))
+            else -> {
+                val iterator = res.result().iterator()
 
-            if (iterator.hasNext()) {
-                resultHandler.handle(Future.succeededFuture(iterator.next()))
-            } else {
-                resultHandler.handle(Future.failedFuture(NullPointerException()))
+                when {
+                    iterator.hasNext() -> resultHandler.handle(Future.succeededFuture(iterator.next()))
+                    else -> resultHandler.handle(Future.failedFuture(NullPointerException()))
+                }
             }
         }
     }
@@ -168,10 +164,9 @@ interface Repository<E : Model> {
         val updateFuture = Future.future<UpdateResult<E>>()
 
         update(record, updateLogic, Handler {
-            if (it.failed()) {
-                updateFuture.fail(it.cause())
-            } else {
-                updateFuture.complete(it.result())
+            when {
+                it.failed() -> updateFuture.fail(it.cause())
+                else -> updateFuture.complete(it.result())
             }
         })
 
@@ -188,10 +183,9 @@ interface Repository<E : Model> {
 
     fun batchUpdate(records: Map<E, Function<E, E>>, resultHandler: Handler<AsyncResult<List<UpdateResult<E>>>>) {
         doWrite(false, records, Handler { res ->
-            if (res.failed()) {
-                resultHandler.handle(Future.failedFuture<List<UpdateResult<E>>>(res.cause()))
-            } else {
-                resultHandler.handle(Future.succeededFuture(res.result().stream()
+            when {
+                res.failed() -> resultHandler.handle(Future.failedFuture<List<UpdateResult<E>>>(res.cause()))
+                else -> resultHandler.handle(Future.succeededFuture(res.result().stream()
                         .map({ UpdateResult(it) })
                         .collect(toList<UpdateResult<E>>())))
             }
@@ -210,10 +204,9 @@ interface Repository<E : Model> {
         val updateFuture = Future.future<List<UpdateResult<E>>>()
 
         batchUpdate(records, Handler {
-            if (it.failed()) {
-                updateFuture.fail(it.cause())
-            } else {
-                updateFuture.complete(it.result())
+            when {
+                it.failed() -> updateFuture.fail(it.cause())
+                else -> updateFuture.complete(it.result())
             }
         })
 
@@ -221,20 +214,19 @@ interface Repository<E : Model> {
     }
 
     fun delete(identifiers: JsonObject, resultHandler: Handler<AsyncResult<DeleteResult<E>>>) {
-        if (identifiers.isEmpty) {
-            resultHandler.handle(ServiceException.fail(400,
+        when {
+            identifiers.isEmpty -> resultHandler.handle(ServiceException.fail(400,
                     "Identifier for remoteDelete cannot be empty!"))
-        } else {
-            batchDelete(listOf(identifiers), Handler {
-                if (it.failed()) {
-                    resultHandler.handle(Future.failedFuture<DeleteResult<E>>(it.cause()))
-                } else {
-                    val iterator = it.result().iterator()
+            else -> batchDelete(listOf(identifiers), Handler {
+                when {
+                    it.failed() -> resultHandler.handle(Future.failedFuture<DeleteResult<E>>(it.cause()))
+                    else -> {
+                        val iterator = it.result().iterator()
 
-                    if (iterator.hasNext()) {
-                        resultHandler.handle(Future.succeededFuture(iterator.next()))
-                    } else {
-                        resultHandler.handle(Future.failedFuture(NullPointerException()))
+                        when {
+                            iterator.hasNext() -> resultHandler.handle(Future.succeededFuture(iterator.next()))
+                            else -> resultHandler.handle(Future.failedFuture(NullPointerException()))
+                        }
                     }
                 }
             })
@@ -245,10 +237,9 @@ interface Repository<E : Model> {
         val deleteFuture = Future.future<DeleteResult<E>>()
 
         delete(identifiers, Handler {
-            if (it.failed()) {
-                deleteFuture.fail(it.cause())
-            } else {
-                deleteFuture.complete(it.result())
+            when {
+                it.failed() -> deleteFuture.fail(it.cause())
+                else -> deleteFuture.complete(it.result())
             }
         })
 
@@ -257,15 +248,13 @@ interface Repository<E : Model> {
 
     fun batchDelete(identifiers: List<JsonObject>,
                     resultHandler: Handler<AsyncResult<List<DeleteResult<E>>>>) {
-        if (identifiers.isEmpty()) {
-            resultHandler.handle(ServiceException.fail(400,
+        when {
+            identifiers.isEmpty() -> resultHandler.handle(ServiceException.fail(400,
                     "Identifiers for batchDelete cannot be empty!"))
-        } else {
-            doDelete(identifiers, Handler { res ->
-                if (res.failed()) {
-                    resultHandler.handle(Future.failedFuture<List<DeleteResult<E>>>(res.cause()))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(res.result().stream()
+            else -> doDelete(identifiers, Handler { res ->
+                when {
+                    res.failed() -> resultHandler.handle(Future.failedFuture<List<DeleteResult<E>>>(res.cause()))
+                    else -> resultHandler.handle(Future.succeededFuture(res.result().stream()
                             .map({ DeleteResult(it) })
                             .collect(toList<DeleteResult<E>>())))
                 }
@@ -277,10 +266,9 @@ interface Repository<E : Model> {
         val deleteFuture = Future.future<List<DeleteResult<E>>>()
 
         batchDelete(identifiers, Handler {
-            if (it.failed()) {
-                deleteFuture.fail(it.cause())
-            } else {
-                deleteFuture.complete(it.result())
+            when {
+                it.failed() -> deleteFuture.fail(it.cause())
+                else -> deleteFuture.complete(it.result())
             }
         })
 
@@ -301,10 +289,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<ItemResult<E>>()
 
         read(identifiers, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -335,23 +322,23 @@ interface Repository<E : Model> {
             futureList.add(future)
             queuedFutures.add(future)
 
-            if (projections != null) {
-                read(it, projections, future.completer())
-            } else {
-                read(it, future.completer())
+            when {
+                projections != null -> read(it, projections, future.completer())
+                else -> read(it, future.completer())
             }
         }
 
         CompositeFuture.all(futureList).setHandler { res ->
-            if (res.failed()) {
-                resultHandler.handle(ServiceException.fail(500, "Unable to performed batchread!",
+            when {
+                res.failed() -> resultHandler.handle(ServiceException.fail(500, "Unable to performed batchread!",
                         JsonObject().put("ids", identifiers)))
-            } else {
-                val results = queuedFutures.stream()
-                        .map { it.result() }
-                        .collect(toList())
+                else -> {
+                    val results = queuedFutures.stream()
+                            .map { it.result() }
+                            .collect(toList())
 
-                resultHandler.handle(Future.succeededFuture(results))
+                    resultHandler.handle(Future.succeededFuture(results))
+                }
             }
         }
     }
@@ -372,10 +359,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<ItemResult<E>>()
 
         read(identifiers, consistent, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -388,10 +374,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<ItemResult<E>>()
 
         read(identifiers, consistent, projections, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -404,10 +389,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<List<E>>()
 
         readAll(Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -422,10 +406,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<ItemListResult<E>>()
 
         readAll(null, pageToken, null, null, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -439,10 +422,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<List<E>>()
 
         readAll(identifiers, filterParamterMap, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -470,10 +452,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<ItemListResult<E>>()
 
         readAll(identifiers, pageToken, queryPack, projections, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -488,10 +469,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<ItemListResult<E>>()
 
         readAll(pageToken, queryPack, projections, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -517,10 +497,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<String>()
 
         aggregation(identifiers, queryPack, projections, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -538,19 +517,21 @@ interface Repository<E : Model> {
                    params: MutableMap<String, List<FilterParameter>>, errors: JsonObject) {
         val filterParameters = Json.decodeValue<FilterParameter>(paramJsonString, FilterParameter::class.java)
 
-        if (filterParameters != null) {
-            filterParameters.setField(key)
+        when {
+            filterParameters != null -> {
+                filterParameters.setField(key)
 
-            if (filterParameters.isValid) {
-                var filterParameterList: MutableList<FilterParameter>? = params[key]?.toMutableList()
-                if (filterParameterList == null) filterParameterList = ArrayList()
-                filterParameterList.add(filterParameters)
-                params[key] = filterParameterList
-            } else {
-                filterParameters.collectErrors(errors)
+                when {
+                    filterParameters.isValid -> {
+                        var filterParameterList: MutableList<FilterParameter>? = params[key]?.toMutableList()
+                        if (filterParameterList == null) filterParameterList = ArrayList()
+                        filterParameterList.add(filterParameters)
+                        params[key] = filterParameterList
+                    }
+                    else -> filterParameters.collectErrors(errors)
+                }
             }
-        } else {
-            errors.put(key + "_error", "Unable to parse JSON in '$key' value!")
+            else -> errors.put(key + "_error", "Unable to parse JSON in '$key' value!")
         }
     }
 
@@ -560,10 +541,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<List<E>>()
 
         readAllWithoutPagination(identifier, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -576,10 +556,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<List<E>>()
 
         readAllWithoutPagination(identifier, queryPack, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -592,10 +571,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<List<E>>()
 
         readAllWithoutPagination(identifier, queryPack, projections, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 
@@ -612,10 +590,9 @@ interface Repository<E : Model> {
         val readFuture = Future.future<List<E>>()
 
         readAllWithoutPagination(queryPack, projections, Handler {
-            if (it.failed()) {
-                readFuture.fail(it.cause())
-            } else {
-                readFuture.complete(it.result())
+            when {
+                it.failed() -> readFuture.fail(it.cause())
+                else -> readFuture.complete(it.result())
             }
         })
 

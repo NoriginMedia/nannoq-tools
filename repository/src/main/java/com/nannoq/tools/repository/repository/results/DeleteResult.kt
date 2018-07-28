@@ -33,7 +33,7 @@ import com.nannoq.tools.repository.models.Model
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class DeleteResult<K : Model>(val item: K) {
+class DeleteResult<out K : Model>(val item: K) {
     var preOperationProcessingTime: Long = 0
     var operationProcessingTime: Long = 0
     var postOperationProcessingTime: Long = 0

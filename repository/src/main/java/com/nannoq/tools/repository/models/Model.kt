@@ -83,7 +83,6 @@ interface Model {
     }
 
     companion object {
-
         fun buildValidationErrorObject(errors: List<ValidationError>): JsonObject {
             val errorObject = JsonObject()
             errorObject.put("error_type", "VALIDATION")

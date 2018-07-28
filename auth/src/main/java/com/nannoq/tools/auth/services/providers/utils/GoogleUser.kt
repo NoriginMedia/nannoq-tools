@@ -33,8 +33,8 @@ import com.nannoq.tools.auth.models.UserProfile
  * @author Anders Mikkelsen
  * @version 13/11/17
  */
-class GoogleUser : UserProfile {
-    constructor(payload: GoogleIdToken.Payload) {
+class GoogleUser(payload: GoogleIdToken.Payload) : UserProfile() {
+    init {
         this.email = payload.email
         this.name = if (payload["name"] != null) payload["name"].toString() else "N/A"
         this.givenName = if (payload["given_name"] != null) payload["given_name"].toString() else "N/A"

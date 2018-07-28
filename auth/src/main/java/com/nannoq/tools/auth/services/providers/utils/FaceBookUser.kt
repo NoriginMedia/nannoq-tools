@@ -34,8 +34,16 @@ import facebook4j.User
  * @author Anders Mikkelsen
  * @version 13/11/17
  */
-class FaceBookUser : UserProfile {
-    constructor(user: User) {
+class FaceBookUser(user: User) : UserProfile() {
+    private fun generateFakeEmail(user: User) {
+        this.email = ModelUtils.returnNewEtag((
+                when {
+                    user.id != null -> user.id.hashCode()
+                    else -> name.hashCode()
+                }).toLong()) + "@facebook.notfound.com"
+    }
+
+    init {
         this.email = user.email
         this.name = user.name
         this.givenName = user.firstName
@@ -46,13 +54,5 @@ class FaceBookUser : UserProfile {
         if (email.equals("", ignoreCase = true)) {
             generateFakeEmail(user)
         }
-    }
-
-    private fun generateFakeEmail(user: User) {
-        this.email = ModelUtils.returnNewEtag((
-                when {
-                    user.id != null -> user.id.hashCode()
-                else -> name.hashCode()
-        }).toLong()) + "@facebook.notfound.com"
     }
 }

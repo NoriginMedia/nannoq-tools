@@ -51,16 +51,16 @@ import java.util.stream.Collectors.*
  * @version 17.11.2017
  */
 object RoutingHelper {
-    private val logger = LoggerFactory.getLogger(RoutingHelper::class.java!!.getSimpleName())
+    private val logger = LoggerFactory.getLogger(RoutingHelper::class.java.simpleName)
 
-    private val DATABASE_PROCESS_TIME = "X-Database-Time-To-Process"
+    private const val DATABASE_PROCESS_TIME = "X-Database-Time-To-Process"
 
     val requestLogger = RequestLogHandler()
     val responseLogger = ResponseLogHandler()
 
     private val bodyHandler = BodyHandler.create().setMergeFormAttributes(true)
     private val timeOutHandler = Handler<RoutingContext> {
-        it.vertx().setTimer(9000L, { time -> if (!it.request().isEnded()) it.fail(503) })
+        it.vertx().setTimer(9000L, { time -> if (!it.request().isEnded) it.fail(503) })
 
         it.next()
     }
@@ -181,21 +181,25 @@ object RoutingHelper {
     fun denyQuery(routingContext: RoutingContext): Boolean {
         val query = routingContext.request().query()
 
-        if (query != null && !routingContext.request().rawMethod().equals("GET", ignoreCase = true)) {
-            return true
-        } else if (query != null) {
-            val queryMap = splitQuery(query)
+        when {
+            query != null && !routingContext.request().rawMethod().equals("GET", ignoreCase = true) -> return true
+            query != null -> {
+                val queryMap = splitQuery(query)
 
-            if (queryMap == null) {
-                routingContext.put(BODY_CONTENT_TAG, JsonObject()
-                        .put("query_error", "Cannot parse this query string, are you sure it is in UTF-8?"))
-                routingContext.fail(400)
-            } else if (queryMap.size > 1 || queryMap.size == 1 && queryMap["projection"] == null) {
-                routingContext.put(BODY_CONTENT_TAG, JsonObject()
-                        .put("query_error", "No query accepted for this route"))
-                routingContext.fail(400)
+                when {
+                    queryMap.size > 1 || queryMap.size == 1 && queryMap["projection"] == null -> {
+                        routingContext.put(BODY_CONTENT_TAG, JsonObject()
+                                .put("query_error", "No query accepted for this route"))
+                        routingContext.fail(400)
 
-                return true
+                        return true
+                    }
+                    else -> {
+                        routingContext.put(BODY_CONTENT_TAG, JsonObject()
+                                .put("query_error", "Cannot parse this query string, are you sure it is in UTF-8?"))
+                        routingContext.fail(400)
+                    }
+                }
             }
         }
 

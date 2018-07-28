@@ -45,6 +45,7 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Consumer
 
+@Suppress("unused")
 /**
  * This class defines a wrapper for publishing and consuming service declaration interfaces, and HTTP records.
  *
@@ -58,7 +59,7 @@ class ServiceManager {
     private val registeredRecords = ConcurrentHashMap<String, Record>()
     private val fetchedServices = ConcurrentHashMap<String, ConcurrentHashSet<Any>>()
 
-    private var vertx: Vertx? = null
+    private lateinit var vertx: Vertx
     private var serviceAnnounceConsumer: MessageConsumer<JsonObject>? = null
 
     private constructor() {
@@ -72,7 +73,7 @@ class ServiceManager {
     }
 
     private fun startServiceManagerKillVerticle() {
-        vertx?.deployVerticle(KillVerticle())
+        vertx.deployVerticle(KillVerticle())
     }
 
     private inner class KillVerticle : AbstractVerticle() {
@@ -80,71 +81,79 @@ class ServiceManager {
         override fun stop(stopFuture: Future<Void>) {
             logger.info("Destroying ServiceManager")
 
-            if (serviceDiscovery != null) {
-                logger.info("Unpublishing all records...")
+            when {
+                serviceDiscovery != null -> {
+                    logger.info("Unpublishing all records...")
 
-                val unPublishFutures = ArrayList<Future<*>>()
+                    val unPublishFutures = ArrayList<Future<*>>()
 
-                registeredRecords.forEach { _, v ->
-                    val unpublish = Future.future<Boolean>()
+                    registeredRecords.forEach { _, v ->
+                        val unpublish = Future.future<Boolean>()
 
-                    serviceDiscovery!!.unpublish(v.registration) {
-                        if (it.failed()) {
-                            logger.info("Failed Unpublish: " + v.name, it.cause())
+                        serviceDiscovery!!.unpublish(v.registration) {
+                            when {
+                                it.failed() -> {
+                                    logger.info("Failed Unpublish: " + v.name, it.cause())
 
-                            unpublish.fail(it.cause())
-                        } else {
-                            logger.info("Unpublished: " + v.name)
+                                    unpublish.fail(it.cause())
+                                }
+                                else -> {
+                                    logger.info("Unpublished: " + v.name)
 
-                            unpublish.complete()
+                                    unpublish.complete()
+                                }
+                            }
                         }
+
+                        unPublishFutures.add(unpublish)
                     }
 
-                    unPublishFutures.add(unpublish)
-                }
+                    CompositeFuture.all(unPublishFutures).setHandler {
+                        try {
+                            registeredRecords.clear()
 
-                CompositeFuture.all(unPublishFutures).setHandler {
-                    try {
-                        registeredRecords.clear()
+                            logger.info("UnPublish complete, Unregistering all services...")
 
-                        logger.info("UnPublish complete, Unregistering all services...")
+                            registeredServices.forEach { _, v ->
+                                ServiceBinder(vertx).setAddress(v.address()).unregister(v)
 
-                        registeredServices.forEach { _, v ->
-                            ServiceBinder(vertx).setAddress(v.address()).unregister(v)
+                                logger.info("Unregistering " + v.address())
+                            }
 
-                            logger.info("Unregistering " + v.address())
-                        }
+                            registeredServices.clear()
 
-                        registeredServices.clear()
+                            logger.info("Releasing all consumed service objects...")
 
-                        logger.info("Releasing all consumed service objects...")
+                            fetchedServices.values.forEach {
+                                ServiceDiscovery.releaseServiceObject(serviceDiscovery!!, it)
+                            }
 
-                        fetchedServices.values.forEach { ServiceDiscovery.releaseServiceObject(serviceDiscovery!!, it) }
+                            fetchedServices.clear()
 
-                        fetchedServices.clear()
+                            closeDiscovery(Handler {
+                                serviceAnnounceConsumer = null
 
-                        closeDiscovery(Handler {
-                            serviceAnnounceConsumer = null
+                                logger.info("Discovery Closed!")
 
-                            logger.info("Discovery Closed!")
+                                instanceMap.remove(vertx)
+                                stopFuture.tryComplete()
 
+                                logger.info("ServiceManager destroyed...")
+                            })
+                        } finally {
                             instanceMap.remove(vertx)
                             stopFuture.tryComplete()
 
                             logger.info("ServiceManager destroyed...")
-                        })
-                    } finally {
-                        instanceMap.remove(vertx)
-                        stopFuture.tryComplete()
-
-                        logger.info("ServiceManager destroyed...")
+                        }
                     }
                 }
-            } else {
-                logger.info("Discovery is null...")
+                else -> {
+                    logger.info("Discovery is null...")
 
-                instanceMap.remove(vertx)
-                stopFuture.tryComplete()
+                    instanceMap.remove(vertx)
+                    stopFuture.tryComplete()
+                }
             }
         }
     }
@@ -160,8 +169,9 @@ class ServiceManager {
 
             logger.debug("Setting Discovery message consumer...")
 
-            serviceAnnounceConsumer = vertx?.eventBus()
-                    ?.consumer(NANNOQ_SERVICE_ANNOUNCE_ADDRESS) { this.handleServiceEvent(it) }
+            serviceAnnounceConsumer = vertx.eventBus().consumer(NANNOQ_SERVICE_ANNOUNCE_ADDRESS) {
+                this.handleServiceEvent(it)
+            }
         }
 
         logger.debug("Discovery ready...")
@@ -197,14 +207,14 @@ class ServiceManager {
     @Fluent
     fun publishApi(httpRecord: Record): ServiceManager {
         return publishService(httpRecord, Consumer {
-            registeredRecords.put(it.getRegistration(), it)
+            registeredRecords[it.registration] = it
         }, Handler { this.handlePublishResult(it) })
     }
 
     @Fluent
     fun publishApi(httpRecord: Record,
                    resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
-        return publishService(httpRecord, Consumer { registeredRecords.put(it.getRegistration(), it) }, resultHandler)
+        return publishService(httpRecord, Consumer { registeredRecords[it.registration] = it }, resultHandler)
     }
 
     @Fluent
@@ -227,22 +237,20 @@ class ServiceManager {
         val serviceName = type.simpleName
 
         return publishService(createRecord(serviceName, type), Consumer {
-            registeredServices.put(it.getRegistration(),
-                    ServiceBinder(vertx)
-                            .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
-                            .setAddress(serviceName)
-                            .register(type, service))
+            registeredServices[it.registration] = ServiceBinder(vertx)
+                    .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
+                    .setAddress(serviceName)
+                    .register(type, service)
         }, Handler { this.handlePublishResult(it) })
     }
 
     @Fluent
     fun <T> publishService(type: Class<T>, customName: String, service: T): ServiceManager {
         return publishService(createRecord(customName, type), Consumer {
-            registeredServices.put(it.getRegistration(),
-                    ServiceBinder(vertx)
-                            .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
-                            .setAddress(customName)
-                            .register(type, service))
+            registeredServices[it.registration] = ServiceBinder(vertx)
+                    .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
+                    .setAddress(customName)
+                    .register(type, service)
         }, Handler { this.handlePublishResult(it) })
     }
 
@@ -250,11 +258,10 @@ class ServiceManager {
     fun <T> publishService(type: Class<T>, service: T,
                            resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
         return publishService(createRecord(type), Consumer {
-            registeredServices.put(it.getRegistration(),
-                    ServiceBinder(vertx)
-                            .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
-                            .setAddress(type.simpleName)
-                            .register(type, service))
+            registeredServices[it.registration] = ServiceBinder(vertx)
+                    .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
+                    .setAddress(type.simpleName)
+                    .register(type, service)
         }, resultHandler)
     }
 
@@ -262,11 +269,10 @@ class ServiceManager {
     fun <T> publishService(type: Class<T>, customName: String, service: T,
                            resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
         return publishService(createRecord(customName, type), Consumer {
-            registeredServices.put(it.getRegistration(),
-                    ServiceBinder(vertx)
-                            .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
-                            .setAddress(customName)
-                            .register(type, service))
+            registeredServices[it.registration] = ServiceBinder(vertx)
+                    .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
+                    .setAddress(customName)
+                    .register(type, service)
         }, resultHandler)
     }
 
@@ -332,35 +338,39 @@ class ServiceManager {
 
         val existingServices = fetchedServices[name]
 
-        if (existingServices != null && existingServices.size > 0) {
-            logger.debug("Returning fetched Api...")
+        when {
+            existingServices != null && existingServices.size > 0 -> {
+                logger.debug("Returning fetched Api...")
 
-            val objects = ArrayList(existingServices)
-            objects.shuffle()
+                val objects = ArrayList(existingServices)
+                objects.shuffle()
 
-            resultHandler.handle(Future.succeededFuture(objects[0] as HttpClient))
-        } else {
-            HttpEndpoint.getClient(serviceDiscovery!!, JsonObject().put("name", name)) { ar ->
-                if (ar.failed()) {
-                    logger.error("Unable to fetch API...")
+                resultHandler.handle(Future.succeededFuture(objects[0] as HttpClient))
+            }
+            else -> HttpEndpoint.getClient(serviceDiscovery!!, JsonObject().put("name", name)) {
+                when {
+                    it.failed() -> {
+                        logger.error("Unable to fetch API...")
 
-                    resultHandler.handle(ServiceException.fail(404, "API not found..."))
-                } else {
-                    val client = ar.result()
-                    var objects: ConcurrentHashSet<Any>? = fetchedServices[name]
-
-                    if (objects == null) {
-                        fetchedServices[name] = ConcurrentHashSet()
-                        objects = fetchedServices[name]
+                        resultHandler.handle(ServiceException.fail(404, "API not found..."))
                     }
+                    else -> {
+                        val client = it.result()
+                        var objects: ConcurrentHashSet<Any>? = fetchedServices[name]
 
-                    if (!objects!!.contains(client)) {
-                        objects.add(client)
+                        if (objects == null) {
+                            fetchedServices[name] = ConcurrentHashSet()
+                            objects = fetchedServices[name]
+                        }
+
+                        if (!objects!!.contains(client)) {
+                            objects.add(client)
+                        }
+
+                        fetchedServices[name] = objects
+
+                        resultHandler.handle(Future.succeededFuture(client))
                     }
-
-                    fetchedServices[name] = objects
-
-                    resultHandler.handle(Future.succeededFuture(client))
                 }
             }
         }
@@ -377,39 +387,43 @@ class ServiceManager {
 
         val existingServices = fetchedServices[serviceName]
 
-        if (existingServices != null && existingServices.size > 0) {
-            logger.debug("Returning fetched Api...")
+        when {
+            existingServices != null && existingServices.size > 0 -> {
+                logger.debug("Returning fetched Api...")
 
-            val objects = ArrayList(existingServices)
-            objects.shuffle()
+                val objects = ArrayList(existingServices)
+                objects.shuffle()
 
-            @Suppress("UNCHECKED_CAST")
-            resultHandler.handle(Future.succeededFuture(objects[0] as T))
-        } else {
-            EventBusService.getProxy(serviceDiscovery!!, type) { ar ->
-                if (ar.failed()) {
-                    logger.error("ERROR: Unable to get service for $serviceName")
+                @Suppress("UNCHECKED_CAST")
+                resultHandler.handle(Future.succeededFuture(objects[0] as T))
+            }
+            else -> EventBusService.getProxy(serviceDiscovery!!, type) {
+                when {
+                    it.failed() -> {
+                        logger.error("ERROR: Unable to get service for $serviceName")
 
-                    resultHandler.handle(ServiceException.fail(NOT_FOUND,
-                            "Unable to get service for " + serviceName + " : " + ar.cause()))
-                } else {
-                    val service = ar.result()
-                    var objects: ConcurrentHashSet<Any>? = fetchedServices[serviceName]
-
-                    if (objects == null) {
-                        fetchedServices[serviceName] = ConcurrentHashSet()
-                        objects = fetchedServices[serviceName]
+                        resultHandler.handle(ServiceException.fail(NOT_FOUND,
+                                "Unable to get service for " + serviceName + " : " + it.cause()))
                     }
+                    else -> {
+                        val service = it.result()
+                        var objects: ConcurrentHashSet<Any>? = fetchedServices[serviceName]
 
-                    if (!objects!!.contains(service)) {
-                        objects.add(service)
+                        if (objects == null) {
+                            fetchedServices[serviceName] = ConcurrentHashSet()
+                            objects = fetchedServices[serviceName]
+                        }
+
+                        if (!objects!!.contains(service)) {
+                            objects.add(service)
+                        }
+
+                        fetchedServices[serviceName] = objects
+
+                        logger.debug("Successful fetch of: " + service.toString())
+
+                        resultHandler.handle(Future.succeededFuture(service))
                     }
-
-                    fetchedServices[serviceName] = objects
-
-                    logger.debug("Successful fetch of: " + service.toString())
-
-                    resultHandler.handle(Future.succeededFuture(service))
                 }
             }
         }
@@ -428,26 +442,29 @@ class ServiceManager {
     private fun publishService(record: Record, recordLogic: Consumer<Record>,
                                resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
         serviceDiscovery!!.publish(record) { ar ->
-            if (ar.failed()) {
-                logger.error("ERROR: Failed publish of " +
-                        record.name + " to " +
-                        record.location.encodePrettily() + " with " +
-                        record.type + " : " +
-                        record.status)
+            when {
+                ar.failed() -> {
+                    logger.error("ERROR: Failed publish of " +
+                            record.name + " to " +
+                            record.location.encodePrettily() + " with " +
+                            record.type + " : " +
+                            record.status)
 
-                resultHandler.handle(ServiceException.fail(INTERNAL_ERROR, ar.cause().message))
-            } else {
-                val publishedRecord = ar.result()
-                registeredRecords[publishedRecord.registration] = publishedRecord
-                recordLogic.accept(publishedRecord)
+                    resultHandler.handle(ServiceException.fail(INTERNAL_ERROR, ar.cause().message))
+                }
+                else -> {
+                    val publishedRecord = ar.result()
+                    registeredRecords[publishedRecord.registration] = publishedRecord
+                    recordLogic.accept(publishedRecord)
 
-                logger.debug("Successful publish of: " +
-                        publishedRecord.name + " to " +
-                        publishedRecord.location.encodePrettily() + " with " +
-                        publishedRecord.type + " : " +
-                        publishedRecord.status)
+                    logger.debug("Successful publish of: " +
+                            publishedRecord.name + " to " +
+                            publishedRecord.location.encodePrettily() + " with " +
+                            publishedRecord.type + " : " +
+                            publishedRecord.status)
 
-                resultHandler.handle(Future.succeededFuture(publishedRecord))
+                    resultHandler.handle(Future.succeededFuture(publishedRecord))
+                }
             }
         }
 
@@ -455,24 +472,27 @@ class ServiceManager {
     }
 
     private fun handlePublishResult(publishResult: AsyncResult<Record>) {
-        if (publishResult.failed()) {
-            if (publishResult.cause() is ServiceException) {
-                val serviceException = publishResult.cause() as ServiceException
+        when {
+            publishResult.failed() ->
+                when {
+                    publishResult.cause() is ServiceException -> {
+                        val serviceException = publishResult.cause() as ServiceException
 
-                logger.error("Unable to publish service: " +
-                        serviceException.failureCode() + " : " +
-                        serviceException.message)
-            } else {
-                logger.error("Unable to publish service: " + publishResult.cause())
+                        logger.error("Unable to publish service: " +
+                                serviceException.failureCode() + " : " +
+                                serviceException.message)
+                    }
+                    else -> logger.error("Unable to publish service: " + publishResult.cause())
+                }
+            else -> {
+                val record = publishResult.result()
+
+                logger.debug("Published Service Record: " +
+                        record.name + " : " +
+                        record.location + " : " +
+                        record.type + " : " +
+                        record.status)
             }
-        } else {
-            val record = publishResult.result()
-
-            logger.debug("Published Service Record: " +
-                    record.name + " : " +
-                    record.location + " : " +
-                    record.type + " : " +
-                    record.status)
         }
     }
 
@@ -506,11 +526,9 @@ class ServiceManager {
         }
 
         fun handleResultFailed(t: Throwable) {
-            if (t is ServiceException) {
-                logger.error(t.failureCode().toString() + " : " +
-                        t.message, t)
-            } else {
-                logger.error(t.message, t)
+            when (t) {
+                is ServiceException -> logger.error(t.failureCode().toString() + " : " + t.message, t)
+                else -> logger.error(t.message, t)
             }
         }
     }

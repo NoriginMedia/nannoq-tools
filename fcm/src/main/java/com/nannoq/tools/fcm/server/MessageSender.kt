@@ -59,11 +59,7 @@ import java.util.concurrent.Executors
  */
 class MessageSender internal constructor(private val server: FcmServer) {
     private var redisClient: RedisClient? = null
-    private val delayedSendingService: ExecutorService
-
-    init {
-        delayedSendingService = Executors.newCachedThreadPool()
-    }
+    private val delayedSendingService: ExecutorService = Executors.newCachedThreadPool()
 
     internal fun setRedisClient(redisClient: RedisClient) {
         this.redisClient = redisClient
@@ -90,39 +86,42 @@ class MessageSender internal constructor(private val server: FcmServer) {
                 val request = extension.toPacket()
 
                 it.get(retryKey, { getResult ->
-                    if (getResult.failed()) {
-                        logger.error("SET Failed for id: $messageId")
-
-                        server.sendingConnection!!.sendPacket(request)
-                    } else {
-                        val getResultAsString = getResult.result()
-
-                        val retryCountAsInt = if (getResultAsString == null)
-                            1
-                        else
-                            Integer.parseInt(getResultAsString)
-
-                        delayedSendingService.execute {
-                            try {
-                                Thread.sleep((retryCountAsInt * 2 * 1000).toLong())
-                            } catch (e: InterruptedException) {
-                                logger.fatal("Could not delay sending of: $messageId")
-                            }
-
-                            logger.info("Sending Extension to GCM (JSON): " + extension.json)
-                            logger.info("Sending Extension to GCM (XML): " + extension.toXML())
-                            logger.info("Sending Packet to GCM (XMLNS): " + request.xmlns)
+                    when {
+                        getResult.failed() -> {
+                            logger.error("SET Failed for id: $messageId")
 
                             server.sendingConnection!!.sendPacket(request)
                         }
+                        else -> {
+                            val getResultAsString = getResult.result()
 
-                        val retryCount = "" + retryCountAsInt + 1
+                            val retryCountAsInt = if (getResultAsString == null)
+                                1
+                            else
+                                Integer.parseInt(getResultAsString)
 
-                        it.set(retryKey, retryCount, { reSetResult ->
-                            if (reSetResult.failed()) {
-                                logger.error("Re set of retry failed for $messageId")
+                            delayedSendingService.execute {
+                                try {
+                                    Thread.sleep((retryCountAsInt * 2 * 1000).toLong())
+                                } catch (e: InterruptedException) {
+                                    logger.fatal("Could not delay sending of: $messageId")
+                                }
+
+                                logger.info("Sending Extension to GCM (JSON): " + extension.json)
+                                logger.info("Sending Extension to GCM (XML): " + extension.toXML())
+                                logger.info("Sending Packet to GCM (XMLNS): " + request.xmlns)
+
+                                server.sendingConnection!!.sendPacket(request)
                             }
-                        })
+
+                            val retryCount = "" + retryCountAsInt + 1
+
+                            it.set(retryKey, retryCount, {
+                                if (it.failed()) {
+                                    logger.error("Re set of retry failed for $messageId")
+                                }
+                            })
+                        }
                     }
                 })
             })
@@ -173,7 +172,7 @@ class MessageSender internal constructor(private val server: FcmServer) {
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(MessageSender::class.java!!.getSimpleName())
+        private val logger = LoggerFactory.getLogger(MessageSender::class.java.simpleName)
 
         // local values
         private const val GCM_PACKET_CONTENT_AVAILABLE_NOTATION = "content_available"

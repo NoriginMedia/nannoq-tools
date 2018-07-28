@@ -136,7 +136,7 @@ class AggregateFunction {
         }
 
         companion object {
-            private val logger = LoggerFactory.getLogger(FilterParameter.FilterParameterBuilder::class.java!!.getSimpleName())
+            private val logger = LoggerFactory.getLogger(FilterParameter.FilterParameterBuilder::class.java!!.simpleName)
         }
     }
 

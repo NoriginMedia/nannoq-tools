@@ -55,38 +55,39 @@ import java.util.zip.ZipInputStream
  * @version 17.11.2017
  */
 object ClusterUtils {
-    private val logger = LoggerFactory.getLogger(ClusterUtils::class.java!!.getSimpleName())
+    private val logger = LoggerFactory.getLogger(ClusterUtils::class.java!!.simpleName)
 
     fun clusterReport(aLong: Long?) {
         val vertx = Vertx.currentContext().owner()
 
-        if (vertx.isClustered) {
-            val sb = StringBuilder()
-            sb.append("Cluster Members:\n")
-            sb.append("----------------\n")
+        when {
+            vertx.isClustered -> {
+                val sb = StringBuilder()
+                sb.append("Cluster Members:\n")
+                sb.append("----------------\n")
 
-            val instances = Hazelcast.getAllHazelcastInstances()
-            instances.stream().findFirst().ifPresent { hz ->
-                hz.cluster.members.stream()
-                        .map { member ->
-                            member.socketAddress.address.toString() + ":" +
-                                    member.socketAddress.port
-                        }
-                        .forEach { name -> sb.append(name).append("\n") }
+                val instances = Hazelcast.getAllHazelcastInstances()
+                instances.stream().findFirst().ifPresent {
+                    it.cluster.members.stream()
+                            .map {
+                                it.socketAddress.address.toString() + ":" + it.socketAddress.port
+                            }
+                            .forEach { name -> sb.append(name).append("\n") }
+                }
+
+                sb.append("----------------")
+
+                logger.info(sb.toString())
             }
-
-            sb.append("----------------")
-
-            logger.info(sb.toString())
-        } else {
-            logger.error("Vertx is not clustered!")
+            else -> logger.error("Vertx is not clustered!")
         }
     }
 
     fun setSSLEventBus(keystoreName: String, keyStoreKey: String, eventBusOptions: EventBusOptions): EventBusOptions {
         eventBusOptions.setSsl(true)
                 .setKeyStoreOptions(JksOptions().setPath(keystoreName).setPassword(keyStoreKey))
-                .setTrustStoreOptions(JksOptions().setPath(keystoreName).setPassword(keyStoreKey)).clientAuth = ClientAuth.REQUIRED
+                .setTrustStoreOptions(JksOptions().setPath(keystoreName).setPassword(keyStoreKey))
+                .clientAuth = ClientAuth.REQUIRED
 
         return eventBusOptions
     }
@@ -111,19 +112,21 @@ object ClusterUtils {
         var fileContents: String? = null
 
         try {
-            val src = ClusterUtils::class.java!!.getProtectionDomain().getCodeSource()
+            val src = ClusterUtils::class.java.protectionDomain.codeSource
 
-            if (src != null) {
-                val jar = src!!.getLocation()
-                val zip = ZipInputStream(jar.openStream())
+            when {
+                src != null -> {
+                    val jar = src.location
+                    val zip = ZipInputStream(jar.openStream())
 
-                while (true) {
-                    val e = zip.nextEntry ?: break
+                    while (true) {
+                        val e = zip.nextEntry ?: break
 
-                    if (e.name.equals(clusterConfigFileName, ignoreCase = true)) {
-                        fileContents = readZipInputStream(zip)
+                        if (e.name.equals(clusterConfigFileName, ignoreCase = true)) {
+                            fileContents = readZipInputStream(zip)
 
-                        break
+                            break
+                        }
                     }
                 }
             }
@@ -161,27 +164,29 @@ object ClusterUtils {
                     portScanners.add(Runnable {
                         println("Now running scan for: $baseIpInt.$lastIpInt")
 
-                        if (CLUSTER_MEMBER_LIST.size == 0) {
-                            scans.incrementAndGet()
+                        when {
+                            CLUSTER_MEMBER_LIST.size == 0 -> {
+                                scans.incrementAndGet()
 
-                            try {
-                                Socket().use { socket ->
-                                    socket.connect(
-                                            InetSocketAddress("$subnetBase$baseIpInt.$lastIpInt", 5701), 2000)
+                                try {
+                                    Socket().use { socket ->
+                                        socket.connect(
+                                                InetSocketAddress("$subnetBase$baseIpInt.$lastIpInt", 5701), 2000)
 
-                                    if (socket.isConnected()) {
-                                        CLUSTER_MEMBER_LIST.add("<member>" + subnetBase + baseIpInt + "." +
-                                                lastIpInt + "</member>")
+                                        if (socket.isConnected) {
+                                            CLUSTER_MEMBER_LIST.add("<member>" + subnetBase + baseIpInt + "." +
+                                                    lastIpInt + "</member>")
 
-                                        println("Member detected at " + subnetBase + baseIpInt + "." +
-                                                lastIpInt)
+                                            println("Member detected at " + subnetBase + baseIpInt + "." +
+                                                    lastIpInt)
+                                        }
                                     }
+                                } catch (e: IOException) {
+                                    logger.trace("No connection on: $subnetBase$baseIpInt.$lastIpInt")
                                 }
-                            } catch (e: IOException) {
-                                logger.trace("No connection on: $subnetBase$baseIpInt.$lastIpInt")
-                            }
 
-                            scansComplete.incrementAndGet()
+                                scansComplete.incrementAndGet()
+                            }
                         }
                     })
                 }
@@ -207,20 +212,21 @@ object ClusterUtils {
 
             var clusterConfig = contents
 
-            if (CLUSTER_MEMBER_LIST.size > 0) {
-                CLUSTER_MEMBER_LIST.subList(0, CLUSTER_MEMBER_LIST.size - 1).forEach { member -> replacer.append(member).append("\n") }
-                replacer.append(CLUSTER_MEMBER_LIST[CLUSTER_MEMBER_LIST.size - 1])
-                val memberOverview = replacer.toString()
+            when {
+                CLUSTER_MEMBER_LIST.size > 0 -> {
+                    CLUSTER_MEMBER_LIST.subList(0, CLUSTER_MEMBER_LIST.size - 1).forEach { member -> replacer.append(member).append("\n") }
+                    replacer.append(CLUSTER_MEMBER_LIST[CLUSTER_MEMBER_LIST.size - 1])
+                    val memberOverview = replacer.toString()
 
-                println("Finalized Port Scan. Members at: $memberOverview")
+                    println("Finalized Port Scan. Members at: $memberOverview")
 
-                if (dev) {
-                    clusterConfig = contents.replace("<interface>" + subnetBase + "0.0-15</interface>", memberOverview)
-                } else {
-                    clusterConfig = contents.replace("<interface>" + subnetBase + "0.*</interface>", memberOverview)
+                    clusterConfig = if (dev) {
+                        contents.replace("<interface>" + subnetBase + "0.0-15</interface>", memberOverview)
+                    } else {
+                        contents.replace("<interface>" + subnetBase + "0.*</interface>", memberOverview)
+                    }
                 }
-            } else {
-                println("Skipping memberlist due to it being empty, doing broad sweep...")
+                else -> println("Skipping memberlist due to it being empty, doing broad sweep...")
             }
 
             val dir = Paths.get("/usr/verticles/cluster-modified.xml")
@@ -230,11 +236,10 @@ object ClusterUtils {
 
             file.setWritable(true)
 
-            BufferedWriter(OutputStreamWriter(
-                    FileOutputStream(file), StandardCharsets.UTF_8)).use { bw ->
-                bw.write(clusterConfig)
-                bw.flush()
-                bw.close()
+            BufferedWriter(OutputStreamWriter(FileOutputStream(file), StandardCharsets.UTF_8)).use {
+                it.write(clusterConfig)
+                it.flush()
+                it.close()
             }
         } catch (e: IOException) {
             logger.error("Error in finding other services!", e)

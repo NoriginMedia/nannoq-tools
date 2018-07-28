@@ -49,51 +49,56 @@ class AuthHandler(private val TYPE: Class<*>, private val domainIdentifier: Stri
         val processStartTime = System.nanoTime()
         val auth = routingContext.request().getHeader("Authorization")
 
-        if (logger.isDebugEnabled) {
-            addLogMessageToRequestLog(routingContext, "Starting auth for: " + auth!!)
-        }
+        if (logger.isDebugEnabled) { addLogMessageToRequestLog(routingContext, "Starting auth for: " + auth!!) }
 
-        if (auth != null) {
-            if (auth.startsWith("APIKEY ")) {
-                val key = auth.substring("APIKEY".length).trim({ it <= ' ' })
+        when {
+            auth != null ->
+                when {
+                    auth.startsWith("APIKEY ") -> {
+                        val key = auth.substring("APIKEY".length).trim({ it <= ' ' })
 
-                if (key == apiKey) {
-                    addLogMessageToRequestLog(routingContext, "INFO: Google AUTH overriden by API KEY!")
+                        when (key) {
+                            apiKey -> {
+                                addLogMessageToRequestLog(routingContext, "INFO: Google AUTH overriden by API KEY!")
+                                setAuthProcessTime(routingContext, processStartTime)
 
-                    setAuthProcessTime(routingContext, processStartTime)
-                    routingContext.next()
-                } else {
-                    unAuthorized(routingContext, processStartTime)
-                }
-            } else if (auth.startsWith("Bearer")) {
-                val token = auth.substring("Bearer".length).trim({ it <= ' ' })
-
-                if (logger.isInfoEnabled) {
-                    addLogMessageToRequestLog(routingContext, "Preparing request to auth backend...")
-                }
-
-                val request = routingContext.request()
-                val domain = routingContext.pathParam(domainIdentifier)
-                val authorization = Authorization(request.rawMethod(), TYPE.simpleName, domain ?: GLOBAL_AUTHORIZATION)
-
-                authUtils.authenticateAndAuthorize(token, authorization, Handler { result ->
-                    if (result.failed()) {
-                        logger.error("Failure in Auth: " + Json.encodePrettily(authorization), result.cause())
-
-                        addLogMessageToRequestLog(routingContext, "Unauthorized!", result.cause())
-
-                        unAuthorized(routingContext, processStartTime)
-                    } else {
-                        setAuthProcessTime(routingContext, processStartTime)
-                        routingContext.put(AuthUtils.USER_IDENTIFIER, result.result().id)
-                        routingContext.next()
+                                routingContext.next()
+                            }
+                            else -> unAuthorized(routingContext, processStartTime)
+                        }
                     }
-                })
-            } else {
-                unAuthorized(routingContext, processStartTime)
-            }
-        } else {
-            unAuthorized(routingContext, processStartTime)
+                    auth.startsWith("Bearer") -> {
+                        val token = auth.substring("Bearer".length).trim({ it <= ' ' })
+
+                        if (logger.isInfoEnabled) {
+                            addLogMessageToRequestLog(routingContext, "Preparing request to auth backend...")
+                        }
+
+                        val request = routingContext.request()
+                        val domain = routingContext.pathParam(domainIdentifier)
+                        val authorization = Authorization(
+                                request.rawMethod(), TYPE.simpleName, domain ?: GLOBAL_AUTHORIZATION)
+
+                        authUtils.authenticateAndAuthorize(token, authorization, Handler {
+                            when {
+                                it.failed() -> {
+                                    logger.error("Failure in Auth: " + Json.encodePrettily(authorization), it.cause())
+
+                                    addLogMessageToRequestLog(routingContext, "Unauthorized!", it.cause())
+                                    unAuthorized(routingContext, processStartTime)
+                                }
+                                else -> {
+                                    setAuthProcessTime(routingContext, processStartTime)
+                                    routingContext.put(AuthUtils.USER_IDENTIFIER, it.result().id)
+
+                                    routingContext.next()
+                                }
+                            }
+                        })
+                    }
+                    else -> unAuthorized(routingContext, processStartTime)
+                }
+            else -> unAuthorized(routingContext, processStartTime)
         }
     }
 

@@ -91,13 +91,14 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
 
             val aggregationPack = verifyRequest(routingContext, query, initialProcessNanoTime)
 
-            if (aggregationPack?.aggregate == null) {
-                routingContext.put(BODY_CONTENT_TAG, JsonObject()
-                        .put("request_error", "aggregate function cannot be null!"))
+            when {
+                aggregationPack?.aggregate == null -> {
+                    routingContext.put(BODY_CONTENT_TAG, JsonObject()
+                            .put("request_error", "aggregate function cannot be null!"))
 
-                setStatusCodeAndContinue(400, routingContext, initialProcessNanoTime)
-            } else {
-                performAggregation(routingContext, aggregationPack.aggregate, aggregationPack.projection,
+                    setStatusCodeAndContinue(400, routingContext, initialProcessNanoTime)
+                }
+                else -> performAggregation(routingContext, aggregationPack.aggregate, aggregationPack.projection,
                         initialProcessNanoTime)
             }
         } catch (e: Exception) {
@@ -141,74 +142,82 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
 
         val valueResultHandler = getResultHandler(aggregate)
 
-        if (valueResultHandler == null) {
-            addLogMessageToRequestLog(routingContext, "ResultHandler is null!")
+        when (valueResultHandler) {
+            null -> {
+                addLogMessageToRequestLog(routingContext, "ResultHandler is null!")
 
-            setStatusCodeAndAbort(500, routingContext, initialNanoTime)
-        } else {
-            val queryMap = splitQuery(query)
-            val filterPack = convertToFilterPack(routingContext, queryMap[FILTER_KEY])
-
-            projection.keys.forEach {
-                val groupingConfigurations = getGroupingConfigurations(aggregate, it, true)
-                val longSorter = buildLongSorter(aggregate, groupingConfigurations)
-                val doubleSorter = buildDoubleSorter(aggregate, groupingConfigurations)
-
-                val aggregationResultHandler = getAggregationResultHandler(longSorter, doubleSorter, aggregateFunction)
-
-                val aggregator = Consumer<String?> { field ->
-                    val fut = Future.future<Boolean>()
-                    val temp = AggregateFunction.builder()
-                            .withAggregateFunction(aggregateFunction)
-                            .withField(if (aggregateFunction != COUNT) field else null)
-                            .withGroupBy(groupingConfigurations)
-                            .build()
-                    val repo = repositoryProvider(it)
-
-                    if (repo == null) {
-                        addLogMessageToRequestLog(routingContext, it.simpleName + " is not valid!")
-
-                        val future = Future.future<Boolean>()
-                        aggFutures.add(future)
-
-                        future.fail(IllegalArgumentException(it.simpleName + " is not valid!"))
-                    } else {
-                        valueAggregation(routingContext, it, repo, fut,
-                                aggregationResultHandler, identifier, route, requestEtag,
-                                if (aggregateFunction == COUNT) null else projections,
-                                groupingList, totalValue, aggregate, temp, filterPack)
-
-                        aggFutures.add(fut)
-                    }
-                }
-
-                if (aggregationResultHandler == null) {
-                    addLogMessageToRequestLog(routingContext, "AggResultHandler is null!")
-
-                    val fut = Future.future<Boolean>()
-                    aggFutures.add(fut)
-                    fut.tryFail(IllegalArgumentException("AggResultHandler cannot be null!"))
-                } else {
-                    if (projection[it]?.isEmpty()!!) {
-                        aggregator.accept(null)
-                    } else {
-                        projection[it]?.forEach(aggregator)
-                    }
-                }
+                setStatusCodeAndAbort(500, routingContext, initialNanoTime)
             }
+            else -> {
+                val queryMap = splitQuery(query)
+                val filterPack = convertToFilterPack(routingContext, queryMap[FILTER_KEY])
 
-            CompositeFuture.all(aggFutures).setHandler { res ->
-                if (res.failed()) {
-                    addLogMessageToRequestLog(routingContext, "Unknown aggregation error!", res.cause())
+                projection.keys.forEach {
+                    val groupingConfigurations = getGroupingConfigurations(aggregate, it, true)
+                    val longSorter = buildLongSorter(aggregate, groupingConfigurations)
+                    val doubleSorter = buildDoubleSorter(aggregate, groupingConfigurations)
 
-                    routingContext.put(BODY_CONTENT_TAG, JsonObject()
-                            .put("unknown_error", "Something went horribly wrong..."))
-                    routingContext.response().statusCode = 500
-                    routingContext.fail(res.cause())
-                } else {
-                    valueResultHandler.accept(
-                            ValueAggregationResultPack(aggregate, routingContext, initialNanoTime, totalValue),
-                            groupingList)
+                    val aggregationResultHandler = getAggregationResultHandler(longSorter, doubleSorter, aggregateFunction)
+
+                    val aggregator = Consumer<String?> { field ->
+                        val fut = Future.future<Boolean>()
+                        val temp = AggregateFunction.builder()
+                                .withAggregateFunction(aggregateFunction)
+                                .withField(if (aggregateFunction != COUNT) field else null)
+                                .withGroupBy(groupingConfigurations)
+                                .build()
+                        val repo = repositoryProvider(it)
+
+                        when (repo) {
+                            null -> {
+                                addLogMessageToRequestLog(routingContext, it.simpleName + " is not valid!")
+
+                                val future = Future.future<Boolean>()
+                                aggFutures.add(future)
+
+                                future.fail(IllegalArgumentException(it.simpleName + " is not valid!"))
+                            }
+                            else -> {
+                                valueAggregation(routingContext, it, repo, fut,
+                                        aggregationResultHandler, identifier, route, requestEtag,
+                                        if (aggregateFunction == COUNT) null else projections,
+                                        groupingList, totalValue, aggregate, temp, filterPack)
+
+                                aggFutures.add(fut)
+                            }
+                        }
+                    }
+
+                    when (aggregationResultHandler) {
+                        null -> {
+                            addLogMessageToRequestLog(routingContext, "AggResultHandler is null!")
+
+                            val fut = Future.future<Boolean>()
+                            aggFutures.add(fut)
+                            fut.tryFail(IllegalArgumentException("AggResultHandler cannot be null!"))
+                        }
+                        else ->
+                            when {
+                                projection[it]?.isEmpty()!! -> aggregator.accept(null)
+                                else -> projection[it]?.forEach(aggregator)
+                            }
+                    }
+                }
+
+                CompositeFuture.all(aggFutures).setHandler { res ->
+                    when {
+                        res.failed() -> {
+                            addLogMessageToRequestLog(routingContext, "Unknown aggregation error!", res.cause())
+
+                            routingContext.put(BODY_CONTENT_TAG, JsonObject()
+                                    .put("unknown_error", "Something went horribly wrong..."))
+                            routingContext.response().statusCode = 500
+                            routingContext.fail(res.cause())
+                        }
+                        else -> valueResultHandler.accept(
+                                ValueAggregationResultPack(aggregate, routingContext, initialNanoTime, totalValue),
+                                groupingList)
+                    }
                 }
             }
         }
@@ -268,55 +277,56 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         val keyMapper = BiFunction<AggregationResultPack, JsonObject, String> { resultPack, item ->
             val aggregate = resultPack.aggregate
 
-            if (aggregate.hasGrouping() && aggregate.groupBy!![0].hasGroupRanging()) {
-                item.encode()
-            } else {
-                item.getString("groupByKey")
+            when {
+                aggregate.hasGrouping() && aggregate.groupBy!![0].hasGroupRanging() -> item.encode()
+                else -> item.getString("groupByKey")
             }
         }
 
         when (aggregateFunction) {
             AVG -> return BiConsumer { resultPack, groupingList ->
-                if (resultPack.aggregate.hasGrouping()) {
-                    val array = resultPack.result.getJsonArray("results")
+                when {
+                    resultPack.aggregate.hasGrouping() -> {
+                        val array = resultPack.result.getJsonArray("results")
 
-                    logger.debug("Results before sort is: " + array.encodePrettily())
-                    logger.debug("Aggregate: " + Json.encodePrettily(aggregateFunction))
+                        logger.debug("Results before sort is: " + array.encodePrettily())
+                        logger.debug("Aggregate: " + Json.encodePrettily(aggregateFunction))
 
-                    val collect = array.stream()
-                            .map({ itemAsString -> JsonObject(itemAsString.toString()) })
-                            .sorted(doubleSorter)
-                            .collect(toMap<JsonObject, String, Double, LinkedHashMap<String, Double>>(
-                                    { keyMapper.apply(resultPack, it) },
-                                    { it.getDouble(aggregateFunction.name.toLowerCase()) },
-                                    { u, _ -> throw IllegalStateException(String.format("Duplicate key %s", u)) },
-                                    { LinkedHashMap() }))
+                        val collect = array.stream()
+                                .map({ itemAsString -> JsonObject(itemAsString.toString()) })
+                                .sorted(doubleSorter)
+                                .collect(toMap<JsonObject, String, Double, LinkedHashMap<String, Double>>(
+                                        { keyMapper.apply(resultPack, it) },
+                                        { it.getDouble(aggregateFunction.name.toLowerCase()) },
+                                        { u, _ -> throw IllegalStateException(String.format("Duplicate key %s", u)) },
+                                        { LinkedHashMap() }))
 
-                    groupingList.add(collect)
-                } else {
-                    resultPack.value.addAndGet(
+                        groupingList.add(collect)
+                    }
+                    else -> resultPack.value.addAndGet(
                             resultPack.result.getDouble(aggregateFunction.name.toLowerCase())!!)
                 }
             }
             SUM, COUNT -> return BiConsumer { resultPack, groupingList ->
-                if (resultPack.aggregate.hasGrouping()) {
-                    val array = resultPack.result.getJsonArray("results")
+                when {
+                    resultPack.aggregate.hasGrouping() -> {
+                        val array = resultPack.result.getJsonArray("results")
 
-                    logger.debug("Results before sort is: " + array.encodePrettily())
-                    logger.debug("Aggregate: " + Json.encodePrettily(aggregateFunction))
+                        logger.debug("Results before sort is: " + array.encodePrettily())
+                        logger.debug("Aggregate: " + Json.encodePrettily(aggregateFunction))
 
-                    val collect = array.stream()
-                            .map({ itemAsString -> JsonObject(itemAsString.toString()) })
-                            .sorted(longSorter)
-                            .collect(toMap<JsonObject, String, Double, LinkedHashMap<String, Double>>(
-                                    { keyMapper.apply(resultPack, it) },
-                                    { it.getLong(aggregateFunction.name.toLowerCase())!!.toDouble() },
-                                    { u, _ -> throw IllegalStateException(String.format("Duplicate key %s", u)) },
-                                    { LinkedHashMap() }))
+                        val collect = array.stream()
+                                .map({ itemAsString -> JsonObject(itemAsString.toString()) })
+                                .sorted(longSorter)
+                                .collect(toMap<JsonObject, String, Double, LinkedHashMap<String, Double>>(
+                                        { keyMapper.apply(resultPack, it) },
+                                        { it.getLong(aggregateFunction.name.toLowerCase())!!.toDouble() },
+                                        { u, _ -> throw IllegalStateException(String.format("Duplicate key %s", u)) },
+                                        { LinkedHashMap() }))
 
-                    groupingList.add(collect)
-                } else {
-                    resultPack.value.addAndGet(
+                        groupingList.add(collect)
+                    }
+                    else -> resultPack.value.addAndGet(
                             resultPack.result.getLong(aggregateFunction.name.toLowerCase())!!.toDouble())
                 }
             }
@@ -340,23 +350,23 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
             val countMap = LinkedHashMap<String, Long>()
             groupingList.forEach({ map ->
                 map.forEach({ k, v ->
-                    if (aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging()) {
-                        val groupingObject = JsonObject(k)
-                        val key = JsonObject()
-                                .put("floor", groupingObject.getLong("floor"))
-                                .put("ceil", groupingObject.getLong("ceil")).encode()
+                    when {
+                        aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging() -> {
+                            val groupingObject = JsonObject(k)
+                            val key = JsonObject()
+                                    .put("floor", groupingObject.getLong("floor"))
+                                    .put("ceil", groupingObject.getLong("ceil")).encode()
 
-                        if (countMap.containsKey(key)) {
-                            countMap[key] = countMap[key]!! + v.toLong()
-                        } else {
-                            countMap[key] = v.toLong()
+                            when {
+                                countMap.containsKey(key) -> countMap[key] = countMap[key]!! + v.toLong()
+                                else -> countMap[key] = v.toLong()
+                            }
                         }
-                    } else {
-                        if (countMap.containsKey(k)) {
-                            countMap[k] = countMap[k]!! + v.toLong()
-                        } else {
-                            countMap[k] = v.toLong()
-                        }
+                        else ->
+                            when {
+                                countMap.containsKey(k) -> countMap[k] = countMap[k]!! + v.toLong()
+                                else -> countMap[k] = v.toLong()
+                            }
                     }
                 })
             })
@@ -387,23 +397,23 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                     val countMap = LinkedHashMap<String, Double>()
                     groupingList.forEach({ map ->
                         map.forEach({ k, v ->
-                            if (aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging()) {
-                                val groupingObject = JsonObject(k)
-                                val key = JsonObject()
-                                        .put("floor", groupingObject.getLong("floor"))
-                                        .put("ceil", groupingObject.getLong("ceil")).encode()
+                            when {
+                                aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging() -> {
+                                    val groupingObject = JsonObject(k)
+                                    val key = JsonObject()
+                                            .put("floor", groupingObject.getLong("floor"))
+                                            .put("ceil", groupingObject.getLong("ceil")).encode()
 
-                                if (countMap.containsKey(key)) {
-                                    countMap[key] = countMap[key]!! + v
-                                } else {
-                                    countMap[key] = v
+                                    when {
+                                        countMap.containsKey(key) -> countMap[key] = countMap[key]!! + v
+                                        else -> countMap[key] = v
+                                    }
                                 }
-                            } else {
-                                if (countMap.containsKey(k)) {
-                                    countMap[k] = countMap[k]!! + v
-                                } else {
-                                    countMap[k] = v
-                                }
+                                else ->
+                                    when {
+                                        countMap.containsKey(k) -> countMap[k] = countMap[k]!! + v
+                                        else -> countMap[k] = v
+                                    }
                             }
                         })
                     })
@@ -429,31 +439,34 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                     val routingContext = resultPack.routingContext
                     val initialNanoTime = resultPack.initTime
 
-                    if (resultPack.aggregate.hasGrouping()) {
-                        val result = finalValueMapper.apply(groupingList)
-                        val newEtag = ModelUtils.returnNewEtag(result.encode().hashCode().toLong())
-                        val results = JsonObject().put("count", result.size())
+                    when {
+                        resultPack.aggregate.hasGrouping() -> {
+                            val result = finalValueMapper.apply(groupingList)
+                            val newEtag = ModelUtils.returnNewEtag(result.encode().hashCode().toLong())
+                            val results = JsonObject().put("count", result.size())
 
-                        if (resultPack.aggregate.hasGrouping() && resultPack.aggregate.groupBy!![0].hasGroupRanging()) {
-                            results.put("rangeGrouping", JsonObject()
-                                    .put("unit", aggregateFunction.groupBy!![0].groupByUnit)
-                                    .put("range", aggregateFunction.groupBy!![0].groupByRange))
+                            if (resultPack.aggregate.hasGrouping() && resultPack.aggregate.groupBy!![0].hasGroupRanging()) {
+                                results.put("rangeGrouping", JsonObject()
+                                        .put("unit", aggregateFunction.groupBy!![0].groupByUnit)
+                                        .put("range", aggregateFunction.groupBy!![0].groupByRange))
+                            }
+
+                            results.put("results", result)
+                            val content = results.encode()
+
+                            checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
                         }
+                        else -> {
+                            val functionName = aggregateFunction.function!!.name.toLowerCase()
+                            val result = JsonObject().put(functionName, if (aggregateFunction.function == AVG)
+                                resultPack.value
+                            else
+                                resultPack.value.toLong())
+                            val content = result.encode()
+                            val newEtag = ModelUtils.returnNewEtag(content.hashCode().toLong())
 
-                        results.put("results", result)
-                        val content = results.encode()
-
-                        checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
-                    } else {
-                        val functionName = aggregateFunction.function!!.name.toLowerCase()
-                        val result = JsonObject().put(functionName, if (aggregateFunction.function == AVG)
-                            resultPack.value
-                        else
-                            resultPack.value.toLong())
-                        val content = result.encode()
-                        val newEtag = ModelUtils.returnNewEtag(content.hashCode().toLong())
-
-                        checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
+                            checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
+                        }
                     }
                 }
             }
@@ -463,27 +476,31 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                 return BiConsumer { resultPack, groupingList ->
                     val routingContext = resultPack.routingContext
                     val initialNanoTime = resultPack.initTime
-                    if (resultPack.aggregate.hasGrouping()) {
-                        val result = finalValueMapper.apply(groupingList)
-                        val newEtag = ModelUtils.returnNewEtag(result.encode().hashCode().toLong())
-                        val results = JsonObject().put("count", result.size())
-                        if (resultPack.aggregate.hasGrouping() && resultPack.aggregate.groupBy!![0].hasGroupRanging()) {
-                            results.put("rangeGrouping", JsonObject()
-                                    .put("unit", aggregateFunction.groupBy!![0].groupByUnit)
-                                    .put("range", aggregateFunction.groupBy!![0].groupByRange))
+
+                    when {
+                        resultPack.aggregate.hasGrouping() -> {
+                            val result = finalValueMapper.apply(groupingList)
+                            val newEtag = ModelUtils.returnNewEtag(result.encode().hashCode().toLong())
+                            val results = JsonObject().put("count", result.size())
+                            if (resultPack.aggregate.hasGrouping() && resultPack.aggregate.groupBy!![0].hasGroupRanging()) {
+                                results.put("rangeGrouping", JsonObject()
+                                        .put("unit", aggregateFunction.groupBy!![0].groupByUnit)
+                                        .put("range", aggregateFunction.groupBy!![0].groupByRange))
+                            }
+                            results.put("results", result)
+                            val content = results.encode()
+                            checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
                         }
-                        results.put("results", result)
-                        val content = results.encode()
-                        checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
-                    } else {
-                        val functionName = aggregateFunction.function!!.name.toLowerCase()
-                        val result = JsonObject().put(functionName, if (aggregateFunction.function == AVG)
-                            resultPack.value
-                        else
-                            resultPack.value.toLong())
-                        val content = result.encode()
-                        val newEtag = ModelUtils.returnNewEtag(content.hashCode().toLong())
-                        checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
+                        else -> {
+                            val functionName = aggregateFunction.function!!.name.toLowerCase()
+                            val result = JsonObject().put(functionName, if (aggregateFunction.function == AVG)
+                                resultPack.value
+                            else
+                                resultPack.value.toLong())
+                            val content = result.encode()
+                            val newEtag = ModelUtils.returnNewEtag(content.hashCode().toLong())
+                            checkEtagAndReturn(content, newEtag, routingContext, initialNanoTime)
+                        }
                     }
                 }
             }
@@ -493,23 +510,23 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
 
     private fun <T : Comparable<T>> createValueComparator(
             asc: Boolean, groupingConfiguration: CrossModelGroupingConfiguration?): Comparator<Entry<String, T>> {
-        return if (groupingConfiguration != null && groupingConfiguration.hasGroupRanging()) {
-            if (asc) KeyComparator() else KeyComparator<String, T>().reversed()
-        } else {
-            if (asc) ValueThenKeyComparator() else ValueThenKeyComparator<String, T>().reversed()
+        return when {
+            groupingConfiguration != null && groupingConfiguration.hasGroupRanging() ->
+                if (asc) KeyComparator() else KeyComparator<String, T>().reversed()
+            else ->
+                if (asc) ValueThenKeyComparator() else ValueThenKeyComparator<String, T>().reversed()
         }
     }
 
     private fun <T> buildComparator(
             aggregateFunction: CrossModelAggregateFunction, groupingConfiguration: CrossModelGroupingConfiguration?): BiConsumer<JsonArray, Entry<String, T>> {
-        return if (groupingConfiguration != null && groupingConfiguration.hasGroupRanging()) {
-            BiConsumer { results, x ->
+        return when {
+            groupingConfiguration != null && groupingConfiguration.hasGroupRanging() -> BiConsumer { results, x ->
                 results.add(
                         JsonObject(x.key)
                                 .put(aggregateFunction.function?.name?.toLowerCase(), x.value))
             }
-        } else {
-            BiConsumer { results, x -> results.add(JsonObject().put(x.key, x.value)) }
+            else -> BiConsumer { results, x -> results.add(JsonObject().put(x.key, x.value)) }
         }
     }
 
@@ -526,10 +543,9 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         override fun compare(a: Entry<K, V>, b: Entry<K, V>): Int {
             val cmp1 = a.value.compareTo(b.value)
 
-            return if (cmp1 != 0) {
-                cmp1
-            } else {
-                a.key.compareTo(b.key)
+            return when {
+                cmp1 != 0 -> cmp1
+                else -> a.key.compareTo(b.key)
             }
         }
     }
@@ -537,12 +553,14 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
     private fun checkEtagAndReturn(content: String, newEtag: String?, routingContext: RoutingContext, initialNanoTime: Long) {
         val requestEtag = routingContext.request().getHeader(HttpHeaders.IF_NONE_MATCH)
 
-        if (newEtag != null && requestEtag != null && requestEtag.equals(newEtag, ignoreCase = true)) {
-            setStatusCodeAndContinue(304, routingContext, initialNanoTime)
-        } else {
-            if (newEtag != null) routingContext.response().putHeader(HttpHeaders.ETAG, newEtag)
-            routingContext.put(BODY_CONTENT_TAG, content)
-            setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+        when {
+            newEtag != null && requestEtag != null && requestEtag.equals(newEtag, ignoreCase = true) ->
+                setStatusCodeAndContinue(304, routingContext, initialNanoTime)
+            else -> {
+                if (newEtag != null) routingContext.response().putHeader(HttpHeaders.ETAG, newEtag)
+                routingContext.put(BODY_CONTENT_TAG, content)
+                setStatusCodeAndContinue(200, routingContext, initialNanoTime)
+            }
         }
     }
 
@@ -570,28 +588,31 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
             addLogMessageToRequestLog(routingContext, "PROJECTIONS: " + Arrays.toString(projections))
         }
 
-        repo.aggregation(identifier, valueQueryPack, projections, Handler { countRes ->
-            if (countRes.failed()) {
-                addLogMessageToRequestLog(routingContext, "Unable to fetch res for " + TYPE.simpleName + "!",
-                        countRes.cause())
+        repo.aggregation(identifier, valueQueryPack, projections, Handler {
+            when {
+                it.failed() -> {
+                    addLogMessageToRequestLog(routingContext, "Unable to fetch res for " + TYPE.simpleName + "!",
+                            it.cause())
 
-                fut.fail(countRes.cause())
-            } else {
-                if (logger.isDebugEnabled) {
-                    addLogMessageToRequestLog(routingContext, "Countres: " + countRes.result())
+                    fut.fail(it.cause())
                 }
+                else -> {
+                    if (logger.isDebugEnabled) {
+                        addLogMessageToRequestLog(routingContext, "Countres: " + it.result())
+                    }
 
-                val valueResultObject = JsonObject(countRes.result())
+                    val valueResultObject = JsonObject(it.result())
 
-                if (logger.isDebugEnabled) {
-                    addLogMessageToRequestLog(routingContext, TYPE.simpleName + "_agg: " +
-                            Json.encodePrettily(valueResultObject))
+                    if (logger.isDebugEnabled) {
+                        addLogMessageToRequestLog(routingContext, TYPE.simpleName + "_agg: " +
+                                Json.encodePrettily(valueResultObject))
+                    }
+
+                    val pack = AggregationResultPack(aggregate, valueResultObject, totalCount)
+                    aggregationResultHandler!!.accept(pack, groupingList.toMutableList())
+
+                    fut.complete(java.lang.Boolean.TRUE)
                 }
-
-                val pack = AggregationResultPack(aggregate, valueResultObject, totalCount)
-                aggregationResultHandler!!.accept(pack, groupingList.toMutableList())
-
-                fut.complete(java.lang.Boolean.TRUE)
             }
         })
     }
@@ -643,51 +664,58 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
 
     private fun verifyRequest(routingContext: RoutingContext,
                               query: String?, initialProcessTime: Long): AggregationPack? {
-        if (query == null) {
-            noQueryError(routingContext, initialProcessTime)
-        } else {
-            val queryMap = splitQuery(query)
+        when (query) {
+            null -> noQueryError(routingContext, initialProcessTime)
+            else -> {
+                val queryMap = splitQuery(query)
 
-            if (verifyQuery(queryMap, routingContext, initialProcessTime)) {
-                try {
-                    val aggregateFunction = Json.decodeValue<CrossModelAggregateFunction>(queryMap[AGGREGATE_KEY]?.get(0), CrossModelAggregateFunction::class.java)
-                    var crossTableProjection = Json.decodeValue<CrossTableProjection>(queryMap[PROJECTION_KEY]?.get(0), CrossTableProjection::class.java)
-                    crossTableProjection = CrossTableProjection(
-                            crossTableProjection.models,
-                            ArrayList(modelMap.keys),
-                            crossTableProjection.fields)
-                    val pageToken = routingContext.request().getParam(PAGING_TOKEN_KEY)
+                if (verifyQuery(queryMap, routingContext, initialProcessTime)) {
+                    try {
+                        val aggregateFunction = Json.decodeValue<CrossModelAggregateFunction>(
+                                queryMap[AGGREGATE_KEY]?.get(0), CrossModelAggregateFunction::class.java)
+                        var crossTableProjection = Json.decodeValue<CrossTableProjection>(
+                                queryMap[PROJECTION_KEY]?.get(0), CrossTableProjection::class.java)
+                        crossTableProjection = CrossTableProjection(
+                                crossTableProjection.models,
+                                ArrayList(modelMap.keys),
+                                crossTableProjection.fields)
+                        val pageToken = routingContext.request().getParam(PAGING_TOKEN_KEY)
 
-                    if (aggregateFunction.field != null) {
-                        val aggregationQueryErrorObject = JsonObject().put("aggregate_field_error",
-                                "Field must be null in aggregate, use fields in projection instead")
+                        when {
+                            aggregateFunction.field != null -> {
+                                val aggregationQueryErrorObject = JsonObject().put("aggregate_field_error",
+                                        "Field must be null in aggregate, use fields in projection instead")
+
+                                sendQueryErrorResponse(aggregationQueryErrorObject, routingContext, initialProcessTime)
+                            }
+                            else -> {
+                                val errors = crossTableProjection.validate(aggregateFunction.function!!)
+
+                                when {
+                                    errors.isEmpty() -> {
+                                        val projectionMap = buildProjectionMap(crossTableProjection)
+                                        val aggregationErrors = verifyAggregation(aggregateFunction, projectionMap)
+
+                                        when {
+                                            aggregationErrors.isEmpty() ->
+                                                return AggregationPack(aggregateFunction, projectionMap, pageToken)
+                                            else -> sendQueryErrorResponse(buildJsonErrorObject("Aggregate",
+                                                    aggregationErrors), routingContext, initialProcessTime)
+                                        }
+                                    }
+                                    else -> sendQueryErrorResponse(buildValidationErrorObject("Projection", errors),
+                                            routingContext, initialProcessTime)
+                                }
+                            }
+                        }
+                    } catch (e: DecodeException) {
+                        val aggregationQueryErrorObject = JsonObject()
+                                .put("json_parse_error", "Unable to parse json in query, are you sure it is URL encoded?")
 
                         sendQueryErrorResponse(aggregationQueryErrorObject, routingContext, initialProcessTime)
-                    } else {
-                        val errors = crossTableProjection.validate(aggregateFunction.function!!)
-
-                        if (errors.isEmpty()) {
-                            val projectionMap = buildProjectionMap(crossTableProjection)
-                            val aggregationErrors = verifyAggregation(aggregateFunction, projectionMap)
-
-                            if (aggregationErrors.isEmpty()) {
-                                return AggregationPack(aggregateFunction, projectionMap, pageToken)
-                            } else {
-                                sendQueryErrorResponse(buildJsonErrorObject("Aggregate",
-                                        aggregationErrors), routingContext, initialProcessTime)
-                            }
-                        } else {
-                            sendQueryErrorResponse(buildValidationErrorObject("Projection", errors),
-                                    routingContext, initialProcessTime)
-                        }
                     }
-                } catch (e: DecodeException) {
-                    val aggregationQueryErrorObject = JsonObject()
-                            .put("json_parse_error", "Unable to parse json in query, are you sure it is URL encoded?")
 
-                    sendQueryErrorResponse(aggregationQueryErrorObject, routingContext, initialProcessTime)
                 }
-
             }
         }
 
@@ -701,13 +729,16 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
     }
 
     private fun getFieldsForCollection(crossTableProjection: CrossTableProjection, collection: String): Set<String> {
-        return if (crossTableProjection.fields == null) ConcurrentHashSet() else crossTableProjection.fields!!.stream()
-                .map<String> { field ->
-                    val fieldSplit = field.split("\\.".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()
+        return when {
+            crossTableProjection.fields == null -> ConcurrentHashSet()
+            else -> crossTableProjection.fields!!.stream()
+                    .map<String> { field ->
+                        val fieldSplit = field.split("\\.".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()
 
-                    if (fieldSplit[0].equals(collection, ignoreCase = true)) fieldSplit[1] else null
-                }
-                .collect(toSet())
+                        if (fieldSplit[0].equals(collection, ignoreCase = true)) fieldSplit[1] else null
+                    }
+                    .collect(toSet())
+        }
 
     }
 
@@ -716,10 +747,10 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         val function = aggregateFunction.function
         val errors = ArrayList<JsonObject>()
 
-        if (aggregateFunction.groupBy!!.size > 1) {
-            errors.add(JsonObject().put("grouping_error", "Max grouping for cross model is 1!"))
-        } else {
-            crossTableProjection.forEach { klazz, fieldSet ->
+        when {
+            aggregateFunction.groupBy!!.size > 1 -> errors.add(
+                    JsonObject().put("grouping_error", "Max grouping for cross model is 1!"))
+            else -> crossTableProjection.forEach { klazz, fieldSet ->
                 fieldSet.forEach {
                     val groupingConfigurations = getGroupingConfigurations(aggregateFunction, klazz)
                     val temp = AggregateFunction.builder()
@@ -792,25 +823,31 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
 
     private fun verifyQuery(queryMap: Map<String, List<String>>?,
                             routingContext: RoutingContext, initialProcessTime: Long): Boolean {
-        if (queryMap == null) {
-            noAggregateError(routingContext, initialProcessTime)
+        when {
+            queryMap == null -> {
+                noAggregateError(routingContext, initialProcessTime)
 
-            return false
-        } else if (queryMap[AGGREGATE_KEY] == null) {
-            noAggregateError(routingContext, initialProcessTime)
+                return false
+            }
+            queryMap[AGGREGATE_KEY] == null -> {
+                noAggregateError(routingContext, initialProcessTime)
 
-            return false
-        } else if (queryMap[PROJECTION_KEY] == null) {
-            noProjectionError(routingContext, initialProcessTime)
+                return false
+            }
+            queryMap[PROJECTION_KEY] == null -> {
+                noProjectionError(routingContext, initialProcessTime)
 
-            return false
-        } else if (queryMap[PAGING_TOKEN_KEY] != null && queryMap[PAGING_TOKEN_KEY]?.get(0).equals(END_OF_PAGING_KEY, ignoreCase = true)) {
-            noPageError(routingContext, initialProcessTime)
+                return false
+            }
+            queryMap[PAGING_TOKEN_KEY] != null &&
+                    queryMap[PAGING_TOKEN_KEY]?.get(0).equals(END_OF_PAGING_KEY, ignoreCase = true) -> {
+                noPageError(routingContext, initialProcessTime)
 
-            return false
+                return false
+            }
+            else -> return true
         }
 
-        return true
     }
 
     private fun noAggregateError(routingContext: RoutingContext, initialProcessTime: Long) {
@@ -859,7 +896,11 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
 
                 if (array != null) {
                     projections = array.stream()
-                            .map { o -> o.toString().split("\\.".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()[1] }
+                            .map { o -> o.toString()
+                                    .split("\\.".toRegex())
+                                    .dropLastWhile({ it.isEmpty() })
+                                    .toTypedArray()[1]
+                            }
                             .collect(toList())
                             .toTypedArray()
                             .requireNoNulls()

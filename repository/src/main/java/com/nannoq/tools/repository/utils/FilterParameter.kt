@@ -164,7 +164,7 @@ class FilterParameter {
         private var operatorSet = false
         private var typeSet = false
 
-        internal constructor() {}
+        internal constructor()
 
         internal constructor(field: String) {
             withField(field)
@@ -416,18 +416,17 @@ class FilterParameter {
         when (FILTER_TYPE.valueOf(type.toUpperCase())) {
             FilterParameter.FILTER_TYPE.AND -> this.type = "AND"
             FilterParameter.FILTER_TYPE.OR -> this.type = "OR"
-            else -> throw IllegalArgumentException("Unrecognized type!")
         }
 
         return this
     }
 
     fun collectErrors(errors: JsonObject) {
-        if ((ne != null || eq != null) && (gt != null || ge != null || lt != null || le != null)) {
-            errors.put(field!! + "_error", "Filter Parameter error on: '" + field + "', " +
+        when {
+            (ne != null || eq != null) && (gt != null || ge != null || lt != null || le != null) ->
+                errors.put(field!! + "_error", "Filter Parameter error on: '" + field + "', " +
                     "'eq' or 'ne' cannot co exist with 'gt','lt','ge' or 'le' parameters!")
-        } else {
-            errors.put(field!! + "_error", "Advanced functions cannot be used in conjunction with simple functions.")
+            else -> errors.put(field!! + "_error", "Advanced functions cannot be used in conjunction with simple functions.")
         }
     }
 

@@ -47,6 +47,7 @@ import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
+import io.vertx.serviceproxy.ServiceException.fail
 import java.util.*
 
 /**
@@ -60,8 +61,8 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
     private var AUTH_TOKEN_ENDPOINT = "/auth/api/oauth2/auth/convert"
     private var AUTH_VERIFY_ENDPOINT = "/auth/api/oauth2/verify"
 
-    private var authAuthCircuitBreaker: CircuitBreaker? = null
-    private var authVerifyCircuitBreaker: CircuitBreaker? = null
+    private lateinit var authAuthCircuitBreaker: CircuitBreaker
+    private lateinit var authVerifyCircuitBreaker: CircuitBreaker
 
     private var authCircuitBreakerEvents: MessageConsumer<JsonObject>? = null
     private var verifyCircuitBreakerEvents: MessageConsumer<JsonObject>? = null
@@ -71,13 +72,14 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
         get() {
             val authenticationServiceFuture = Future.future<AuthenticationService>()
 
-            ServiceManager.getInstance().consumeService(AuthenticationService::class.java, Handler { fetchResult ->
-                if (fetchResult.failed()) {
-                    logger.error("Failed Auth Service fetch...")
+            ServiceManager.getInstance().consumeService(AuthenticationService::class.java, Handler {
+                when {
+                    it.failed() -> {
+                        logger.error("Failed Auth Service fetch...")
 
-                    authenticationServiceFuture.fail(fetchResult.cause())
-                } else {
-                    authenticationServiceFuture.complete(fetchResult.result())
+                        authenticationServiceFuture.fail(it.cause())
+                    }
+                    else -> authenticationServiceFuture.complete(it.result())
                 }
             })
 
@@ -88,23 +90,24 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
         get() {
             val verificationServiceFuture = Future.future<VerificationService>()
 
-            ServiceManager.getInstance().consumeService(VerificationService::class.java, Handler { fetchResult ->
-                if (fetchResult.failed()) {
-                    logger.error("Failed Verification Service fetch...")
+            ServiceManager.getInstance().consumeService(VerificationService::class.java, Handler {
+                when {
+                    it.failed() -> {
+                        logger.error("Failed Verification Service fetch...")
 
-                    verificationServiceFuture.fail(fetchResult.cause())
-                } else {
-                    verificationServiceFuture.complete(fetchResult.result())
+                        verificationServiceFuture.fail(it.cause())
+                    }
+                    else -> verificationServiceFuture.complete(it.result())
                 }
             })
 
             return verificationServiceFuture
         }
 
-    private constructor(appConfig: JsonObject = Vertx.currentContext().config()) : this(Vertx.currentContext().owner(), appConfig)
+    private constructor(appConfig: JsonObject = Vertx.currentContext().config()) :
+            this(Vertx.currentContext().owner(), appConfig)
 
     init {
-
         logger.info("Initializing AuthUtils...")
 
         apiManager = APIManager(vertx, appConfig)
@@ -131,10 +134,10 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                         .setResetTimeout(10000)
                         .setNotificationAddress(AUTH_AUTH_CIRCUTBREAKER_NAME)
                         .setNotificationPeriod(60000L * 60 * 6))
-                .openHandler { v -> logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME OPEN") }
-                .halfOpenHandler { v -> logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME HALF-OPEN") }
-                .closeHandler { v -> logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME CLOSED") }
-        authAuthCircuitBreaker!!.close()
+                .openHandler { logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME OPEN") }
+                .halfOpenHandler { logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME HALF-OPEN") }
+                .closeHandler { logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME CLOSED") }
+        authAuthCircuitBreaker.close()
 
         authVerifyCircuitBreaker = CircuitBreaker.create(AUTH_VERIFY_CIRCUTBREAKER_NAME, vertx,
                 CircuitBreakerOptions()
@@ -144,47 +147,49 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                         .setResetTimeout(10000)
                         .setNotificationAddress(AUTH_VERIFY_CIRCUTBREAKER_NAME)
                         .setNotificationPeriod(60000L * 60 * 6))
-                .openHandler { v -> logger.info("$AUTH_VERIFY_CIRCUTBREAKER_NAME OPEN") }
-                .halfOpenHandler { v -> logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME HALF-OPEN") }
-                .closeHandler { v -> logger.info("$AUTH_VERIFY_CIRCUTBREAKER_NAME CLOSED") }
-        authVerifyCircuitBreaker!!.close()
+                .openHandler { logger.info("$AUTH_VERIFY_CIRCUTBREAKER_NAME OPEN") }
+                .halfOpenHandler { logger.info("$AUTH_AUTH_CIRCUTBREAKER_NAME HALF-OPEN") }
+                .closeHandler { logger.info("$AUTH_VERIFY_CIRCUTBREAKER_NAME CLOSED") }
+        authVerifyCircuitBreaker.close()
     }
 
     private fun prepareListeners() {
         authCircuitBreakerEvents = vertx.eventBus().consumer(AUTH_AUTH_CIRCUTBREAKER_NAME) {
-            CircuitBreakerUtils.handleCircuitBreakerEvent(authAuthCircuitBreaker!!, it) }
+            CircuitBreakerUtils.handleCircuitBreakerEvent(authAuthCircuitBreaker, it) }
 
         verifyCircuitBreakerEvents = vertx.eventBus().consumer(AUTH_VERIFY_CIRCUTBREAKER_NAME) {
-            CircuitBreakerUtils.handleCircuitBreakerEvent(authVerifyCircuitBreaker!!, it) }
+            CircuitBreakerUtils.handleCircuitBreakerEvent(authVerifyCircuitBreaker, it) }
     }
 
     @Fluent
     fun convertExternalToken(token: String?, provider: String, resultHandler: Handler<AsyncResult<AuthPackage>>): AuthUtils {
         logger.debug("Auth request ready for: $provider")
 
-        if (token == null) {
-            logger.error("Token cannot be null!")
+        when (token) {
+            null -> {
+                logger.error("Token cannot be null!")
 
-            resultHandler.handle(Future.failedFuture("Token cannot be null!"))
-        } else {
-            val backup : (Throwable) -> Unit = {
-                httpAuthBackUp(token, provider, Handler { httpResult ->
-                    logger.debug("Launching http backup...")
-
-                    if (httpResult.failed()) {
-                        resultHandler.handle(Future.failedFuture<AuthPackage>(httpResult.cause()))
-                    } else {
-                        resultHandler.handle(Future.succeededFuture(httpResult.result()))
-                    }
-                })
+                resultHandler.handle(Future.failedFuture("Token cannot be null!"))
             }
+            else -> {
+                val backup : (Throwable) -> Unit = {
+                    httpAuthBackUp(token, provider, Handler {
+                        logger.debug("Launching http backup...")
 
-            authenticationService.compose({ service ->
-                logger.debug("Running Eventbus Auth...")
+                        when {
+                            it.failed() -> resultHandler.handle(Future.failedFuture<AuthPackage>(it.cause()))
+                            else -> resultHandler.handle(Future.succeededFuture(it.result()))
+                        }
+                    })
+                }
 
-                CircuitBreakerUtils.performRequestWithCircuitBreaker(authAuthCircuitBreaker!!, resultHandler, Handler {
-                    attemptAuthConversionOnEventBus(it, service, token, provider) }, backup)
-            }, Future.future<Any>().setHandler { failure -> backup(failure.cause()) })
+                authenticationService.compose({ service ->
+                    logger.debug("Running Eventbus Auth...")
+
+                    CircuitBreakerUtils.performRequestWithCircuitBreaker(authAuthCircuitBreaker, resultHandler, Handler {
+                        attemptAuthConversionOnEventBus(it, service, token, provider) }, backup)
+                }, Future.future<Any>().setHandler { failure -> backup(failure.cause()) })
+            }
         }
 
         return this
@@ -193,24 +198,28 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
     private fun attemptAuthConversionOnEventBus(authFuture: Future<AuthPackage>,
                                                 authenticationService: AuthenticationService,
                                                 token: String?, provider: String) {
-        authenticationService.createJwtFromProvider(token!!, provider, Handler { conversionResult ->
-            if (authFuture.isComplete) {
-                logger.error("Ignoring result, authFuture already completed: " + conversionResult.cause())
-            } else {
-                if (conversionResult.failed()) {
-                    logger.error("Conversion failed!")
+        authenticationService.createJwtFromProvider(token!!, provider, {
+            when {
+                authFuture.isComplete -> logger.error("Ignoring result, authFuture already completed: " + it.cause())
+                else ->
+                    when {
+                        it.failed() -> {
+                            logger.error("Conversion failed!")
 
-                    if (conversionResult.cause() is ServiceException) {
-                        ServiceManager.handleResultFailed(conversionResult.cause())
-                        authFuture.complete(null)
-                    } else {
-                        authFuture.fail(conversionResult.cause())
+                            when {
+                                it.cause() is ServiceException -> {
+                                    ServiceManager.handleResultFailed(it.cause())
+                                    authFuture.complete(null)
+                                }
+                                else -> authFuture.fail(it.cause())
+                            }
+                        }
+                        else -> {
+                            logger.debug("Conversion ok, returning result...")
+
+                            authFuture.complete(it.result())
+                        }
                     }
-                } else {
-                    logger.debug("Conversion ok, returning result...")
-
-                    authFuture.complete(conversionResult.result())
-                }
             }
         })
     }
@@ -219,23 +228,25 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                                resultHandler: Handler<AsyncResult<AuthPackage>>) {
         logger.debug("Running HTTP Auth Backup...")
 
-        ServiceManager.getInstance().consumeApi(AUTH_API_BASE, Handler { apiResult ->
-            if (apiResult.failed()) {
-                logger.error("HTTP Backup unavailable...")
+        ServiceManager.getInstance().consumeApi(AUTH_API_BASE, Handler {
+            when {
+                it.failed() -> {
+                    logger.error("HTTP Backup unavailable...")
 
-                resultHandler.handle(ServiceException.fail(502, "Service not available..."))
-            } else {
-                apiManager.performRequestWithCircuitBreaker(AUTH_API_BASE, resultHandler, Handler { authFuture ->
-                    val req = apiResult.result().get(AUTH_TOKEN_ENDPOINT, { httpClientResponse ->
-                        if (httpClientResponse.statusCode() == 401) {
-                            logger.error("UNAUTHORIZED IN HTTP AUTH")
+                    resultHandler.handle(fail(502, "Service not available..."))
+                }
+                else -> apiManager.performRequestWithCircuitBreaker(AUTH_API_BASE, resultHandler, Handler { authFuture ->
+                    val req = it.result().get(AUTH_TOKEN_ENDPOINT, {
+                        when {
+                            it.statusCode() == 401 -> {
+                                logger.error("UNAUTHORIZED IN HTTP AUTH")
 
-                            authFuture.fail("Unauthorized...")
-                        } else {
-                            httpClientResponse.bodyHandler({ responseData ->
-                                logger.debug("Received: " + responseData.toString() + " from auth.")
+                                authFuture.fail("Unauthorized...")
+                            }
+                            else -> it.bodyHandler({
+                                logger.debug("Received: " + it.toString() + " from auth.")
 
-                                val jsonObjectBody = responseData.toJsonObject()
+                                val jsonObjectBody = it.toJsonObject()
 
                                 logger.debug("AUTH FROM HTTP IS: " + Json.encodePrettily(jsonObjectBody))
 
@@ -262,7 +273,7 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                     req.putHeader("X-Authorization-Provider", provider)
                     req.setTimeout(5000L)
                     req.end()
-                }, { e -> resultHandler.handle(Future.failedFuture(USER_NOT_VERIFIED)) })
+                }, { resultHandler.handle(Future.failedFuture(USER_NOT_VERIFIED)) })
             }
         })
     }
@@ -272,39 +283,39 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                                  resultHandler: Handler<AsyncResult<VerifyResult>>): AuthUtils {
         logger.debug("Auth request ready: " + authorization.toJson().encodePrettily())
 
-        if (jwt == null) {
-            logger.error("JWT cannot be null!")
+        when (jwt) {
+            null -> {
+                logger.error("JWT cannot be null!")
 
-            resultHandler.handle(Future.failedFuture("JWT cannot be null!"))
-        } else {
-            val backup : (Throwable) -> Unit = {
-                httpVerifyBackUp(jwt, authorization, Handler { httpResult ->
-                    logger.debug("Received HTTP Verify Result: " + httpResult.succeeded())
-
-                    if (httpResult.failed()) {
-                        resultHandler.handle(Future.failedFuture<VerifyResult>(httpResult.cause()))
-                    } else {
-                        resultHandler.handle(Future.succeededFuture(httpResult.result()))
-                    }
-                })
+                resultHandler.handle(Future.failedFuture("JWT cannot be null!"))
             }
+            else -> {
+                val backup : (Throwable) -> Unit = {
+                    httpVerifyBackUp(jwt, authorization, Handler {
+                        logger.debug("Received HTTP Verify Result: " + it.succeeded())
 
-            verificationService.compose({ service ->
-                logger.debug("Running Eventbus Auth...")
-
-                CircuitBreakerUtils.performRequestWithCircuitBreaker<VerifyResult>(authAuthCircuitBreaker!!, Handler { authRes ->
-                    if (authRes.failed()) {
-                        resultHandler.handle(ServiceException.fail(500, "Unknown error..."))
-                    } else {
-                        if (authRes.result() == null) {
-                            resultHandler.handle(ServiceException.fail(401, "Not authorized!"))
-                        } else {
-                            resultHandler.handle(Future.succeededFuture(authRes.result()))
+                        when {
+                            it.failed() -> resultHandler.handle(Future.failedFuture<VerifyResult>(it.cause()))
+                            else -> resultHandler.handle(Future.succeededFuture(it.result()))
                         }
-                    }
-                }, Handler {
-                    attemptAuthOnEventBus(it, service, jwt, authorization) }, backup)
-            }, Future.future<Any>().setHandler { failure -> backup(failure.cause()) })
+                    })
+                }
+
+                verificationService.compose({ service ->
+                    logger.debug("Running Eventbus Auth...")
+
+                    CircuitBreakerUtils.performRequestWithCircuitBreaker<VerifyResult>(authAuthCircuitBreaker, Handler {
+                        when {
+                            it.failed() -> resultHandler.handle(fail(500, "Unknown error..."))
+                            else ->
+                                when {
+                                    it.result() == null -> resultHandler.handle(fail(401, "Not authorized!"))
+                                    else -> resultHandler.handle(Future.succeededFuture(it.result()))
+                                }
+                        }
+                    }, Handler { attemptAuthOnEventBus(it, service, jwt, authorization) }, backup)
+                }, Future.future<Any>().setHandler { failure -> backup(failure.cause()) })
+            }
         }
 
         return this
@@ -314,41 +325,49 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                                       jwt: String?, authorization: Authorization) {
         logger.debug("Running Auth on Eventbus, attempt: " + authVerifyCircuitBreaker!!.failureCount())
 
-        verificationService.verifyJWT(jwt!!, authorization, Handler {
-            if (authFuture.isComplete) {
-                logger.error("Ignoring result, authFuture already completed:" + it.cause())
-            } else {
-                if (it.failed()) {
-                    logger.error("Failed verification service...")
+        verificationService.verifyJWT(jwt!!, authorization, {
+            when {
+                authFuture.isComplete -> logger.error("Ignoring result, authFuture already completed:" + it.cause())
+                else ->
+                    when {
+                        it.failed() -> {
+                            logger.error("Failed verification service...")
 
-                    if (it.cause() is ServiceException) {
-                        ServiceManager.handleResultFailed(it.cause())
-                        val se = it.cause() as ServiceException
+                            when {
+                                it.cause() is ServiceException -> {
+                                    ServiceManager.handleResultFailed(it.cause())
+                                    val se = it.cause() as ServiceException
 
-                        if (se.failureCode() == 401) {
-                            authFuture.complete(null)
-                        } else {
-                            authFuture.fail(it.cause())
+                                    when {
+                                        se.failureCode() == 401 -> authFuture.complete(null)
+                                        else -> authFuture.fail(it.cause())
+                                    }
+                                }
+                                else -> {
+                                    logger.error(it.cause())
+
+                                    authFuture.fail(it.cause())
+                                }
+                            }
                         }
-                    } else {
-                        logger.error(it.cause())
+                        else -> {
+                            val verifyResult = it.result()
 
-                        authFuture.fail(it.cause())
+                            when {
+                                verifyResult != null -> {
+                                    logger.debug("Authenticated!")
+                                    logger.debug(Json.encodePrettily(verifyResult))
+
+                                    authFuture.complete(verifyResult)
+                                }
+                                else -> {
+                                    logger.error("Access Denied!")
+
+                                    authFuture.fail(it.cause())
+                                }
+                            }
+                        }
                     }
-                } else {
-                    val verifyResult = it.result()
-
-                    if (verifyResult != null) {
-                        logger.debug("Authenticated!")
-                        logger.debug(Json.encodePrettily(verifyResult))
-
-                        authFuture.complete(verifyResult)
-                    } else {
-                        logger.error("Access Denied!")
-
-                        authFuture.fail(it.cause())
-                    }
-                }
             }
         })
     }
@@ -358,32 +377,33 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
         logger.debug("Running HTTP Verify Backup...")
 
         ServiceManager.getInstance().consumeApi(AUTH_API_BASE, Handler {
-            if (it.failed()) {
-                logger.error("HTTP Backup unavailable...")
+            when {
+                it.failed() -> {
+                    logger.error("HTTP Backup unavailable...")
 
-                resultHandler.handle(ServiceException.fail(502, "Service not available..."))
-            } else {
-                apiManager.performRequestWithCircuitBreaker(AUTH_API_BASE, resultHandler, Handler { authFuture ->
+                    resultHandler.handle(fail(502, "Service not available..."))
+                }
+                else -> apiManager.performRequestWithCircuitBreaker(AUTH_API_BASE, resultHandler, Handler { authFuture ->
                     val req = it.result().get(AUTH_VERIFY_ENDPOINT, {
-                        if (it.statusCode() == 200) {
-                            it.bodyHandler({ bodyResult ->
+                        when {
+                            it.statusCode() == 200 -> it.bodyHandler({
                                 logger.debug("Auth Success!")
 
-                                val bodyAsJson = bodyResult.toJsonObject()
+                                val bodyAsJson = it.toJsonObject()
 
                                 logger.debug("Auth body: " + Json.encodePrettily(bodyAsJson))
 
-                                val verifyResult = Json.decodeValue<VerifyResult>(bodyAsJson.encode(), VerifyResult::class.java)
+                                val verifyResult = Json.decodeValue<VerifyResult>(
+                                        bodyAsJson.encode(), VerifyResult::class.java)
 
                                 authFuture.complete(verifyResult)
                             })
-                        } else {
-                            authFuture.fail("User not authenticated!")
+                            else -> authFuture.fail("User not authenticated!")
                         }
-                    }).exceptionHandler({ message ->
-                        logger.error("HTTP Auth ERROR: $message")
+                    }).exceptionHandler({
+                        logger.error("HTTP Auth ERROR: $it")
 
-                        authFuture.fail(message)
+                        authFuture.fail(it)
                     })
 
                     req.putHeader("Authorization", "Bearer " + jwt!!)

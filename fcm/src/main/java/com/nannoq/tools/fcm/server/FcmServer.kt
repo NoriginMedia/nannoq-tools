@@ -52,14 +52,14 @@ import javax.net.ssl.SSLSocketFactory
  * @author Anders Mikkelsen
  * @version 31.03.2016
  */
-class FcmServer private constructor(private val dev: Boolean) : AbstractVerticle() {
+class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
 
-    private val logger = LoggerFactory.getLogger(FcmServer::class.java!!.getSimpleName())
+    private val logger = LoggerFactory.getLogger(FcmServer::class.java.simpleName)
 
     private var PACKAGE_NAME_BASE: String? = null
     private var GCM_SENDER_ID: String? = null
     private var GCM_API_KEY: String? = null
-    private val GCM_PORT: Int
+    private val GCM_PORT: Int = if (dev) 5236 else 5235
     private var messageSender: MessageSender? = null
     private var dataMessageHandler: DataMessageHandler? = null
     private var registrationService: RegistrationService? = null
@@ -83,29 +83,27 @@ class FcmServer private constructor(private val dev: Boolean) : AbstractVerticle
                     " draining primary connection" +
                     if (primaryIsDraining) "!" else "...")
 
-            if (primaryIsDraining) {
-                return secondaryConnection
-            } else {
-                if (primaryConnection != null && primaryConnection!!.isConnected &&
-                        secondaryConnection != null && secondaryConnection!!.isConnected) {
-                    primaryIsDraining = false
-                    secondaryConnection!!.disconnect()
-                }
+            return when {
+                primaryIsDraining -> secondaryConnection
+                else -> {
+                    if (primaryConnection != null && primaryConnection!!.isConnected &&
+                            secondaryConnection != null && secondaryConnection!!.isConnected) {
+                        primaryIsDraining = false
+                        secondaryConnection!!.disconnect()
+                    }
 
-                return primaryConnection
+                    primaryConnection
+                }
             }
         }
 
     val isOnline: Boolean
-        get() = if (primaryConnection != null) {
-            primaryConnection!!.isConnected && primaryConnection!!.isAuthenticated
-        } else secondaryConnection != null &&
-                secondaryConnection!!.isConnected &&
-                secondaryConnection!!.isAuthenticated
-
-    init {
-        GCM_PORT = if (dev) 5236 else 5235
-    }
+        get() = when {
+            primaryConnection != null -> primaryConnection!!.isConnected && primaryConnection!!.isAuthenticated
+            else -> secondaryConnection != null &&
+                    secondaryConnection!!.isConnected &&
+                    secondaryConnection!!.isAuthenticated
+        }
 
     class FcmServerBuilder {
         private var dev = false
@@ -177,8 +175,8 @@ class FcmServer private constructor(private val dev: Boolean) : AbstractVerticle
         if (GCM_SENDER_ID == null) errors.put("gcmSenderId_error", "Cannot be null!")
         if (GCM_API_KEY == null) errors.put("gcmApiKey_error", "Cannot be null!")
 
-        if (errors.isEmpty) {
-            vertx.executeBlocking(Handler {
+        when {
+            errors.isEmpty -> vertx.executeBlocking(Handler {
                 connectionConfiguration = ConnectionConfiguration(GCM_ENDPOINT, GCM_PORT)
                 redisClient = RedisUtils.getRedisClient(vertx, config())
                 if (redisClient != null) this.messageSender?.setRedisClient(redisClient!!)
@@ -200,8 +198,7 @@ class FcmServer private constructor(private val dev: Boolean) : AbstractVerticle
                     it.fail(e)
                 }
             }, false, startFuture.completer())
-        } else {
-            startFuture.fail(errors.encodePrettily())
+            else -> startFuture.fail(errors.encodePrettily())
         }
     }
 
@@ -221,49 +218,53 @@ class FcmServer private constructor(private val dev: Boolean) : AbstractVerticle
     }
 
     fun checkForDeadConnections() {
-        if (primaryConnection != null && !primaryConnection!!.isConnected &&
-                secondaryConnection != null && secondaryConnection!!.isConnected) {
-            try {
-                logger.info("Draining on primary resolved, reconnecting...")
-
-                primaryConnecting = true
-                primaryIsDraining = false
-                primaryConnection = connect()
-                addPacketListener(primaryConnection!!)
-                auth(primaryConnection!!)
-
-                logger.info("Disconnecting secondary...")
-                secondaryConnection!!.disconnect()
-            } catch (e: XMPPException) {
-                logger.error("GCM Connection could not be established!")
-            }
-
-            primaryConnecting = false
-        } else if (primaryConnection != null && primaryConnection!!.isConnected) {
-            logger.debug("Primary: " + primaryConnection!!.isConnected + ", Sec is null")
-        } else if (primaryConnection != null && !primaryConnection!!.isConnected &&
-                secondaryConnection != null && !secondaryConnection!!.isConnected || primaryConnection == null && secondaryConnection == null) {
-            if (primaryConnecting || secondaryConnecting) {
-                logger.info((if (!primaryConnecting) "Secondary" else "Primary") + " already attempting connection...")
-            } else {
-                logger.info("No connection, reconnecting...")
-
+        when {
+            primaryConnection != null && !primaryConnection!!.isConnected &&
+                    secondaryConnection != null && secondaryConnection!!.isConnected -> {
                 try {
+                    logger.info("Draining on primary resolved, reconnecting...")
+
                     primaryConnecting = true
                     primaryIsDraining = false
                     primaryConnection = connect()
                     addPacketListener(primaryConnection!!)
                     auth(primaryConnection!!)
-                } catch (e: XMPPException) {
-                    e.printStackTrace()
 
+                    logger.info("Disconnecting secondary...")
+                    secondaryConnection!!.disconnect()
+                } catch (e: XMPPException) {
                     logger.error("GCM Connection could not be established!")
                 }
 
                 primaryConnecting = false
             }
-        } else {
-            logger.error("UNKNOWN STATE: $primaryConnection : $secondaryConnection")
+            primaryConnection != null && primaryConnection!!.isConnected ->
+                logger.debug("Primary: " + primaryConnection!!.isConnected + ", Sec is null")
+            primaryConnection != null && !primaryConnection!!.isConnected &&
+                    secondaryConnection != null && !secondaryConnection!!.isConnected ||
+                    primaryConnection == null && secondaryConnection == null ->
+                when {
+                    primaryConnecting || secondaryConnecting ->
+                        logger.info("${if (!primaryConnecting) "Secondary" else "Primary"} already attempting connection...")
+                    else -> {
+                        logger.info("No connection, reconnecting...")
+
+                        try {
+                            primaryConnecting = true
+                            primaryIsDraining = false
+                            primaryConnection = connect()
+                            addPacketListener(primaryConnection!!)
+                            auth(primaryConnection!!)
+                        } catch (e: XMPPException) {
+                            e.printStackTrace()
+
+                            logger.error("GCM Connection could not be established!")
+                        }
+
+                        primaryConnecting = false
+                    }
+                }
+            else -> logger.error("UNKNOWN STATE: $primaryConnection : $secondaryConnection")
         }
     }
 
@@ -304,7 +305,6 @@ class FcmServer private constructor(private val dev: Boolean) : AbstractVerticle
         logger.info("Adding connectionlistener...")
 
         connection.addConnectionListener(object : ConnectionListener {
-
             override fun reconnectionSuccessful() {
                 logger.info("Reconnected!")
             }

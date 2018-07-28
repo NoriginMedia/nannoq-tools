@@ -43,6 +43,7 @@ import javax.annotation.Nonnull;
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@SuppressWarnings({"UnusedReturnValue", "NullableProblems"})
 @ProxyGen
 @VertxGen
 public interface AuthenticationService {
@@ -54,6 +55,7 @@ public interface AuthenticationService {
     AuthenticationService refresh(@Nonnull String refreshToken,
                                   @Nonnull Handler<AsyncResult<TokenContainer>> resultHandler);
 
+    @SuppressWarnings("unused")
     @Fluent
     @GenIgnore
     default AuthenticationService switchToAssociatedDomain(String domainId, Jws<Claims> verifyResult,

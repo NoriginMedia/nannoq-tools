@@ -41,7 +41,7 @@ import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
-import io.vertx.serviceproxy.ServiceException
+import io.vertx.serviceproxy.ServiceException.fail
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
 import java.util.*
@@ -65,7 +65,6 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                           private val authorizer: Authorizer,
                           private val userIdsSupplier: Supplier<Future<List<String>>>,
                           private val dev: Boolean = false) : VerificationService {
-
     private val ISSUER: String
     private val AUDIENCE: String
     private val SIGNING_KEY: SecretKey
@@ -103,36 +102,38 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     @Fluent
     override fun verifyJWT(token: String, authorization: Authorization,
                            resultHandler: Handler<AsyncResult<VerifyResult>>): VerificationService {
-        verifyToken(token, Handler {
-            if (it.failed()) {
-                logger.error("ERROR JWT: " + it.cause())
+        verifyToken(token, {
+            when {
+                it.failed() -> {
+                    logger.error("ERROR JWT: " + it.cause())
 
-                resultHandler.handle(ServiceException.fail(
-                        401, "ERROR: " + it.cause()))
-            } else {
-                val claims = it.result()
+                    resultHandler.handle(fail(401, "ERROR: " + it.cause()))
+                }
+                else -> {
+                    val claims = it.result()
 
-                try {
-                    if (authorization.validate()) {
-                        if (authorization.domainIdentifier == VALIDATION_REQUEST) {
-                            returnAuth(claims, resultHandler)
-                        } else {
-                            if (authorizer.isAsync) {
-                                verifyAuthorization(claims, authorization, Handler {
-                                    authResult(claims, resultHandler, it.succeeded())
-                                })
+                    try {
+                        when {
+                            authorization.validate() -> if (authorization.domainIdentifier == VALIDATION_REQUEST) {
+                                returnAuth(claims, resultHandler)
                             } else {
-                                authResult(claims, resultHandler, verifyAuthorization(claims, authorization))
+                                when {
+                                    authorizer.isAsync -> verifyAuthorization(claims, authorization, {
+                                        authResult(claims, resultHandler, it.succeeded())
+                                    })
+                                    else -> authResult(claims, resultHandler, verifyAuthorization(claims, authorization))
+                                }
+                            }
+                            else -> {
+                                logger.error("Invalid Authorization Field: " + Json.encodePrettily(authorization))
+
+                                notAuthorized(resultHandler)
                             }
                         }
-                    } else {
-                        logger.error("Invalid Authorization Field: " + Json.encodePrettily(authorization))
-
-                        notAuthorized(resultHandler)
+                    } catch (e: IllegalAccessException) {
+                        resultHandler.handle(fail(
+                                401, "Not authorized for this resource, invalid AuthTypeToken!"))
                     }
-                } catch (e: IllegalAccessException) {
-                    resultHandler.handle(ServiceException.fail(
-                            401, "Not authorized for this resource, invalid AuthTypeToken!"))
                 }
             }
         })
@@ -141,15 +142,14 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     }
 
     private fun authResult(claims: Jws<Claims>, resultHandler: Handler<AsyncResult<VerifyResult>>, succeeded: Boolean) {
-        if (succeeded) {
-            returnAuth(claims, resultHandler)
-        } else {
-            notAuthorized(resultHandler)
+        when {
+            succeeded -> returnAuth(claims, resultHandler)
+            else -> notAuthorized(resultHandler)
         }
     }
 
     private fun notAuthorized(resultHandler: Handler<AsyncResult<VerifyResult>>) {
-        resultHandler.handle(ServiceException.fail(401, "Not authorized for this resource!"))
+        resultHandler.handle(fail(401, "Not authorized for this resource!"))
     }
 
     private fun returnAuth(claims: Jws<Claims>, resultHandler: Handler<AsyncResult<VerifyResult>>) {
@@ -178,62 +178,72 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                 val id = claims.body.id
                 val registry = userId + VALID_JWT_REGISTRY_KEY
 
-                if (dev) {
-                    logger.info("DEV ACCEPT")
+                when {
+                    dev -> {
+                        logger.info("DEV ACCEPT")
 
-                    resultHandler.handle(Future.succeededFuture(claims))
-                    verificationFuture.complete(Future.succeededFuture<Any>())
-                } else {
-                    RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
+                        resultHandler.handle(Future.succeededFuture(claims))
+                        verificationFuture.complete(Future.succeededFuture<Any>())
+                    }
+                    else -> RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
                         intRedis.hget(registry, id) { jwts ->
-                            if (jwts.failed()) {
-                                resultHandler.handle(ServiceException.fail(
-                                        500, "Redis failure..."))
-                                verificationFuture.fail(jwts.cause())
+                            when {
+                                jwts.failed() -> {
+                                    resultHandler.handle(fail(
+                                            500, "Redis failure..."))
+                                    verificationFuture.fail(jwts.cause())
 
-                                logger.error("Failed to fetch from redis store...")
-                            } else {
-                                val result = jwts.result()
+                                    logger.error("Failed to fetch from redis store...")
+                                }
+                                else -> {
+                                    val result = jwts.result()
 
-                                if (result != null && result.length > 4 && result.contains("____")) {
-                                    resultHandler.handle(Future.succeededFuture(claims))
-                                    verificationFuture.complete(Future.succeededFuture<Any>())
-                                } else {
-                                    failedVerify(verificationFuture, resultHandler, jwts, userId, id)
+                                    when {
+                                        result != null && result.length > 4 && result.contains("____") -> {
+                                            resultHandler.handle(Future.succeededFuture(claims))
+                                            verificationFuture.complete(Future.succeededFuture<Any>())
+                                        }
+                                        else -> failedVerify(verificationFuture, resultHandler, jwts, userId, id)
+                                    }
                                 }
                             }
                         }
                     }
                 }
             } catch (e: MissingClaimException) {
-                resultHandler.handle(ServiceException.fail(
-                        500, "Unknown error: " + e.message))
+                resultHandler.handle(fail(500, "Unknown error: " + e.message))
 
                 verificationFuture.fail(e)
             } catch (e: IncorrectClaimException) {
-                resultHandler.handle(ServiceException.fail(500, "Unknown error: " + e.message))
+                resultHandler.handle(fail(500, "Unknown error: " + e.message))
+
                 verificationFuture.fail(e)
             } catch (e: SignatureException) {
-                resultHandler.handle(ServiceException.fail(500, "Unknown error: " + e.message))
+                resultHandler.handle(fail(500, "Unknown error: " + e.message))
+
                 verificationFuture.fail(e)
             } catch (e: ExpiredJwtException) {
-                resultHandler.handle(ServiceException.fail(500, "Unknown error: " + e.message))
+                resultHandler.handle(fail(500, "Unknown error: " + e.message))
+
                 verificationFuture.fail(e)
             } catch (e: MalformedJwtException) {
-                resultHandler.handle(ServiceException.fail(500, "Unknown error: " + e.message))
+                resultHandler.handle(fail(500, "Unknown error: " + e.message))
+
                 verificationFuture.fail(e)
             } catch (e: PrematureJwtException) {
-                resultHandler.handle(ServiceException.fail(500, "Unknown error: " + e.message))
+                resultHandler.handle(fail(500, "Unknown error: " + e.message))
+
                 verificationFuture.fail(e)
             } catch (e: UnsupportedJwtException) {
-                resultHandler.handle(ServiceException.fail(500, "Unknown error: " + e.message))
+                resultHandler.handle(fail(500, "Unknown error: " + e.message))
+
                 verificationFuture.fail(e)
             }
-        }, false) { result ->
-            logger.debug("Result: " + result.succeeded())
+        }, false) {
+            logger.debug("Result: " + it.succeeded())
 
-            if (result.failed()) {
-                logger.error("Verification failed!", result.cause())
+            if (it.failed()) {
+                logger.error("Verification failed!", it.cause())
             }
         }
 
@@ -243,8 +253,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     private fun failedVerify(verificationFuture: Future<Any>,
                              resultHandler: Handler<AsyncResult<Jws<Claims>>>,
                              jwts: AsyncResult<String>, userId: String, id: String) {
-        resultHandler.handle(ServiceException.fail(
-                401, "Invalid JWT..."))
+        resultHandler.handle(fail(401, "Invalid JWT..."))
         verificationFuture.fail(jwts.cause())
 
         logger.error("Could not validate JWT! user: $userId, id: $id")
@@ -259,10 +268,9 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     @Throws(IllegalAccessException::class)
     override fun verifyAuthorization(claims: Jws<Claims>, authorization: Authorization,
                                      resultHandler: Handler<AsyncResult<Boolean>>): VerificationServiceImpl {
-        if (authorizer.isAsync) {
-            authorizer.authorize(claims, domainIdentifier, authorization, resultHandler)
-        } else {
-            if (authorizer.authorize(claims, domainIdentifier, authorization)) {
+        when {
+            authorizer.isAsync -> authorizer.authorize(claims, domainIdentifier, authorization, resultHandler)
+            else -> if (authorizer.authorize(claims, domainIdentifier, authorization)) {
                 resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
             } else {
                 resultHandler.handle(Future.failedFuture(SecurityException("You are not authorized!")))
@@ -275,18 +283,21 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     @Fluent
     override fun revokeToken(token: String,
                              resultHandler: Handler<AsyncResult<Boolean>>): VerificationService {
-        verifyToken(token, Handler {
-            if (it.failed()) {
-                logger.error("Could not verify JWT for revoke...", it.cause())
+        verifyToken(token, {
+            when {
+                it.failed() -> {
+                    logger.error("Could not verify JWT for revoke...", it.cause())
 
-                resultHandler.handle(ServiceException.fail(401, "Could not verify JWT..."))
-            } else {
-                val claims = it.result()
-                val userId = claims.body.subject
-                val id = claims.body.id
-                val registry = userId + VALID_JWT_REGISTRY_KEY
+                    resultHandler.handle(fail(401, "Could not verify JWT..."))
+                }
+                else -> {
+                    val claims = it.result()
+                    val userId = claims.body.subject
+                    val id = claims.body.id
+                    val registry = userId + VALID_JWT_REGISTRY_KEY
 
-                doGarbageCollectionAfterRevoke(registry, id, resultHandler)
+                    doGarbageCollectionAfterRevoke(registry, id, resultHandler)
+                }
             }
         })
 
@@ -308,39 +319,40 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
         RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
             val transaction = intRedis.transaction()
 
-            transaction.multi { multiResult ->
+            transaction.multi {
                 transaction.hget(registry, id) { tokenResult ->
-                    if (tokenResult.failed()) {
-                        logger.error("Unable to delete refreshtoken for revoked JWT!")
-                    } else {
-                        val refreshArray = tokenResult.result()
-                                .split(REFRESH_TOKEN_SPLITTER.toRegex())
-                                .dropLastWhile({ it.isEmpty() })
-                                .toTypedArray()
+                    when {
+                        tokenResult.failed() -> logger.error("Unable to delete refreshtoken for revoked JWT!")
+                        else -> {
+                            val refreshArray = tokenResult.result()
+                                    .split(REFRESH_TOKEN_SPLITTER.toRegex())
+                                    .dropLastWhile({ it.isEmpty() })
+                                    .toTypedArray()
 
-                        transaction.del(refreshArray[0]) { delResult ->
-                            if (delResult.failed()) {
-                                logger.error("Del RefreshToken failed!", delResult.cause())
+                            transaction.del(refreshArray[0]) {
+                                if (it.failed()) {
+                                    logger.error("Del RefreshToken failed!", it.cause())
+                                }
                             }
-                        }
 
-                        transaction.hdel(registry, id) { delJwtValidityResult ->
-                            if (delJwtValidityResult.failed()) {
-                                logger.error("Del JwtValidity failed!", delJwtValidityResult.cause())
+                            transaction.hdel(registry, id) {
+                                if (it.failed()) {
+                                    logger.error("Del JwtValidity failed!", it.cause())
+                                }
                             }
                         }
                     }
                 }
             }
 
-            transaction.exec { execResult ->
-                if (execResult.failed()) {
-                    logger.error("Failed Destroy transaction!", execResult.cause())
+            transaction.exec {
+                when {
+                    it.failed() -> {
+                        logger.error("Failed Destroy transaction!", it.cause())
 
-                    resultHandler.handle(ServiceException.fail(
-                            500, "Failed revoking old token..."))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                        resultHandler.handle(fail(500, "Failed revoking old token..."))
+                    }
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                 }
             }
         }
@@ -350,36 +362,39 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
         RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
             val transaction = intRedis.transaction()
 
-            transaction.multi { multiResult ->
+            transaction.multi {
                 transaction.hgetall(registry) { tokenResult ->
-                    if (tokenResult.failed()) {
-                        logger.error("Unable to delete refreshtoken for revoked JWT!")
-                    } else {
-                        if (tokenResult.result() == null) {
+                    when {
+                        tokenResult.failed() -> logger.error("Unable to delete refreshtoken for revoked JWT!")
+                        else -> if (tokenResult.result() == null) {
                             logger.debug("Token List is empty!")
                         } else {
                             try {
                                 val content = tokenResult.result()
 
-                                if (content.toString().equals("{}", ignoreCase = true)) {
-                                    logger.debug("Empty object!")
-                                } else {
-                                    val arrayOfStrings = JsonObject(content.toString())
+                                when {
+                                    content.toString().equals("{}", ignoreCase = true) -> logger.debug("Empty object!")
+                                    else -> {
+                                        val arrayOfStrings = JsonObject(content.toString())
 
-                                    arrayOfStrings.forEach { stringObjectEntry ->
-                                        val key = stringObjectEntry.key
-                                        val value = stringObjectEntry.value
-                                        val refreshArray = value.toString().split(REFRESH_TOKEN_SPLITTER.toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()
+                                        arrayOfStrings.forEach { stringObjectEntry ->
+                                            val key = stringObjectEntry.key
+                                            val value = stringObjectEntry.value
+                                            val refreshArray = value.toString()
+                                                    .split(REFRESH_TOKEN_SPLITTER.toRegex())
+                                                    .dropLastWhile({ it.isEmpty() })
+                                                    .toTypedArray()
 
-                                        transaction.del(refreshArray[0]) { delResult ->
-                                            if (delResult.failed()) {
-                                                logger.error("Failed invalidating: $value", delResult.cause())
+                                            transaction.del(refreshArray[0]) {
+                                                if (it.failed()) {
+                                                    logger.error("Failed invalidating: $value", it.cause())
+                                                }
                                             }
-                                        }
 
-                                        transaction.hdel(registry, key) { delResult ->
-                                            if (delResult.failed()) {
-                                                logger.error("Failed invalidating jwt: $key", delResult.cause())
+                                            transaction.hdel(registry, key) {
+                                                if (it.failed()) {
+                                                    logger.error("Failed invalidating jwt: $key", it.cause())
+                                                }
                                             }
                                         }
                                     }
@@ -387,20 +402,19 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                             } catch (e: Exception) {
                                 logger.error("Error performing revocation!", e)
                             }
-
                         }
                     }
                 }
             }
 
-            transaction.exec { execResult ->
-                if (execResult.failed()) {
-                    logger.error("Failed Destroy transaction!", execResult.cause())
+            transaction.exec {
+                when {
+                    it.failed() -> {
+                        logger.error("Failed Destroy transaction!", it.cause())
 
-                    resultHandler.handle(ServiceException.fail(
-                            500, "Failed revoking all tokens..."))
-                } else {
-                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                        resultHandler.handle(fail(500, "Failed revoking all tokens..."))
+                    }
+                    else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                 }
             }
         }
@@ -409,18 +423,16 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     @Fluent
     override fun verifyJWTValidity(resultHandler: Handler<AsyncResult<Boolean>>): VerificationService {
         fetchUserIds(Handler {
-            if (it.failed()) {
-                logger.error("Could not read userids...", it.cause())
-            } else {
-                it.result().forEach({ id ->
-                    RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
+            when {
+                it.failed() -> logger.error("Could not read userids...", it.cause())
+                else -> it.result().forEach({ id ->
+                    RedisUtils.performJedisWithRetry(redisClient) {
                         val registryKey = id + VALID_JWT_REGISTRY_KEY
 
-                        intRedis.hgetall(registryKey) { jwts ->
-                            if (jwts.failed()) {
-                                logger.error("Could not read jwts for $id", jwts.cause())
-                            } else {
-                                checkJwts(jwts.result(), id, registryKey, intRedis)
+                        it.hgetall(registryKey) { jwts ->
+                            when {
+                                jwts.failed() -> logger.error("Could not read jwts for $id", jwts.cause())
+                                else -> checkJwts(jwts.result(), id, registryKey, it)
                             }
                         }
                     }
@@ -433,10 +445,9 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
 
     private fun fetchUserIds(resultHandler: Handler<AsyncResult<List<String>>>) {
         userIdsSupplier.get().setHandler { idsRes ->
-            if (idsRes.failed()) {
-                resultHandler.handle(Future.failedFuture(idsRes.cause()))
-            } else {
-                resultHandler.handle(Future.succeededFuture(idsRes.result()))
+            when {
+                idsRes.failed() -> resultHandler.handle(Future.failedFuture(idsRes.cause()))
+                else -> resultHandler.handle(Future.succeededFuture(idsRes.result()))
             }
         }
     }
@@ -446,31 +457,31 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
             jwtsObject.forEach { stringObjectEntry ->
                 val key = stringObjectEntry.key
                 val value = stringObjectEntry.value
-                val refreshArray = value.toString().split(REFRESH_TOKEN_SPLITTER.toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()
+                val refreshArray = value.toString()
+                        .split(REFRESH_TOKEN_SPLITTER.toRegex())
+                        .dropLastWhile({ it.isEmpty() })
+                        .toTypedArray()
 
                 val date = java.lang.Long.parseLong(refreshArray[1])
                 val tokenTime = Calendar.getInstance()
                 tokenTime.timeInMillis = date
 
-                if (tokenTime.before(Calendar.getInstance())) {
-                    logger.debug("Invalidating outdated token: $value")
+                when {
+                    tokenTime.before(Calendar.getInstance()) -> {
+                        logger.debug("Invalidating outdated token: $value")
 
-                    intRedis.del(refreshArray[0]) { delResult ->
-                        if (delResult.failed()) {
-                            logger.error("Failed invalidating: $value", delResult.cause())
+                        intRedis.del(refreshArray[0]) {
+                            if (it.failed()) { logger.error("Failed invalidating: $value", it.cause()) }
                         }
-                    }
 
-                    intRedis.hdel(registryKey, key) { delResult ->
-                        if (delResult.failed()) {
-                            logger.error("Failed invalidating jwt: $key", delResult.cause())
+                        intRedis.hdel(registryKey, key) {
+                            if (it.failed()) { logger.error("Failed invalidating jwt: $key", it.cause()) }
                         }
                     }
                 }
             }
         } else {
-            logger.error("JWT List for $userId is null...",
-                    NullPointerException("UserId is Null!"))
+            logger.error("JWT List for $userId is null...", NullPointerException("UserId is Null!"))
         }
     }
 
@@ -479,7 +490,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(VerificationServiceImpl::class.java!!.getSimpleName())
+        private val logger = LoggerFactory.getLogger(VerificationServiceImpl::class.java!!.simpleName)
 
         private var KEY_ALGORITHM = "HmacSHA512"
     }

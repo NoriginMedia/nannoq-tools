@@ -138,6 +138,7 @@ sftp-config.json
 .mtj.tmp/
 
 # Package Files #
+!gradle-wrapper.jar
 *.jar
 *.war
 *.ear
@@ -157,8 +158,12 @@ dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
 
+out/
+tmp/
 .gradle
 */.gradle
 build
 */build
 */node_modules
+!gradle/
+!gradle/wrapper/gradle-wrapper.jar

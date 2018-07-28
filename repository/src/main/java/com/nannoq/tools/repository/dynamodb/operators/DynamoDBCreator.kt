@@ -90,52 +90,53 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                 writeMap.forEach { record: E, updateLogic: Function<E, E> ->
                     val writeFuture = Future.future<E>()
 
-                    if (!create) {
-                        if (logger.isDebugEnabled) {
-                            logger.debug("Running remoteUpdate...")
+                    when {
+                        !create -> {
+                            if (logger.isDebugEnabled) {
+                                logger.debug("Running remoteUpdate...")
+                            }
+
+                            try {
+                                this.optimisticLockingSave(null, updateLogic, null, writeFuture, record)
+                            } catch (e: Exception) {
+                                logger.error(e)
+
+                                writeFuture.fail(e)
+                            }
+
+                            writeFutures.add(writeFuture)
                         }
+                        else -> {
+                            if (logger.isDebugEnabled) {
+                                logger.debug("Running remoteCreate...")
+                            }
 
-                        try {
-                            this.optimisticLockingSave(null, updateLogic, null, writeFuture, record)
-                        } catch (e: Exception) {
-                            logger.error(e)
+                            eTagManager?.setSingleRecordEtag(record.generateAndSetEtag(HashMap()), Handler {
+                                if (it.failed()) logger.error("Failed etag operation!", it.cause())
+                            })
 
-                            writeFuture.fail(e)
+                            try {
+                                val finalRecord = db.setCreatedAt(db.setUpdatedAt(record))
+                                val es = listOf(finalRecord)
+
+                                DYNAMO_DB_MAPPER.save(finalRecord, buildExistingExpression(finalRecord, false))
+                                val purgeFuture = Future.future<Boolean>()
+                                destroyEtagsAfterCachePurge(writeFuture, finalRecord, purgeFuture)
+
+                                cacheManager.replaceCache(purgeFuture, es, shortCacheIdSupplier, cacheIdSupplier)
+                            } catch (e: Exception) {
+                                writeFuture.fail(e)
+                            }
+
+                            writeFutures.add(writeFuture)
                         }
-
-                        writeFutures.add(writeFuture)
-                    } else {
-                        if (logger.isDebugEnabled) {
-                            logger.debug("Running remoteCreate...")
-                        }
-
-                        eTagManager?.setSingleRecordEtag(record.generateAndSetEtag(HashMap()), Handler {
-                            if (it.failed()) logger.error("Failed etag operation!", it.cause())
-                        })
-
-                        try {
-                            val finalRecord = db.setCreatedAt(db.setUpdatedAt(record))
-                            val es = listOf(finalRecord)
-
-                            DYNAMO_DB_MAPPER.save(finalRecord, buildExistingExpression(finalRecord, false))
-                            val purgeFuture = Future.future<Boolean>()
-                            destroyEtagsAfterCachePurge(writeFuture, finalRecord, purgeFuture)
-
-                            cacheManager.replaceCache(purgeFuture, es, shortCacheIdSupplier, cacheIdSupplier)
-                        } catch (e: Exception) {
-                            writeFuture.fail(e)
-                        }
-
-                        writeFutures.add(writeFuture)
                     }
                 }
 
                 CompositeFuture.all(writeFutures).setHandler {
-                    if (it.failed()) {
-                        future.fail(it.cause())
-                    } else {
-
-                        future.complete(writeFutures.stream()
+                    when {
+                        it.failed() -> future.fail(it.cause())
+                        else -> future.complete(writeFutures.stream()
                                 .map { finalFuture ->
                                     @Suppress("UNCHECKED_CAST")
                                     finalFuture.result() as E
@@ -161,15 +162,15 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
 
                 future.fail(e)
             }
-        }, false) { result ->
-            if (result.failed()) {
-                logger.error("Error in doWrite!", result.cause())
+        }, false) {
+            if (it.failed()) {
+                logger.error("Error in doWrite!", it.cause())
 
                 resultHandler.handle(ServiceException.fail(500,
-                        "An error occured when running doWrite: " + result.cause().message,
-                        JsonObject(Json.encode(result.cause()))))
+                        "An error occured when running doWrite: " + it.cause().message,
+                        JsonObject(Json.encode(it.cause()))))
             } else {
-                resultHandler.handle(Future.succeededFuture(result.result()))
+                resultHandler.handle(Future.succeededFuture(it.result()))
             }
         }
     }
@@ -182,45 +183,50 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
         if (prevCounter != null) counter = prevCounter
 
         try {
-            if (newerVersion != null) {
-                newerVersion = updateLogic!!.apply(newerVersion)
-                newerVersion = db.setUpdatedAt(newerVersion)
+            when {
+                newerVersion != null -> {
+                    newerVersion = updateLogic!!.apply(newerVersion)
+                    newerVersion = db.setUpdatedAt(newerVersion)
 
-                eTagManager?.setSingleRecordEtag(newerVersion.generateAndSetEtag(HashMap()), Handler {
-                    if (it.failed()) logger.error("Failed etag operation!", it.cause())
-                })
+                    eTagManager?.setSingleRecordEtag(newerVersion.generateAndSetEtag(HashMap()), Handler {
+                        if (it.failed()) logger.error("Failed etag operation!", it.cause())
+                    })
 
-                if (logger.isDebugEnabled) {
-                    logger.debug("Performing $counter remoteUpdate!")
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Performing $counter remoteUpdate!")
+                    }
+
+                    DYNAMO_DB_MAPPER.save(newerVersion, buildExistingExpression(newerVersion, true))
+                    val purgeFuture = Future.future<Boolean>()
+                    destroyEtagsAfterCachePurge(writeFuture, record, purgeFuture)
+
+                    cacheManager.replaceCache(purgeFuture, listOf(newerVersion),
+                            shortCacheIdSupplier, cacheIdSupplier)
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Update $counter performed successfully!")
+                    }
                 }
-                DYNAMO_DB_MAPPER.save(newerVersion, buildExistingExpression(newerVersion, true))
-                val purgeFuture = Future.future<Boolean>()
-                destroyEtagsAfterCachePurge(writeFuture, record, purgeFuture)
+                else -> {
+                    val updatedRecord = updateLogic!!.apply(record)
+                    newerVersion = db.setUpdatedAt(updatedRecord)
 
-                cacheManager.replaceCache(purgeFuture, listOf(newerVersion),
-                        shortCacheIdSupplier, cacheIdSupplier)
-                if (logger.isDebugEnabled) {
-                    logger.debug("Update $counter performed successfully!")
-                }
-            } else {
-                val updatedRecord = updateLogic!!.apply(record)
-                newerVersion = db.setUpdatedAt(updatedRecord)
+                    eTagManager?.setSingleRecordEtag(updatedRecord.generateAndSetEtag(HashMap()), Handler {
+                        if (it.failed()) logger.error("Failed etag operation!", it.cause())
+                    })
 
-                eTagManager?.setSingleRecordEtag(updatedRecord.generateAndSetEtag(HashMap()), Handler {
-                    if (it.failed()) logger.error("Failed etag operation!", it.cause())
-                })
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Performing immediate remoteUpdate!")
+                    }
 
-                if (logger.isDebugEnabled) {
-                    logger.debug("Performing immediate remoteUpdate!")
-                }
-                DYNAMO_DB_MAPPER.save(updatedRecord, buildExistingExpression(record, true))
-                val purgeFuture = Future.future<Boolean>()
-                purgeFuture.setHandler { destroyEtagsAfterCachePurge(writeFuture, record, purgeFuture) }
+                    DYNAMO_DB_MAPPER.save(updatedRecord, buildExistingExpression(record, true))
+                    val purgeFuture = Future.future<Boolean>()
+                    purgeFuture.setHandler { destroyEtagsAfterCachePurge(writeFuture, record, purgeFuture) }
 
-                cacheManager.replaceCache(purgeFuture, listOf(updatedRecord),
-                        shortCacheIdSupplier, cacheIdSupplier)
-                if (logger.isDebugEnabled) {
-                    logger.debug("Immediate remoteUpdate performed!")
+                    cacheManager.replaceCache(purgeFuture, listOf(updatedRecord),
+                            shortCacheIdSupplier, cacheIdSupplier)
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Immediate remoteUpdate performed!")
+                    }
                 }
             }
         } catch (e: ConditionalCheckFailedException) {
@@ -279,30 +285,30 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
         val hashId = JsonObject().put("hash", record.hash).encode().hashCode()
 
         purgeFuture.setHandler { purgeRes ->
-            if (purgeRes.failed()) {
-                if (eTagManager != null) {
-                    eTagManager.destroyEtags(hashId, Handler { writeFuture.complete(record) })
-                } else {
-                    writeFuture.complete(record)
-                }
-            } else {
-                if (eTagManager != null) {
-                    val removeProjections = Future.future<Boolean>()
-                    val removeETags = Future.future<Boolean>()
-
-                    eTagManager.removeProjectionsEtags(hashId, removeProjections.completer())
-                    eTagManager.destroyEtags(hashId, removeETags.completer())
-
-                    CompositeFuture.all(removeProjections, removeETags).setHandler { res ->
-                        if (res.failed()) {
-                            writeFuture.fail(res.cause())
-                        } else {
-                            writeFuture.complete(record)
-                        }
+            when {
+                purgeRes.failed() ->
+                    when {
+                        eTagManager != null -> eTagManager.destroyEtags(hashId, Handler { writeFuture.complete(record) })
+                        else -> writeFuture.complete(record)
                     }
-                } else {
-                    writeFuture.complete(record)
-                }
+                else ->
+                    when {
+                        eTagManager != null -> {
+                            val removeProjections = Future.future<Boolean>()
+                            val removeETags = Future.future<Boolean>()
+
+                            eTagManager.removeProjectionsEtags(hashId, removeProjections.completer())
+                            eTagManager.destroyEtags(hashId, removeETags.completer())
+
+                            CompositeFuture.all(removeProjections, removeETags).setHandler {
+                                when {
+                                    it.failed() -> writeFuture.fail(it.cause())
+                                    else -> writeFuture.complete(record)
+                                }
+                            }
+                        }
+                        else -> writeFuture.complete(record)
+                    }
             }
         }
     }

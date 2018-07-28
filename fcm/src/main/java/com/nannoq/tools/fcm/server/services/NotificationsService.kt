@@ -29,6 +29,7 @@ import io.vertx.codegen.annotations.*
 import io.vertx.core.AsyncResult
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
 /**
@@ -50,6 +51,6 @@ interface NotificationsService {
     @GenIgnore
     companion object {
         @GenIgnore
-        val logger = LoggerFactory.getLogger(NotificationsService::class.java.simpleName)
+        val logger: Logger = LoggerFactory.getLogger(NotificationsService::class.java.simpleName)
     }
 }

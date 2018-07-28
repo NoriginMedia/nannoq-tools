@@ -33,8 +33,8 @@ import org.jinstagram.entity.users.basicinfo.UserInfo
  * @author Anders Mikkelsen
  * @version 13/11/17
  */
-class InstaGramUser : UserProfile {
-    constructor(user: UserInfo) {
+class InstaGramUser(user: UserInfo) : UserProfile() {
+    init {
         this.email = if (user.data != null) user.data.username else "N/A"
         this.name = if (user.data != null) user.data.fullName else "N/A"
         this.givenName = if (user.data != null) user.data.firstName else "N/A"

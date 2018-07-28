@@ -31,6 +31,7 @@ import com.nannoq.tools.fcm.server.messageutils.CcsMessage
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import org.jsoup.Jsoup
 import org.jsoup.safety.Whitelist
@@ -42,7 +43,6 @@ import org.jsoup.safety.Whitelist
  * @version 31.03.2016
  */
 interface DataMessageHandler : Handler<CcsMessage> {
-
     val registrationService: RegistrationService
 
     override fun handle(msg: CcsMessage) {
@@ -56,22 +56,24 @@ interface DataMessageHandler : Handler<CcsMessage> {
         val action = cleanData(data.getString(ACTION_NOTATION))
 
         @Suppress("SENSELESS_COMPARISON")
-        if (msg.registrationId != null) {
-            logger.info("New token detected, performing update with canonical!")
+        when {
+            msg.registrationId != null -> {
+                logger.info("New token detected, performing update with canonical!")
 
-            data.put(OLD_ID_NOTATION, gcmId)
+                data.put(OLD_ID_NOTATION, gcmId)
 
-            registrationService.update(msg.category, msg.registrationId, data)
-        } else {
-            when (action) {
-                REGISTER_DEVICE -> registrationService.registerDevice(msg.category, gcmId, data)
-                UPDATE_ID -> registrationService.update(msg.category, gcmId, data)
-                PONG -> {
-                    logger.info("Device is alive...")
-                    setDeviceAlive(data)
-                }
-                else -> handleIncomingDataMessage(msg)
+                registrationService.update(msg.category, msg.registrationId, data)
             }
+            else ->
+                when (action) {
+                    REGISTER_DEVICE -> registrationService.registerDevice(msg.category, gcmId, data)
+                    UPDATE_ID -> registrationService.update(msg.category, gcmId, data)
+                    PONG -> {
+                        logger.info("Device is alive...")
+                        setDeviceAlive(data)
+                    }
+                    else -> handleIncomingDataMessage(msg)
+                }
         }
     }
 
@@ -93,7 +95,7 @@ interface DataMessageHandler : Handler<CcsMessage> {
     fun setSender(sender: MessageSender): DataMessageHandler
 
     companion object {
-        val logger = LoggerFactory.getLogger(DataMessageHandler::class.java!!.getSimpleName())
+        val logger: Logger = LoggerFactory.getLogger(DataMessageHandler::class.java.simpleName)
 
         // data notations
         const val ACTION_NOTATION = "action"

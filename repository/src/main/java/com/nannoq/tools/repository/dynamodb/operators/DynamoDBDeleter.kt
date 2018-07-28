@@ -88,13 +88,13 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                 val deleteFutures = ArrayList<Future<*>>()
                 val etagFutures = ArrayList<Future<*>>()
 
-                IntStream.range(0, items.size).forEach { i ->
-                    val record = items[i]
+                IntStream.range(0, items.size).forEach {
+                    val record = items[it]
                     val deleteFuture = Future.future<E>()
                     val deleteEtagsFuture = Future.future<Boolean>()
 
                     try {
-                        eTagManager?.removeProjectionsEtags(identifiers[i].hashCode(), deleteEtagsFuture.completer())
+                        eTagManager?.removeProjectionsEtags(identifiers[it].hashCode(), deleteEtagsFuture.completer())
 
                         this.optimisticLockingDelete(record, null, deleteFuture)
                     } catch (e: Exception) {
@@ -112,39 +112,40 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                         future.fail(res.cause())
                     } else {
                         val purgeFuture = Future.future<Boolean>()
+
                         purgeFuture.setHandler { purgeRes ->
-                            if (purgeRes.failed()) {
-                                future.fail(purgeRes.cause())
-                            } else {
-                                if (eTagManager != null) {
-                                    val removeETags = Future.future<Boolean>()
+                            when {
+                                purgeRes.failed() -> future.fail(purgeRes.cause())
+                                else ->
+                                    when {
+                                        eTagManager != null -> {
+                                            val removeETags = Future.future<Boolean>()
 
-                                    val hash = JsonObject().put("hash", items[0].hash)
-                                            .encode().hashCode()
-                                    eTagManager.destroyEtags(hash, removeETags.completer())
+                                            val hash = JsonObject().put("hash", items[0].hash)
+                                                    .encode().hashCode()
+                                            eTagManager.destroyEtags(hash, removeETags.completer())
 
-                                    etagFutures.add(removeETags)
+                                            etagFutures.add(removeETags)
 
-                                    CompositeFuture.all(etagFutures).setHandler { etagRes ->
-                                        if (etagRes.failed()) {
-                                            future.fail(purgeRes.cause())
-                                        } else {
-                                            future.complete(deleteFutures.stream()
-                                                    .map { finalFuture ->
-                                                        @Suppress("UNCHECKED_CAST")
-                                                        finalFuture.result() as E
-                                                    }
-                                                    .collect(toList()))
-                                        }
-                                    }
-                                } else {
-                                    future.complete(deleteFutures.stream()
-                                            .map { finalFuture ->
-                                                @Suppress("UNCHECKED_CAST")
-                                                finalFuture.result() as E
+                                            CompositeFuture.all(etagFutures).setHandler {
+                                                when {
+                                                    it.failed() -> future.fail(purgeRes.cause())
+                                                    else -> future.complete(deleteFutures.stream()
+                                                            .map { finalFuture ->
+                                                                @Suppress("UNCHECKED_CAST")
+                                                                finalFuture.result() as E
+                                                            }
+                                                            .collect(toList()))
+                                                }
                                             }
-                                            .collect(toList()))
-                                }
+                                        }
+                                        else -> future.complete(deleteFutures.stream()
+                                                .map { finalFuture ->
+                                                    @Suppress("UNCHECKED_CAST")
+                                                    finalFuture.result() as E
+                                                }
+                                                .collect(toList()))
+                                    }
                             }
                         }
 
@@ -174,12 +175,12 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
 
                 future.fail(e)
             }
-        }, false) { result ->
-            if (result.failed()) {
+        }, false) {
+            if (it.failed()) {
                 resultHandler.handle(ServiceException.fail(500, "Unable to perform remoteDelete!",
-                        JsonObject(Json.encode(result.cause()))))
+                        JsonObject(Json.encode(it.cause()))))
             } else {
-                resultHandler.handle(Future.succeededFuture(result.result()))
+                resultHandler.handle(Future.succeededFuture(it.result()))
             }
         }
     }

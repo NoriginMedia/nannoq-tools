@@ -56,42 +56,44 @@ import javax.imageio.stream.FileImageOutputStream
  */
 interface ImageUploader {
     fun doUpload(vertx: Vertx, file: File?, s3LinkSupplier: Supplier<S3Link>, fut: Future<Boolean>) {
-        vertx.executeBlocking<Boolean>({ uploadFuture ->
+        vertx.executeBlocking<Boolean>({
             try {
-                if (!file!!.exists()) {
-                    uploadFuture.fail(UnknownError("File does not exist!"))
-                } else {
+                when {
+                    !file!!.exists() -> it.fail(UnknownError("File does not exist!"))
+                    else -> {
 
-                    val convertedFile = imageToPng(file)
-                    val location = s3LinkSupplier.get()
-                    location.amazonS3Client.putObject(
-                            location.bucketName, location.key, convertedFile)
-                    convertedFile.delete()
+                        val convertedFile = imageToPng(file)
+                        val location = s3LinkSupplier.get()
+                        location.amazonS3Client.putObject(
+                                location.bucketName, location.key, convertedFile)
+                        convertedFile.delete()
 
-                    logger.debug("Content stored for: " + file.path)
+                        logger.debug("Content stored for: " + file.path)
 
-                    uploadFuture.complete(java.lang.Boolean.TRUE)
+                        it.complete(java.lang.Boolean.TRUE)
+                    }
                 }
             } catch (e: Exception) {
                 logger.error("Failure in external storage!", e)
 
                 file?.delete()
 
-                uploadFuture.tryFail(e)
+                it.tryFail(e)
             }
-        }, false) { contentRes ->
-            if (contentRes.failed()) {
-                logger.error("FAILED Storage for: " + file!!.path, contentRes.cause())
+        }, false) {
+            when {
+                it.failed() -> {
+                    logger.error("FAILED Storage for: " + file!!.path, it.cause())
 
-                fut.fail(contentRes.cause())
-            } else {
-                fut.complete(java.lang.Boolean.TRUE)
+                    fut.fail(it.cause())
+                }
+                else -> fut.complete(java.lang.Boolean.TRUE)
             }
         }
     }
 
     fun doUpload(vertx: Vertx, file: FileUpload, s3LinkSupplier: Supplier<S3Link>, fut: Future<Boolean>) {
-        vertx.executeBlocking<Boolean>({ uploadFuture ->
+        vertx.executeBlocking<Boolean>({
             try {
                 val convertedFile = imageToPng(File(file.uploadedFileName()))
                 val location = s3LinkSupplier.get()
@@ -101,19 +103,20 @@ interface ImageUploader {
 
                 logger.debug("Content stored for: " + file.uploadedFileName())
 
-                uploadFuture.complete(java.lang.Boolean.TRUE)
+                it.complete(java.lang.Boolean.TRUE)
             } catch (e: Exception) {
                 logger.error("Failure in external storage!", e)
 
-                uploadFuture.tryFail(e)
+                it.tryFail(e)
             }
-        }, false) { contentRes ->
-            if (contentRes.failed()) {
-                logger.error("FAILED Storage for: " + file.uploadedFileName(), contentRes.cause())
+        }, false) {
+            when {
+                it.failed() -> {
+                    logger.error("FAILED Storage for: " + file.uploadedFileName(), it.cause())
 
-                fut.fail(contentRes.cause())
-            } else {
-                fut.complete(java.lang.Boolean.TRUE)
+                    fut.fail(it.cause())
+                }
+                else -> fut.complete(java.lang.Boolean.TRUE)
             }
         }
     }
@@ -123,59 +126,67 @@ interface ImageUploader {
         options.connectTimeout = 10000
         options.isSsl = true
 
-        val req = vertx.createHttpClient(options).getAbs(url) { response ->
-            if (response.statusCode() == 200) {
-                val uuid = UUID.randomUUID().toString()
-                logger.debug("Response to: $uuid")
+        val req = vertx.createHttpClient(options).getAbs(url) {
+            when {
+                it.statusCode() == 200 -> {
+                    val uuid = UUID.randomUUID().toString()
+                    logger.debug("Response to: $uuid")
 
-                if (response.statusCode() == 200) {
-                    response.pause()
+                    when {
+                        it.statusCode() == 200 -> {
+                            it.pause()
 
-                    val asyncFile = arrayOfNulls<AsyncFile>(1)
-                    val openOptions = OpenOptions()
-                            .setCreate(true)
-                            .setWrite(true)
+                            val asyncFile = arrayOfNulls<AsyncFile>(1)
+                            val openOptions = OpenOptions()
+                                    .setCreate(true)
+                                    .setWrite(true)
 
-                    response.endHandler { end ->
-                        logger.debug("Reading image...")
+                            it.endHandler { end ->
+                                logger.debug("Reading image...")
 
-                        if (asyncFile[0] != null) {
-                            asyncFile[0]?.flush {
-                                asyncFile[0]?.close {
-                                    doUpload(vertx, File(uuid), s3LinkSupplier, fut)
+                                when {
+                                    asyncFile[0] != null -> asyncFile[0]?.flush {
+                                        asyncFile[0]?.close {
+                                            doUpload(vertx, File(uuid), s3LinkSupplier, fut)
+                                        }
+                                    }
+                                    else -> {
+                                        logger.error("File is missing!")
+
+                                        fut.fail("File is missing!")
+                                    }
                                 }
                             }
-                        } else {
-                            logger.error("File is missing!")
 
-                            fut.fail("File is missing!")
+                            vertx.fileSystem().open(uuid, openOptions) { file ->
+                                logger.debug("File opened!")
+
+                                when {
+                                    file.succeeded() -> {
+                                        asyncFile[0] = file.result()
+                                        val pump = Pump.pump<Buffer>(it, asyncFile[0])
+                                        pump.start()
+                                    }
+                                    else -> logger.error("Unable to open file for download!", file.cause())
+                                }
+
+                                logger.debug("Read response!")
+
+                                it.resume()
+                            }
+                        }
+                        else -> {
+                            logger.error("Error reading external file (" + it.statusCode() + ") for: " + uuid)
+
+                            fut.fail(it.statusMessage())
                         }
                     }
-
-                    vertx.fileSystem().open(uuid, openOptions) { file ->
-                        logger.debug("File opened!")
-
-                        if (file.succeeded()) {
-                            asyncFile[0] = file.result()
-                            val pump = Pump.pump<Buffer>(response, asyncFile[0])
-                            pump.start()
-                        } else {
-                            logger.error("Unable to open file for download!", file.cause())
-                        }
-
-                        logger.debug("Read response!")
-
-                        response.resume()
-                    }
-                } else {
-                    logger.error("Error reading external file (" + response.statusCode() + ") for: " + uuid)
-
-                    fut.fail(response.statusMessage())
                 }
-            } else {
-                logger.error("Error reading external file...")
+                else -> {
+                    logger.error("Error reading external file...")
 
-                fut.fail(UnknownError())
+                    fut.fail(UnknownError())
+                }
             }
         }
 

@@ -44,7 +44,7 @@ class ValidationError {
     var fieldName: String? = null
         private set
 
-    constructor() {}
+    constructor()
 
     constructor(description: String, fieldName: String) {
         this.description = description
