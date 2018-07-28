@@ -30,7 +30,7 @@ First install with either Maven:
 <dependency>
     <groupId>com.nannoq</groupId>
     <artifactId>module</artifactId>
-    <version>1.0.7</version>
+    <version>1.0.8</version>
 </dependency>
 ```
 
@@ -38,7 +38,7 @@ or Gradle:
 
 ```groovy
 dependencies {
-    compile group: 'nannoq.com:module:1.0.7’
+    compile group: 'nannoq.com:module:1.0.8’
 }
 ```
 
