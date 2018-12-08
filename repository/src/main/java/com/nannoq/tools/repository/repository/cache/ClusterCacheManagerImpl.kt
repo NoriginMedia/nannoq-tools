@@ -33,6 +33,7 @@ import com.hazelcast.core.Hazelcast
 import com.nannoq.tools.repository.models.Cacheable
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.utils.ItemList
+import com.nannoq.tools.repository.utils.PageTokens
 import io.vertx.core.*
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.Json
@@ -219,7 +220,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                                 else -> try {
                                     val jsonObject = JsonObject(s)
                                     val jsonArray = jsonObject.getJsonArray("items")
-                                    val pageToken = jsonObject.getString("pageTokens")
+                                    val pageToken = PageTokens(jsonObject.getJsonObject("pageTokens"))
                                     val items = jsonArray.stream()
                                             .map { json ->
                                                 val obj = JsonObject(json.toString())

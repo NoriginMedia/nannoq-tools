@@ -42,7 +42,7 @@ import java.util.stream.Collectors.toList
 @DataObject(generateConverter = true)
 class GenericItemList {
     var etag: String? = null
-    var pageToken: String? = null
+    var pageToken: PageTokens? = null
     var count: Int = 0
     var items: MutableList<JsonObject>? = null
 
@@ -50,15 +50,15 @@ class GenericItemList {
 
     constructor(jsonObject: JsonObject) {
         this.etag = jsonObject.getString("etag")
-        this.pageToken = jsonObject.getString("pageTokens")
+        this.pageToken = PageTokens(jsonObject.getJsonObject("pageTokens"))
         this.count = jsonObject.getInteger("count")!!
         this.items = jsonObject.getJsonArray("items").stream()
                 .map { e -> e as JsonObject }
                 .collect(toList())
     }
 
-    constructor(pageToken: String, count: Int, items: List<JsonObject>?) {
-        this.pageToken = pageToken
+    constructor(pageTokens: PageTokens, count: Int, items: List<JsonObject>?) {
+        this.pageToken = pageTokens
         this.count = count
         this.items = items?.toMutableList()
         val etagCode = longArrayOf(1234567890L)

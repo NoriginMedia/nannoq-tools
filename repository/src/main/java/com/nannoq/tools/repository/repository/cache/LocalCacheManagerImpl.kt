@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.nannoq.tools.repository.models.Cacheable
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.utils.ItemList
+import com.nannoq.tools.repository.utils.PageTokens
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
@@ -143,7 +144,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                     else -> try {
                         val jsonObject = JsonObject(content)
                         val jsonArray = jsonObject.getJsonArray("items")
-                        val pageToken = jsonObject.getString("pageTokens")
+                        val pageToken = PageTokens(jsonObject.getJsonObject("pageTokens"))
                         val items = jsonArray.stream()
                                 .map { json ->
                                     val obj = JsonObject(json.toString())
