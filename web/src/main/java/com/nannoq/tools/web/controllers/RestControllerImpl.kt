@@ -777,7 +777,7 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         const val AGGREGATE_KEY = "aggregate"
 
         const val MULTIPLE_IDS_KEY = "ids"
-        const val PAGING_TOKEN_KEY = "pageTokens"
+        const val PAGING_TOKEN_KEY = "pageToken"
         const val END_OF_PAGING_KEY = "END_OF_LIST"
 
         const val CONTROLLER_START_TIME = "controllerStartTimeTag"

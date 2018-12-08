@@ -591,7 +591,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 .build()
         val handler = Handler<AsyncResult<ItemListResult<TestModel>>> { allItemsRes ->
             if (allItemsRes.succeeded()) {
-                val finalPageToken = allItemsRes.result().itemList?.pageTokens
+                val finalPageToken = allItemsRes.result().itemList?.paging
                 val newCount = currentCount + allItemsRes.result().count
 
                 if (finalPageToken?.next!!.equals("END_OF_LIST", ignoreCase = true)) {

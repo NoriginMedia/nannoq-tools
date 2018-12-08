@@ -32,7 +32,7 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 
 /**
- * This class defines the ItemList. It has x amount of items controlled by the count field, a pageTokens, and an etag.
+ * This class defines the ItemList. It has x amount of items controlled by the count field, a paging, and an etag.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
@@ -40,14 +40,14 @@ import io.vertx.core.json.JsonObject
 @JsonInclude(JsonInclude.Include.NON_NULL)
 class ItemList<E : Model> {
     var etag: String? = null
-    var pageTokens: PageTokens? = null
+    var paging: PageTokens? = null
     var count: Int = 0
     var items: List<E>? = null
 
     constructor()
 
     constructor(etagBase: String, pageTokens: PageTokens, count: Int, items: List<E>?, projections: Array<String>) {
-        this.pageTokens = pageTokens
+        this.paging = pageTokens
         this.count = count
         this.items = items
         val etagCode = longArrayOf(etagBase.hashCode().toLong())
@@ -58,7 +58,7 @@ class ItemList<E : Model> {
     fun toJson(projections: Array<String>): JsonObject {
         val jsonObject = JsonObject()
                 .put("etag", if (etag == null) "NoTag" else etag)
-                .put("pageTokens", if (pageTokens == null) PageTokens().toJson() else pageTokens?.toJson())
+                .put("paging", if (paging == null) PageTokens().toJson() else paging?.toJson())
                 .put("count", count)
 
         val jsonItems = JsonArray()
@@ -87,13 +87,13 @@ class ItemList<E : Model> {
 
         if (count != itemList!!.count) return false
         if (if (etag != null) etag != itemList.etag else itemList.etag != null) return false
-        if (if (pageTokens != null) pageTokens != itemList.pageTokens else itemList.pageTokens != null) return false
+        if (if (paging != null) paging != itemList.paging else itemList.paging != null) return false
         return if (items != null) items == itemList.items else itemList.items == null
     }
 
     override fun hashCode(): Int {
         var result = if (etag != null) etag!!.hashCode() else 0
-        result = 31 * result + if (pageTokens != null) pageTokens!!.hashCode() else 0
+        result = 31 * result + if (paging != null) paging!!.hashCode() else 0
         result = 31 * result + count
         result = 31 * result + if (items != null) items!!.hashCode() else 0
         return result

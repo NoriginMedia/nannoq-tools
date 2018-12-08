@@ -144,7 +144,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                     else -> try {
                         val jsonObject = JsonObject(content)
                         val jsonArray = jsonObject.getJsonArray("items")
-                        val pageToken = PageTokens(jsonObject.getJsonObject("pageTokens"))
+                        val pageToken = PageTokens(jsonObject.getJsonObject("paging"))
                         val items = jsonArray.stream()
                                 .map { json ->
                                     val obj = JsonObject(json.toString())
@@ -161,7 +161,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                         eItemList.items = items
                         eItemList.count = items.size
                         eItemList.etag = jsonObject.getString("etag")
-                        eItemList.pageTokens = pageToken
+                        eItemList.paging = pageToken
 
                         resultHandler.handle(Future.succeededFuture(eItemList))
                     } catch (e: DecodeException) {

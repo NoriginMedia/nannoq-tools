@@ -50,7 +50,7 @@ class GenericItemList {
 
     constructor(jsonObject: JsonObject) {
         this.etag = jsonObject.getString("etag")
-        this.pageToken = PageTokens(jsonObject.getJsonObject("pageTokens"))
+        this.pageToken = PageTokens(jsonObject.getJsonObject("paging"))
         this.count = jsonObject.getInteger("count")!!
         this.items = jsonObject.getJsonArray("items").stream()
                 .map { e -> e as JsonObject }
@@ -73,7 +73,7 @@ class GenericItemList {
     fun toJson(projections: Array<String>): JsonObject {
         val jsonObject = JsonObject()
                 .put("etag", if (etag == null) "NoTag" else etag)
-                .put("pageTokens", if (pageToken == null) PageTokens().toJson() else pageToken?.toJson())
+                .put("paging", if (pageToken == null) PageTokens().toJson() else pageToken?.toJson())
                 .put("count", count)
 
         val jsonItems = JsonArray()

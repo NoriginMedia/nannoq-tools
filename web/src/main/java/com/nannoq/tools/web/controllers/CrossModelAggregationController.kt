@@ -935,7 +935,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         private const val FILTER_KEY = "filter"
         private const val AGGREGATE_KEY = "aggregate"
 
-        private const val PAGING_TOKEN_KEY = "pageTokens"
+        private const val PAGING_TOKEN_KEY = "paging"
         private const val END_OF_PAGING_KEY = "END_OF_LIST"
     }
 }
