@@ -58,7 +58,7 @@ class ItemList<E : Model> {
     fun toJson(projections: Array<String>): JsonObject {
         val jsonObject = JsonObject()
                 .put("etag", if (etag == null) "NoTag" else etag)
-                .put("pageTokens", if (pageTokens == null) PageTokens() else pageTokens)
+                .put("pageTokens", if (pageTokens == null) PageTokens().toJson() else pageTokens?.toJson())
                 .put("count", count)
 
         val jsonItems = JsonArray()
@@ -66,7 +66,7 @@ class ItemList<E : Model> {
         if (items != null) {
             items!!.stream()
                     .map { m -> m.toJsonFormat(projections) }
-                    .forEach({ jsonItems.add(it) })
+                    .forEach { jsonItems.add(it) }
         }
 
         jsonObject.put("items", jsonItems)

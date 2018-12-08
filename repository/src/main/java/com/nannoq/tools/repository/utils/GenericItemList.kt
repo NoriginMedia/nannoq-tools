@@ -73,7 +73,7 @@ class GenericItemList {
     fun toJson(projections: Array<String>): JsonObject {
         val jsonObject = JsonObject()
                 .put("etag", if (etag == null) "NoTag" else etag)
-                .put("pageTokens", if (pageToken == null) "END_OF_LIST" else pageToken)
+                .put("pageTokens", if (pageToken == null) PageTokens().toJson() else pageToken?.toJson())
                 .put("count", count)
 
         val jsonItems = JsonArray()

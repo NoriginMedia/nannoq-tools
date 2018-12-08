@@ -836,7 +836,6 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 itemList = queryPageResults.results
                         .subList(0, if (pageCount < desiredCount) pageCount else desiredCount)
                 count = if (pageCount < desiredCount) pageCount else desiredCount
-
                 pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList, GSI, alternateIndex, false)
             }
             else -> {
@@ -846,7 +845,9 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 pagingToken = if (lastEvaluatedKey == null)
                     "END_OF_LIST"
                 else
-                    setPageToken(lastEvaluatedKey, GSI, true, alternateIndex)
+                    Base64.getUrlEncoder().encodeToString(
+                            (("${extractSelfToken(pageToken)}:" +
+                                    "${setPageToken(lastEvaluatedKey, GSI, true, alternateIndex)}").toByteArray()))
 
             }
         }
@@ -1149,29 +1150,29 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
     private fun setScanPageToken(pageToken: String?, pageCount: Int, desiredCount: Int, itemList: List<E>,
                                  GSI: String?, alternateIndex: String?, unFilteredIndex: Boolean): String {
-        val pagingToken: String
-
         when {
             pageCount > desiredCount -> {
                 val lastItem = itemList[if (itemList.isEmpty()) 0 else itemList.size - 1]
-
                 val lastEvaluatedKey = setLastKey(lastItem, GSI, alternateIndex)
-                @Suppress("SENSELESS_COMPARISON")
-                pagingToken = if (lastEvaluatedKey == null)
-                    "END_OF_LIST"
-                else
-                    Base64.getUrlEncoder().encodeToString(
-                            (pageToken + ":" + setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex))
-                                    .toByteArray())
 
-                if (logger.isDebugEnabled) {
-                    logger.debug("Constructed pagingtoken: $pagingToken")
+                return when {
+                    lastEvaluatedKey.isEmpty() -> "END_OF_LIST"
+                    else -> {
+                        Base64.getUrlEncoder().encodeToString(
+                                ("${extractSelfToken(pageToken)}:" +
+                                        "${setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex)}")
+                                        .toByteArray())
+                    }
                 }
             }
-            else -> pagingToken = "END_OF_LIST"
+            else -> return "END_OF_LIST"
         }
+    }
 
-        return pagingToken
+    private fun extractSelfToken(pageToken: String?): String {
+        if (pageToken == null) return "null"
+
+        return String(Base64.getUrlDecoder().decode(pageToken)).split(":".toRegex(), 2)[1]
     }
 
     private fun reduceByPageToken(allItems: List<E>, id: String): List<E> {

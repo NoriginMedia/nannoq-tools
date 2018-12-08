@@ -26,11 +26,9 @@
 package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.utils.ItemList
-import io.vertx.core.json.JsonObject
-import org.junit.Test
-
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class ItemListTest {
     @Test
@@ -40,7 +38,7 @@ class ItemListTest {
 
         assertNotNull(result.getInteger("count"))
         assertNotNull(result.getString("etag"))
-        assertNotNull(result.getString("pageTokens"))
+        assertNotNull(result.getJsonObject("pageTokens"))
         assertNotNull(result.getJsonArray("items"))
         assertTrue(result.getJsonArray("items").isEmpty)
     }

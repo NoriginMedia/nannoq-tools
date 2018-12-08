@@ -773,20 +773,23 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
                                     paginationIdentifier: String?,
                                     GSI: String?,
                                     GSI_KEY_MAP: Map<String, JsonObject>): MutableMap<String, AttributeValue>? {
-        val pageTokens = String(Base64.getUrlDecoder().decode(encodedPageToken))
-        val splitToken = pageTokens.split(":".toRegex(), 2)
         var pageTokenMap: MutableMap<String, AttributeValue>? = null
         var pageToken: JsonObject? = null
+        var splitToken: List<String>? = null
 
         if (encodedPageToken != null) {
-            pageToken = try {
-                JsonObject(splitToken[1])
-            } catch (e: EncodeException) {
-                null
-            } catch (e: DecodeException) {
-                null
-            }
+            if (encodedPageToken != "END_OF_LIST") {
+                val pageTokens = String(Base64.getUrlDecoder().decode(encodedPageToken))
+                splitToken = pageTokens.split(":".toRegex(), 2)
 
+                pageToken = try {
+                    JsonObject(String(Base64.getUrlDecoder().decode(splitToken[1])))
+                } catch (e: EncodeException) {
+                    null
+                } catch (e: DecodeException) {
+                    null
+                }
+            }
         }
 
         if (pageToken != null) {
@@ -824,7 +827,14 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
             }
         }
 
-        (pageTokenMap as MutableMap<String, AttributeValue>)["oldPageToken"] = AttributeValue().withS(splitToken[0])
+        if (pageTokenMap != null) {
+            when {
+                splitToken != null -> {
+                    pageTokenMap["oldPageToken"] = AttributeValue().withS(splitToken.get(0))
+                }
+                else -> pageTokenMap["oldPageToken"] = AttributeValue().withS(null)
+            }
+        }
 
         if (logger.isDebugEnabled) {
             logger.debug("PageTokenMap is: " + Json.encodePrettily(pageTokenMap))
@@ -871,7 +881,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
             logger.debug("PageToken is: " + pageToken.encodePrettily())
         }
 
-        return pageToken.encode()
+        return Base64.getUrlEncoder().encodeToString(pageToken.encode().toByteArray())
     }
 
     private fun extractIndexValue(attributeValue: AttributeValue?): Any? {

@@ -61,7 +61,7 @@ val nannoq_tools_version: String by project
 buildscript {
     var kotlin_version: String by extra
     var dokka_version: String by extra
-    kotlin_version = "1.2.41"
+    kotlin_version = "1.3.11"
     dokka_version = "0.9.16"
 
     repositories {
