@@ -215,7 +215,7 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         val response = getIndex(port, null, pageToken, 200)
         val etag = response.header(HttpHeaders.ETAG)
         getIndex(port, etag, pageToken, 304)
-        val newPageToken = response.jsonPath().getString("pageToken")
+        val newPageToken = response.jsonPath().getString("pageTokens")
 
         logger.info("New Token is: $newPageToken")
 
@@ -228,7 +228,7 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
 
     private fun getIndex(port: Int, eTag: String?, pageToken: String?, statusCode: Int, query: String? = null): Response {
         val url = "/parent/testString/testModels" + (query ?: "") +
-                if (pageToken != null) (if (query != null) "&" else "?") + "pageToken=" + pageToken else ""
+                if (pageToken != null) (if (query != null) "&" else "?") + "pageTokens=" + pageToken else ""
 
         return given()
                 .port(port)

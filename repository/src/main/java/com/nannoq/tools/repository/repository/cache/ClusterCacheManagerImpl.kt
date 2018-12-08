@@ -219,7 +219,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                                 else -> try {
                                     val jsonObject = JsonObject(s)
                                     val jsonArray = jsonObject.getJsonArray("items")
-                                    val pageToken = jsonObject.getString("pageToken")
+                                    val pageToken = jsonObject.getString("pageTokens")
                                     val items = jsonArray.stream()
                                             .map { json ->
                                                 val obj = JsonObject(json.toString())
@@ -236,7 +236,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                                     eItemList.items = items
                                     eItemList.count = items.size
                                     eItemList.etag = jsonObject.getString("etag")
-                                    eItemList.pageToken = pageToken
+                                    eItemList.pageTokens = pageToken
 
                                     resultHandler.handle(Future.succeededFuture(eItemList))
                                 } catch (e: DecodeException) {

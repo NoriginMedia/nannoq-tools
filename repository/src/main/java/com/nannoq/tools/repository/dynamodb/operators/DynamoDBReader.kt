@@ -42,6 +42,7 @@ import com.nannoq.tools.repository.repository.results.ItemListResult
 import com.nannoq.tools.repository.repository.results.ItemResult
 import com.nannoq.tools.repository.utils.FilterParameter
 import com.nannoq.tools.repository.utils.ItemList
+import com.nannoq.tools.repository.utils.PageTokens
 import com.nannoq.tools.repository.utils.QueryPack
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
@@ -715,18 +716,28 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         pageCount = allItems.size
         val count = if (pageCount < desiredCount) pageCount else desiredCount
-        val pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, unFilteredIndex)
+        val previousPageToken = extractPreviousPageToken(pageToken)
+        val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
+                GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count, pagingToken, itemList, projections,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count,
+                previousPageToken, pageToken, pagingToken,
+                itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
 
-    private fun returnTimedItemListResult(baseEtagKey: String?, resultHandler: Handler<AsyncResult<ItemListResult<E>>>, count: Int,
-                                          pagingToken: String, itemList: List<E>, projections: Array<String>,
-                                          preOperationTime: AtomicLong, operationTime: AtomicLong,
-                                          postOperationTime: AtomicLong) {
+    private fun extractPreviousPageToken(pageToken: String?): String? {
+        return
+    }
+
+    private fun returnTimedItemListResult(baseEtagKey: String?, resultHandler: Handler<AsyncResult<ItemListResult<E>>>,
+                                          count: Int,
+                                          previousPageToken: String?, pageToken: String?, nextPageToken: String,
+                                          itemList: List<E>, projections: Array<String>, preOperationTime: AtomicLong,
+                                          operationTime: AtomicLong, postOperationTime: AtomicLong) {
         postOperationTime.set(System.nanoTime() - operationTime.get())
-        val eItemListResult = ItemListResult(baseEtagKey!!, count, itemList, pagingToken, projections, false)
+        val pageTokens = PageTokens(self = pageToken, next = nextPageToken, previous = previousPageToken)
+        val eItemListResult = ItemListResult(baseEtagKey!!, count, itemList, pageTokens, projections, false)
         eItemListResult.preOperationProcessingTime = preOperationTime.get()
         eItemListResult.operationProcessingTime = operationTime.get()
         eItemListResult.postOperationProcessingTime = postOperationTime.get()

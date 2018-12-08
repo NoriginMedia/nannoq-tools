@@ -40,7 +40,7 @@ class ItemListTest {
 
         assertNotNull(result.getInteger("count"))
         assertNotNull(result.getString("etag"))
-        assertNotNull(result.getString("pageToken"))
+        assertNotNull(result.getString("pageTokens"))
         assertNotNull(result.getJsonArray("items"))
         assertTrue(result.getJsonArray("items").isEmpty)
     }

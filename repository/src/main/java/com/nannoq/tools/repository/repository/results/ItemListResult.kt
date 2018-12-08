@@ -27,6 +27,7 @@ package com.nannoq.tools.repository.repository.results
 
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.utils.ItemList
+import com.nannoq.tools.repository.utils.PageTokens
 
 /**
  * This class defines a container for the result of an index operation.
@@ -38,11 +39,11 @@ class ItemListResult<K : Model> {
     private var etagBase: String? = null
     var count: Int = 0
     var items: List<K>? = null
-    var pageToken: String? = null
+    var paging: PageTokens? = null
     var projections: Array<String>? = null
     var itemList: ItemList<K>? = null
         get() {
-            return field ?: ItemList(etagBase!!, pageToken ?: "END_OF_LIST", count, items, projections!!)
+            return field ?: ItemList(etagBase!!, paging ?: PageTokens(), count, items, projections!!)
         }
 
     var isCacheHit: Boolean = false
@@ -50,12 +51,12 @@ class ItemListResult<K : Model> {
     var operationProcessingTime: Long = 0
     var postOperationProcessingTime: Long = 0
 
-    constructor(etagBase: String, count: Int, items: List<K>, pageToken: String,
+    constructor(etagBase: String, count: Int, items: List<K>, pageTokens: PageTokens,
                 projections: Array<String>, cacheHit: Boolean) {
         this.etagBase = etagBase
         this.count = count
         this.items = items
-        this.pageToken = pageToken
+        this.paging = pageTokens
         this.projections = projections
         this.isCacheHit = cacheHit
     }
