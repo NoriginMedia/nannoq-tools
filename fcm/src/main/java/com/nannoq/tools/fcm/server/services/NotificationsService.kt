@@ -25,12 +25,13 @@
 
 package com.nannoq.tools.fcm.server.services
 
-import io.vertx.codegen.annotations.*
+import io.vertx.codegen.annotations.Fluent
+import io.vertx.codegen.annotations.ProxyClose
+import io.vertx.codegen.annotations.ProxyGen
+import io.vertx.codegen.annotations.VertxGen
 import io.vertx.core.AsyncResult
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 
 /**
  * @author Anders Mikkelsen
@@ -47,10 +48,4 @@ interface NotificationsService {
 
     @ProxyClose
     fun close()
-
-    @GenIgnore
-    companion object {
-        @GenIgnore
-        val logger: Logger = LoggerFactory.getLogger(NotificationsService::class.java.simpleName)
-    }
 }
