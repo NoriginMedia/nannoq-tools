@@ -39,27 +39,30 @@ import io.vertx.core.json.JsonObject
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 class ItemList<E : Model> {
-    var etag: String? = null
+    var meta: ItemListMeta? = null
     var paging: PageTokens? = null
-    var count: Int = 0
     var items: List<E>? = null
 
     constructor()
 
-    constructor(etagBase: String, pageTokens: PageTokens, count: Int, items: List<E>?, projections: Array<String>) {
+    constructor(etagBase: String, pageTokens: PageTokens, count: Int, totalCount: Int,
+                items: List<E>?, projections: Array<String>) {
         this.paging = pageTokens
-        this.count = count
         this.items = items
         val etagCode = longArrayOf(etagBase.hashCode().toLong())
         items?.forEach { item -> etagCode[0] = etagCode[0] xor item.toJsonFormat(projections).encode().hashCode().toLong() }
-        etag = ModelUtils.returnNewEtag(etagCode[0])
+
+        this.meta = ItemListMeta(
+                etag = ModelUtils.returnNewEtag(etagCode[0]),
+                count = count,
+                totalCount = totalCount
+        )
     }
 
     fun toJson(projections: Array<String>): JsonObject {
         val jsonObject = JsonObject()
-                .put("etag", if (etag == null) "NoTag" else etag)
                 .put("paging", if (paging == null) PageTokens().toJson() else paging?.toJson())
-                .put("count", count)
+                .put("meta", if (meta == null) ItemListMeta().toJson() else meta?.toJson())
 
         val jsonItems = JsonArray()
 
@@ -85,16 +88,14 @@ class ItemList<E : Model> {
 
         val itemList = o as ItemList<*>?
 
-        if (count != itemList!!.count) return false
-        if (if (etag != null) etag != itemList.etag else itemList.etag != null) return false
-        if (if (paging != null) paging != itemList.paging else itemList.paging != null) return false
-        return if (items != null) items == itemList.items else itemList.items == null
+        if (if (meta != null) meta != itemList?.meta else itemList?.meta != null) return false
+        if (if (paging != null) paging != itemList?.paging else itemList?.paging != null) return false
+        return if (items != null) items == itemList?.items else itemList?.items == null
     }
 
     override fun hashCode(): Int {
-        var result = if (etag != null) etag!!.hashCode() else 0
+        var result = if (meta != null) meta!!.hashCode() else 0
         result = 31 * result + if (paging != null) paging!!.hashCode() else 0
-        result = 31 * result + count
         result = 31 * result + if (items != null) items!!.hashCode() else 0
         return result
     }

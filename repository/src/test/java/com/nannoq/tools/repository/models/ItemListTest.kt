@@ -36,8 +36,7 @@ class ItemListTest {
     fun toJson() {
         val result = ItemList<Model>().toJson(arrayOf())
 
-        assertNotNull(result.getInteger("count"))
-        assertNotNull(result.getString("etag"))
+        assertNotNull(result.getJsonObject("meta"))
         assertNotNull(result.getJsonObject("paging"))
         assertNotNull(result.getJsonArray("items"))
         assertTrue(result.getJsonArray("items").isEmpty)

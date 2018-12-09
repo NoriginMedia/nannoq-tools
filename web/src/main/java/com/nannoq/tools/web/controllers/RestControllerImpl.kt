@@ -490,7 +490,7 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
 
                     when {
                         items != null -> {
-                            routingContext.response().putHeader(HttpHeaders.ETAG, items.etag)
+                            routingContext.response().putHeader(HttpHeaders.ETAG, items.meta?.etag)
 
                             if (logger.isDebugEnabled) {
                                 addLogMessageToRequestLog(routingContext,

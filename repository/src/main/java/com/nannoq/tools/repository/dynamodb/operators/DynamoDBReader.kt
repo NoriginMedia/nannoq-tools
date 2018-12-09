@@ -569,7 +569,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
                                     cacheManager.replaceItemListCache(content!!, Supplier { cacheId }, Handler {
                                         if (logger.isDebugEnabled) {
-                                            logger.debug("Setting: " + etagKey + " with: " + itemList.etag)
+                                            logger.debug("Setting: " + etagKey + " with: " + itemList.meta?.etag)
                                         }
 
                                         val etagItemListHashKey = TYPE.simpleName + "_" +
@@ -721,20 +721,20 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
                 GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.size,
                 oldPageToken?.s, pageToken, pagingToken,
                 itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
 
     private fun returnTimedItemListResult(baseEtagKey: String?, resultHandler: Handler<AsyncResult<ItemListResult<E>>>,
-                                          count: Int,
+                                          count: Int, totalCount: Int,
                                           previousPageToken: String?, pageToken: String?, nextPageToken: String,
                                           itemList: List<E>, projections: Array<String>, preOperationTime: AtomicLong,
                                           operationTime: AtomicLong, postOperationTime: AtomicLong) {
         postOperationTime.set(System.nanoTime() - operationTime.get())
         val pageTokens = PageTokens(self = pageToken, next = nextPageToken, previous = previousPageToken)
-        val eItemListResult = ItemListResult(baseEtagKey!!, count, itemList, pageTokens, projections, false)
+        val eItemListResult = ItemListResult(baseEtagKey!!, count, totalCount, itemList, pageTokens, projections, false)
         eItemListResult.preOperationProcessingTime = preOperationTime.get()
         eItemListResult.operationProcessingTime = operationTime.get()
         eItemListResult.postOperationProcessingTime = postOperationTime.get()
@@ -847,12 +847,13 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 else
                     Base64.getUrlEncoder().encodeToString(
                             (("${extractSelfToken(pageToken)}:" +
-                                    "${setPageToken(lastEvaluatedKey, GSI, true, alternateIndex)}").toByteArray()))
+                                    setPageToken(lastEvaluatedKey, GSI, true, alternateIndex))
+                                    .toByteArray()))
 
             }
         }
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, queryPageResults.scannedCount,
                 oldPageToken?.s, pageToken, pagingToken, itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
@@ -949,7 +950,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
                 GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.scannedCount,
                 oldPageToken?.s, pageToken, pagingToken, itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
@@ -1048,7 +1049,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
                 GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.size,
                 oldPageToken?.s, pageToken, pagingToken, itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
@@ -1122,7 +1123,8 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
                 GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count, oldPageToken?.s, pageToken, pagingToken,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.scannedCount,
+                oldPageToken?.s, pageToken, pagingToken,
                 itemList, projections, preOperationTime, operationTime, postOperationTime)
     }
 
@@ -1160,7 +1162,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                     else -> {
                         Base64.getUrlEncoder().encodeToString(
                                 ("${extractSelfToken(pageToken)}:" +
-                                        "${setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex)}")
+                                        setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex))
                                         .toByteArray())
                     }
                 }
