@@ -71,8 +71,8 @@ buildscript {
     }
 
     dependencies {
-        classpath("gradle.plugin.com.palantir.gradle.docker:gradle-docker:0.13.0")
-        classpath("com.github.jengelman.gradle.plugins:shadow:2.0.3")
+        classpath("gradle.plugin.com.palantir.gradle.docker:gradle-docker:0.20.1")
+        classpath("com.github.jengelman.gradle.plugins:shadow:4.0.3")
         classpath("com.wiredforcode:gradle-spawn-plugin:0.8.0")
         classpath(kotlin("gradle-plugin", kotlin_version))
         classpath("org.jetbrains.dokka:dokka-gradle-plugin:$dokka_version")
@@ -140,7 +140,7 @@ dependencies {
     compile(group = "com.lmax", name = "disruptor", version = com_lmax_version)
 
     // Cache
-    compile("javax.cache:cache-api:1.0.0")
+    compile("javax.cache:cache-api:1.1.0")
 
     // Commons
     compile("com.google.code.findbugs:annotations:3.0.0")
