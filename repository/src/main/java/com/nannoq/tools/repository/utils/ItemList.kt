@@ -32,41 +32,44 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 
 /**
- * This class defines the ItemList. It has x amount of items controlled by the count field, a pageToken, and an etag.
+ * This class defines the ItemList. It has x amount of items controlled by the count field, a paging, and an etag.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 class ItemList<E : Model> {
-    var etag: String? = null
-    var pageToken: String? = null
-    var count: Int = 0
+    var meta: ItemListMeta? = null
+    var paging: PageTokens? = null
     var items: List<E>? = null
 
     constructor()
 
-    constructor(etagBase: String, pageToken: String, count: Int, items: List<E>?, projections: Array<String>) {
-        this.pageToken = pageToken
-        this.count = count
+    constructor(etagBase: String, pageTokens: PageTokens, count: Int, totalCount: Int,
+                items: List<E>?, projections: Array<String>) {
+        this.paging = pageTokens
         this.items = items
         val etagCode = longArrayOf(etagBase.hashCode().toLong())
         items?.forEach { item -> etagCode[0] = etagCode[0] xor item.toJsonFormat(projections).encode().hashCode().toLong() }
-        etag = ModelUtils.returnNewEtag(etagCode[0])
+
+        this.meta = ItemListMeta(
+                etag = ModelUtils.returnNewEtag(etagCode[0]),
+                count = count,
+                totalCount = totalCount
+        )
     }
 
     fun toJson(projections: Array<String>): JsonObject {
         val jsonObject = JsonObject()
-                .put("etag", if (etag == null) "NoTag" else etag)
-                .put("pageToken", if (pageToken == null) "END_OF_LIST" else pageToken)
-                .put("count", count)
+                .put("paging", if (paging == null) PageTokens().toJson() else paging?.toJson())
+                .put("meta", if (meta == null) ItemListMeta().toJson() else meta?.toJson())
 
         val jsonItems = JsonArray()
 
         if (items != null) {
             items!!.stream()
                     .map { m -> m.toJsonFormat(projections) }
-                    .forEach({ jsonItems.add(it) })
+                    .forEach { jsonItems.add(it) }
         }
 
         jsonObject.put("items", jsonItems)
@@ -85,16 +88,14 @@ class ItemList<E : Model> {
 
         val itemList = o as ItemList<*>?
 
-        if (count != itemList!!.count) return false
-        if (if (etag != null) etag != itemList.etag else itemList.etag != null) return false
-        if (if (pageToken != null) pageToken != itemList.pageToken else itemList.pageToken != null) return false
-        return if (items != null) items == itemList.items else itemList.items == null
+        if (if (meta != null) meta != itemList?.meta else itemList?.meta != null) return false
+        if (if (paging != null) paging != itemList?.paging else itemList?.paging != null) return false
+        return if (items != null) items == itemList?.items else itemList?.items == null
     }
 
     override fun hashCode(): Int {
-        var result = if (etag != null) etag!!.hashCode() else 0
-        result = 31 * result + if (pageToken != null) pageToken!!.hashCode() else 0
-        result = 31 * result + count
+        var result = if (meta != null) meta!!.hashCode() else 0
+        result = 31 * result + if (paging != null) paging!!.hashCode() else 0
         result = 31 * result + if (items != null) items!!.hashCode() else 0
         return result
     }

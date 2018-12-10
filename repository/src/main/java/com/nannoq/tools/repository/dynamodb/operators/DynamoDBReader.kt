@@ -42,6 +42,7 @@ import com.nannoq.tools.repository.repository.results.ItemListResult
 import com.nannoq.tools.repository.repository.results.ItemResult
 import com.nannoq.tools.repository.utils.FilterParameter
 import com.nannoq.tools.repository.utils.ItemList
+import com.nannoq.tools.repository.utils.PageTokens
 import com.nannoq.tools.repository.utils.QueryPack
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
@@ -568,7 +569,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
                                     cacheManager.replaceItemListCache(content!!, Supplier { cacheId }, Handler {
                                         if (logger.isDebugEnabled) {
-                                            logger.debug("Setting: " + etagKey + " with: " + itemList.etag)
+                                            logger.debug("Setting: " + etagKey + " with: " + itemList.meta?.etag)
                                         }
 
                                         val etagItemListHashKey = TYPE.simpleName + "_" +
@@ -689,9 +690,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 ?.sorted(Comparator.comparing(Function<E, String> { it.range!! },
                         Comparator.comparingInt<String>({ multipleIds.indexOf(it) })))
                 ?.collect(toList())
+        var oldPageToken: AttributeValue? = null
 
         if (pageToken != null) {
             val pageTokenMap = getTokenMap(pageToken, GSI, PAGINATION_IDENTIFIER)
+            oldPageToken = pageTokenMap?.remove("oldPageToken")
             val id = pageTokenMap!![IDENTIFIER]?.s
 
             val first = allItems?.stream()
@@ -715,18 +718,23 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         pageCount = allItems.size
         val count = if (pageCount < desiredCount) pageCount else desiredCount
-        val pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, unFilteredIndex)
+        val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
+                GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count, pagingToken, itemList, projections,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.size,
+                oldPageToken?.s, pageToken, pagingToken,
+                itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
 
-    private fun returnTimedItemListResult(baseEtagKey: String?, resultHandler: Handler<AsyncResult<ItemListResult<E>>>, count: Int,
-                                          pagingToken: String, itemList: List<E>, projections: Array<String>,
-                                          preOperationTime: AtomicLong, operationTime: AtomicLong,
-                                          postOperationTime: AtomicLong) {
+    private fun returnTimedItemListResult(baseEtagKey: String?, resultHandler: Handler<AsyncResult<ItemListResult<E>>>,
+                                          count: Int, totalCount: Int,
+                                          previousPageToken: String?, pageToken: String?, nextPageToken: String,
+                                          itemList: List<E>, projections: Array<String>, preOperationTime: AtomicLong,
+                                          operationTime: AtomicLong, postOperationTime: AtomicLong) {
         postOperationTime.set(System.nanoTime() - operationTime.get())
-        val eItemListResult = ItemListResult(baseEtagKey!!, count, itemList, pagingToken, projections, false)
+        val pageTokens = PageTokens(self = pageToken, next = nextPageToken, previous = previousPageToken)
+        val eItemListResult = ItemListResult(baseEtagKey!!, count, totalCount, itemList, pageTokens, projections, false)
         eItemListResult.preOperationProcessingTime = preOperationTime.get()
         eItemListResult.operationProcessingTime = operationTime.get()
         eItemListResult.postOperationProcessingTime = postOperationTime.get()
@@ -753,18 +761,23 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
             logger.debug("Running standard query...")
         }
 
+        val oldPageToken: AttributeValue?
+
         when (filteringExpression) {
             null -> {
+                val tokenMap = getTokenMap(pageToken, GSI, PAGINATION_IDENTIFIER)
+                oldPageToken = tokenMap?.remove("oldPageToken")
                 queryExpression = DynamoDBQueryExpression()
                 queryExpression.indexName = GSI ?: paginationIndex
                 queryExpression.limit = 20
                 queryExpression.isScanIndexForward = false
-                queryExpression.setExclusiveStartKey(getTokenMap(pageToken, GSI, PAGINATION_IDENTIFIER))
+                queryExpression.setExclusiveStartKey(tokenMap)
             }
             else -> {
+                val tokenMap = getTokenMap(pageToken, GSI, alternateIndex ?: PAGINATION_IDENTIFIER)
+                oldPageToken = tokenMap?.remove("oldPageToken")
                 queryExpression = filteringExpression
-                queryExpression.setExclusiveStartKey(getTokenMap(pageToken, GSI,
-                        alternateIndex ?: PAGINATION_IDENTIFIER))
+                queryExpression.setExclusiveStartKey(tokenMap)
             }
         }
 
@@ -823,8 +836,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 itemList = queryPageResults.results
                         .subList(0, if (pageCount < desiredCount) pageCount else desiredCount)
                 count = if (pageCount < desiredCount) pageCount else desiredCount
-
-                pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, false)
+                pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList, GSI, alternateIndex, false)
             }
             else -> {
                 count = queryPageResults.count!!
@@ -833,12 +845,16 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 pagingToken = if (lastEvaluatedKey == null)
                     "END_OF_LIST"
                 else
-                    setPageToken(lastEvaluatedKey, GSI, true, alternateIndex)
+                    Base64.getUrlEncoder().encodeToString(
+                            (("${extractSelfToken(pageToken)}:" +
+                                    setPageToken(lastEvaluatedKey, GSI, true, alternateIndex))
+                                    .toByteArray()))
 
             }
         }
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count, pagingToken, itemList, projections,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, queryPageResults.scannedCount,
+                oldPageToken?.s, pageToken, pagingToken, itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
 
@@ -904,8 +920,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 .sorted(comparing)
                 .collect(toList())
 
+        var oldPageToken: AttributeValue? = null
+
         if (pageToken != null) {
             val id = pageTokenMap!![IDENTIFIER]?.s
+            oldPageToken = pageTokenMap?.remove("oldPageToken")
 
             val first = allItems.stream()
                     .filter { item ->
@@ -928,9 +947,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         pageCount = allItems.size
         val count = if (pageCount < desiredCount) pageCount else desiredCount
-        val pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, unFilteredIndex)
+        val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
+                GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count, pagingToken, itemList, projections,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.scannedCount,
+                oldPageToken?.s, pageToken, pagingToken, itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
 
@@ -1009,8 +1030,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                         Comparator.comparingInt<String>({ multipleIds.indexOf(it) })))
                 ?.collect(toList())
 
+        var oldPageToken: AttributeValue? = null
+
         if (pageToken != null) {
             val pageTokenMap = getTokenMap(pageToken, GSI, PAGINATION_IDENTIFIER)
+            oldPageToken = pageTokenMap?.remove("oldPageToken")
             val id = pageTokenMap!![if (hashOnlyModel()) HASH_IDENTIFIER else IDENTIFIER]?.s
 
             allItems = reduceByPageToken(allItems!!, id!!)
@@ -1022,9 +1046,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         pageCount = allItems.size
         val count = if (pageCount < desiredCount) pageCount else desiredCount
-        val pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, unFilteredIndex)
+        val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
+                GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count, pagingToken, itemList, projections,
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.size,
+                oldPageToken?.s, pageToken, pagingToken, itemList, projections,
                 preOperationTime, operationTime, postOperationTime)
     }
 
@@ -1041,6 +1067,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         val scanExpression = dbParams.applyParameters(queryPack.params)
         val pageTokenMap = getTokenMap(pageToken, GSI, PAGINATION_IDENTIFIER)
+        val oldPageToken = pageTokenMap?.remove("oldPageToken")
 
         scanExpression.limit = null
         scanExpression.indexName = GSI ?: paginationIndex
@@ -1093,10 +1120,12 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         pageCount = allItems.size
         val count = if (pageCount < desiredCount) pageCount else desiredCount
-        val pagingToken = setScanPageToken(pageCount, desiredCount, itemList, GSI, alternateIndex, unFilteredIndex)
+        val pagingToken = setScanPageToken(pageToken, pageCount, desiredCount, itemList,
+                GSI, alternateIndex, unFilteredIndex)
 
-        returnTimedItemListResult(baseEtagKey, resultHandler, count, pagingToken, itemList, projections,
-                preOperationTime, operationTime, postOperationTime)
+        returnTimedItemListResult(baseEtagKey, resultHandler, count, items.scannedCount,
+                oldPageToken?.s, pageToken, pagingToken,
+                itemList, projections, preOperationTime, operationTime, postOperationTime)
     }
 
     private fun setProjectionsOnScanExpression(scanExpression: DynamoDBScanExpression, projections: Array<String>?) {
@@ -1121,29 +1150,31 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
     }
 
-    private fun setScanPageToken(pageCount: Int, desiredCount: Int, itemList: List<E>,
+    private fun setScanPageToken(pageToken: String?, pageCount: Int, desiredCount: Int, itemList: List<E>,
                                  GSI: String?, alternateIndex: String?, unFilteredIndex: Boolean): String {
-        val pagingToken: String
-
         when {
             pageCount > desiredCount -> {
                 val lastItem = itemList[if (itemList.isEmpty()) 0 else itemList.size - 1]
-
                 val lastEvaluatedKey = setLastKey(lastItem, GSI, alternateIndex)
-                @Suppress("SENSELESS_COMPARISON")
-                pagingToken = if (lastEvaluatedKey == null)
-                    "END_OF_LIST"
-                else
-                    setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex)
 
-                if (logger.isDebugEnabled) {
-                    logger.debug("Constructed pagingtoken: $pagingToken")
+                return when {
+                    lastEvaluatedKey.isEmpty() -> "END_OF_LIST"
+                    else -> {
+                        Base64.getUrlEncoder().encodeToString(
+                                ("${extractSelfToken(pageToken)}:" +
+                                        setPageToken(lastEvaluatedKey, GSI, unFilteredIndex, alternateIndex))
+                                        .toByteArray())
+                    }
                 }
             }
-            else -> pagingToken = "END_OF_LIST"
+            else -> return "END_OF_LIST"
         }
+    }
 
-        return pagingToken
+    private fun extractSelfToken(pageToken: String?): String {
+        if (pageToken == null) return "null"
+
+        return String(Base64.getUrlDecoder().decode(pageToken)).split(":".toRegex(), 2)[1]
     }
 
     private fun reduceByPageToken(allItems: List<E>, id: String): List<E> {
@@ -1184,7 +1215,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 lastEvaluatedKey, GSI, GSI_KEY_MAP, if (unFilteredIndex) null else alternateIndex)
     }
 
-    private fun getTokenMap(pageToken: String?, GSI: String?, index: String?): Map<String, AttributeValue>? {
+    private fun getTokenMap(pageToken: String?, GSI: String?, index: String?): MutableMap<String, AttributeValue>? {
         return dbParams.createPageTokenMap(pageToken, HASH_IDENTIFIER, IDENTIFIER, index, GSI, GSI_KEY_MAP)
     }
 

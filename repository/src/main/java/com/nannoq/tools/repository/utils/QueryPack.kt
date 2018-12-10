@@ -105,7 +105,7 @@ class QueryPack internal constructor() {
         @Fluent
         fun withRoutingContext(routingContext: RoutingContext): QueryPackBuilder {
             this.requestEtag = routingContext.request().getHeader("If-None-Match")
-            this.pageToken = routingContext.request().getParam("pageToken")
+            this.pageToken = routingContext.request().getParam("paging")
             this.query = routingContext.request().query()
             this.route = routingContext.request().path()
 

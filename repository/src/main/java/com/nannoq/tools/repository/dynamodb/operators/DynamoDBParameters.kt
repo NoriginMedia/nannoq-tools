@@ -772,19 +772,24 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
                                     rangeIdentifier: String?,
                                     paginationIdentifier: String?,
                                     GSI: String?,
-                                    GSI_KEY_MAP: Map<String, JsonObject>): Map<String, AttributeValue>? {
+                                    GSI_KEY_MAP: Map<String, JsonObject>): MutableMap<String, AttributeValue>? {
         var pageTokenMap: MutableMap<String, AttributeValue>? = null
         var pageToken: JsonObject? = null
+        var splitToken: List<String>? = null
 
         if (encodedPageToken != null) {
-            pageToken = try {
-                JsonObject(String(Base64.getUrlDecoder().decode(encodedPageToken)))
-            } catch (e: EncodeException) {
-                null
-            } catch (e: DecodeException) {
-                null
-            }
+            if (encodedPageToken != "END_OF_LIST") {
+                val pageTokens = String(Base64.getUrlDecoder().decode(encodedPageToken))
+                splitToken = pageTokens.split(":".toRegex(), 2)
 
+                pageToken = try {
+                    JsonObject(String(Base64.getUrlDecoder().decode(splitToken[1])))
+                } catch (e: EncodeException) {
+                    null
+                } catch (e: DecodeException) {
+                    null
+                }
+            }
         }
 
         if (pageToken != null) {
@@ -819,6 +824,15 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
                     val gsiRange = AttributeValue().withS(pageToken.getString("GSIR"))
                     (pageTokenMap as MutableMap<String, AttributeValue>).putIfAbsent(range, gsiRange)
                 }
+            }
+        }
+
+        if (pageTokenMap != null) {
+            when {
+                splitToken != null -> {
+                    pageTokenMap["oldPageToken"] = AttributeValue().withS(splitToken.get(0))
+                }
+                else -> pageTokenMap["oldPageToken"] = AttributeValue().withS(null)
             }
         }
 
