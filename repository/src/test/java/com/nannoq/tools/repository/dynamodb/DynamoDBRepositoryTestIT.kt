@@ -102,8 +102,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             try {
                 Thread.sleep(10)
-            } catch (ignored: InterruptedException) {
-            }
+            } catch (ignored: InterruptedException) {}
         }
 
         CompositeFuture.all(futures).setHandler { res ->

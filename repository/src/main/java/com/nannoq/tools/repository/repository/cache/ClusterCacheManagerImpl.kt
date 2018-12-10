@@ -27,6 +27,7 @@ package com.nannoq.tools.repository.repository.cache
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.hazelcast.cache.CacheNotExistsException
+import com.hazelcast.cache.HazelcastCachingProvider
 import com.hazelcast.cache.ICache
 import com.hazelcast.core.ExecutionCallback
 import com.hazelcast.core.Hazelcast
@@ -119,7 +120,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
 
                     return cache
                 } catch (cnee: CacheNotExistsException) {
-                    val cachingProvider = Caching.getCachingProvider()
+                    val cachingProvider = Caching.getCachingProvider(HazelcastCachingProvider::class.java.name)
                     val config = MutableConfiguration<String, String>()
                             .setTypes(String::class.java, String::class.java)
                             .setManagementEnabled(false)
