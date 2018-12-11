@@ -67,6 +67,12 @@ allprojects {
     }
 }
 
+nexusStaging {
+    packageGroup = groupValue
+    username = System.getenv("OSSRH_USER")
+    password = System.getenv("OSSRH_PASS")
+}
+
 subprojects {
     tasks.withType<KotlinCompile> {
         kotlinOptions {
