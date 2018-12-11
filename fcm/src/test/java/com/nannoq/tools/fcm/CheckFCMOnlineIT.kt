@@ -32,10 +32,7 @@ import io.vertx.ext.unit.TestContext
 import io.vertx.ext.unit.junit.RunTestOnContext
 import io.vertx.ext.unit.junit.VertxUnitRunner
 import junit.framework.TestCase.assertTrue
-import org.junit.After
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
+import org.junit.*
 import org.junit.runner.RunWith
 import redis.embedded.RedisServer
 import java.io.File
@@ -83,6 +80,7 @@ class CheckFCMOnlineIT : ConfigSupport {
                         .put("redis_port", redisPort))
     }
 
+    @Ignore // requires valid keys
     @Test
     fun fcmRunning() {
         assertTrue(fcmServer!!.isOnline)

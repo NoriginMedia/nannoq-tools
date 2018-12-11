@@ -62,7 +62,7 @@ val sqlLiteVersion = "1.0.392"
 buildscript {
     var kotlin_version: String by extra
     var dokka_version: String by extra
-    kotlin_version = "1.2.41"
+    kotlin_version = "1.3.11"
     dokka_version = "0.9.16"
 
     repositories {
@@ -72,8 +72,8 @@ buildscript {
     }
 
     dependencies {
-        classpath("gradle.plugin.com.palantir.gradle.docker:gradle-docker:0.13.0")
-        classpath("com.github.jengelman.gradle.plugins:shadow:2.0.3")
+        classpath("gradle.plugin.com.palantir.gradle.docker:gradle-docker:0.20.1")
+        classpath("com.github.jengelman.gradle.plugins:shadow:4.0.3")
         classpath("com.wiredforcode:gradle-spawn-plugin:0.8.0")
         classpath(kotlin("gradle-plugin", kotlin_version))
         classpath("org.jetbrains.dokka:dokka-gradle-plugin:$dokka_version")
@@ -143,10 +143,10 @@ dependencies {
     compile(group = "com.lmax", name = "disruptor", version = com_lmax_version)
 
     // Cache
-    compile("javax.cache:cache-api:1.0.0")
+    compile("javax.cache:cache-api:1.1.0")
 
     // Commons
-    compile("com.google.code.findbugs:annotations:3.0.0")
+    compile("com.google.code.findbugs:annotations:3.0.1")
     compile("com.google.guava:guava-jdk5:17.0")
 
     // Test
@@ -156,12 +156,12 @@ dependencies {
     testCompile("io.vertx:vertx-config:$vertx_version")
     testCompile("io.vertx:vertx-unit:$vertx_version")
     testCompile("io.rest-assured:rest-assured:$rest_assured_version")
-    testCompile("io.rest-assured:json-path:3.0.1")
-    testCompile("io.rest-assured:json-schema-validator:3.0.1")
+    testCompile("io.rest-assured:json-path:3.2.0")
+    testCompile("io.rest-assured:json-schema-validator:3.2.0")
     testCompile("com.github.kstyrc:embedded-redis:0.6")
 
     // DynamoDB Test
-    testCompile("com.amazonaws:DynamoDBLocal:[1.11.2,2.0]")
+    testCompile("com.amazonaws:DynamoDBLocal:[1.11.119,2.0]")
     testCompile("com.almworks.sqlite4java:sqlite4java:$sqlLiteVersion")
     testCompile("com.almworks.sqlite4java:sqlite4java-win32-x86:$sqlLiteVersion")
     testCompile("com.almworks.sqlite4java:sqlite4java-win32-x64:$sqlLiteVersion")
@@ -195,7 +195,7 @@ tasks {
     "copyDynamoDBLibs"(Copy::class) {
         delete("$projectDir/build/dynamodb-libs")
 
-        configurations.getByName("testCompile").resolvedConfiguration.resolvedArtifacts.forEach({
+        configurations.getByName("testCompile").resolvedConfiguration.resolvedArtifacts.forEach {
             if (isSqlite(it.id.componentIdentifier.displayName)) {
                 copy {
                     from(it.file)
@@ -210,7 +210,7 @@ tasks {
                     into("$projectDir/build/dynamodb-libs")
                 }
             }
-        })
+        }
     }
 
     "test"(Test::class) {
@@ -236,9 +236,9 @@ tasks {
         dependsOn(listOf("verify", "publish"))
         mustRunAfter("clean")
 
-        doLast({
+        doLast {
             println("$nameOfArchive installed!")
-        })
+        }
     }
 }
 

@@ -102,8 +102,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             try {
                 Thread.sleep(10)
-            } catch (ignored: InterruptedException) {
-            }
+            } catch (ignored: InterruptedException) {}
         }
 
         CompositeFuture.all(futures).setHandler { res ->
@@ -124,7 +123,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     fun getBucketName(context: TestContext) {
         val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
         val config: JsonObject = context.get("${name.methodName}-config")
-        
+
         assertEquals("BucketName does not match Config!", config.getString("content_bucket") ?: "default", repo.bucketName)
     }
 
@@ -136,7 +135,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     @Test
     fun getField(context: TestContext) {
         val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        
+
         assertNotNull("Field is null!", repo.getField("someStringOne"))
     }
 
@@ -234,7 +233,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     fun fetchNewestRecord(context: TestContext) {
         val async = context.async()
         val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        
+
         repo.create(nonNullTestModel()).setHandler { res ->
             val testModel = res.result().item
             val newest = repo.fetchNewestRecord(TestModel::class.java, testModel.hash!!, testModel.range)
@@ -591,18 +590,18 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 .build()
         val handler = Handler<AsyncResult<ItemListResult<TestModel>>> { allItemsRes ->
             if (allItemsRes.succeeded()) {
-                val finalPageToken = allItemsRes.result().itemList?.pageToken
+                val finalPageToken = allItemsRes.result().itemList?.paging
                 val newCount = currentCount + allItemsRes.result().count
 
-                if (finalPageToken!!.equals("END_OF_LIST", ignoreCase = true)) {
+                if (finalPageToken?.next!!.equals("END_OF_LIST", ignoreCase = true)) {
                     context.assertEquals(totalCount, newCount)
 
                     async.complete()
                 } else {
-                    pageAllResults(totalCount, newCount, idObject, finalPageToken, GSI, context, async)
+                    pageAllResults(totalCount, newCount, idObject, finalPageToken.next, GSI, context, async)
                 }
             } else {
-                context.fail("All Items Result is false!")
+                context.fail(allItemsRes.cause())
 
                 async.complete()
             }

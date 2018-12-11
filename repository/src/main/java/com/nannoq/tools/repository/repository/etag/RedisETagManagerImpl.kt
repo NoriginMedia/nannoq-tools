@@ -125,7 +125,7 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
     override fun setItemListEtags(etagItemListHashKey: String, etagKey: String, itemList: ItemList<E>,
                                   itemListEtagFuture: Future<Boolean>) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
-            it.hset(etagItemListHashKey, etagKey, itemList.etag) {
+            it.hset(etagItemListHashKey, etagKey, itemList.meta?.etag) {
                 itemListEtagFuture.complete(java.lang.Boolean.TRUE)
             }
         }

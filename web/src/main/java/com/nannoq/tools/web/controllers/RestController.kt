@@ -173,7 +173,7 @@ interface RestController<E> where E : ETagable, E : Model {
         val requestEtag = routingContext.request().getHeader("If-None-Match")
 
         when {
-            requestEtag != null && requestEtag == items.etag ->
+            requestEtag != null && requestEtag == items.meta?.etag ->
                 unChangedIndex(routingContext)
             else -> {
                 val content = items.toJsonString(projections ?: arrayOf())

@@ -198,7 +198,7 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
 
     override fun setItemListEtags(etagItemListHashKey: String, etagKey: String, itemList: ItemList<E>,
                                   itemListEtagFuture: Future<Boolean>) {
-        setItemListEtags(etagItemListHashKey, etagKey, itemList.etag, itemListEtagFuture)
+        setItemListEtags(etagItemListHashKey, etagKey, itemList.meta?.etag, itemListEtagFuture)
     }
 
     private fun setItemListEtags(etagItemListHashKey: String, etagKey: String, etag: String?,
