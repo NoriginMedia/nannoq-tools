@@ -126,7 +126,7 @@ First install with either Maven:
 <dependency>
     <groupId>com.nannoq</groupId>
     <artifactId>moduleToImport</artifactId>
-    <version>1.0.8</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
@@ -134,7 +134,7 @@ or Gradle:
 
 ```groovy
 dependencies {
-    compile group: 'nannoq.com:moduleToImport:1.0.8’
+    compile group: 'nannoq.com:moduleToImport:1.1.0’
 }
 ```
 
