@@ -50,7 +50,8 @@ class GenericItemList {
 
     constructor(jsonObject: JsonObject) {
         this.etag = jsonObject.getString("etag")
-        this.pageToken = PageTokens(jsonObject.getJsonObject("paging"))
+        val pagingObject = jsonObject.getJsonObject("paging")
+        this.pageToken = if (pagingObject != null) PageTokens(pagingObject) else PageTokens()
         this.count = jsonObject.getInteger("count")!!
         this.items = jsonObject.getJsonArray("items").stream()
                 .map { e -> e as JsonObject }
