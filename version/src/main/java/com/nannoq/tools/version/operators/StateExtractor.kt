@@ -12,6 +12,9 @@ import com.nannoq.tools.version.models.DiffPair
 import com.nannoq.tools.version.models.IteratorId
 import com.nannoq.tools.version.models.ObjectModification
 import com.nannoq.tools.version.models.Version
+import io.vertx.core.AsyncResult
+import io.vertx.core.Future.succeededFuture
+import io.vertx.core.Handler
 import io.vertx.core.logging.LoggerFactory
 import java.io.IOException
 import java.lang.reflect.Field
@@ -25,6 +28,12 @@ import java.util.stream.IntStream
 internal class StateExtractor(private val objectMapper: ObjectMapper, private val versionUtils: VersionUtils) {
     private val logger = LoggerFactory.getLogger(StateApplier::class.java)
     private val allClassFields = HashMap<Class<*>, Array<Field>>()
+
+    fun <T> extractVersion(pair: DiffPair<T>, handler: Handler<AsyncResult<Version>>): StateExtractor {
+        handler.handle(succeededFuture(extractVersion(pair)))
+
+        return this
+    }
 
     @Throws(IllegalStateException::class)
     fun <T> extractVersion(pair: DiffPair<T>): Version {

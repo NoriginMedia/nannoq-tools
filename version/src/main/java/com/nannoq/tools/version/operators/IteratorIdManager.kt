@@ -1,6 +1,9 @@
 package com.nannoq.tools.version.operators
 
 import com.nannoq.tools.version.VersionUtils
+import io.vertx.core.AsyncResult
+import io.vertx.core.Future.succeededFuture
+import io.vertx.core.Handler
 import io.vertx.core.logging.LoggerFactory
 import java.lang.reflect.Field
 import java.math.BigDecimal
@@ -13,15 +16,27 @@ import java.util.stream.IntStream
 internal class IteratorIdManager(private val versionUtils: VersionUtils) {
     private val logger = LoggerFactory.getLogger(StateApplier::class.java)
 
-    @Throws(IllegalStateException::class)
-    private fun <T> setIteratorIds(obj: T): T {
-        return setIteratorIds(listOf(obj))!!.iterator().next()
+    fun <T> setIteratorIds(obj: T, handler: Handler<AsyncResult<T>>): IteratorIdManager {
+        handler.handle(succeededFuture(setIteratorIds(listOf(obj)).iterator().next()))
+
+        return this
     }
 
     @Throws(IllegalStateException::class)
-    fun <T> setIteratorIds(objs: Collection<T>): Collection<T>? {
+    private fun <T> setIteratorIds(obj: T): T {
+        return setIteratorIds(listOf(obj)).iterator().next()
+    }
+
+    fun <T> setIteratorIds(objs: Collection<T>, handler: Handler<AsyncResult<Collection<T>>>): IteratorIdManager {
+        handler.handle(succeededFuture(setIteratorIds(objs)))
+
+        return this
+    }
+
+    @Throws(IllegalStateException::class)
+    fun <T> setIteratorIds(objs: Collection<T>): Collection<T> {
         val failedIteratorApplication = AtomicBoolean()
-        var collect: List<T>? = null
+        var collect: Collection<T>? = null
 
         try {
             collect = objs.parallelStream()
@@ -35,7 +50,7 @@ internal class IteratorIdManager(private val versionUtils: VersionUtils) {
             throw IllegalStateException("Error in iteratorapplication, could not continue!")
         }
 
-        return collect
+        return collect.let { objs }
     }
 
     private fun failedIteratorApply(failedIteratorApplication: AtomicBoolean, message: String, e: Exception) {

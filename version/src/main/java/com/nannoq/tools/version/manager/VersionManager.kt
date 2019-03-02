@@ -6,10 +6,11 @@ import com.nannoq.tools.version.models.Version
 import com.nannoq.tools.version.operators.IteratorIdManager
 import com.nannoq.tools.version.operators.StateApplier
 import com.nannoq.tools.version.operators.StateExtractor
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
 import io.vertx.core.json.Json
-import java.util.Collections.singletonMap
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.stream.Collectors.toList
 
 class VersionManager {
     private val versionUtils: VersionUtils = VersionUtils()
@@ -17,68 +18,142 @@ class VersionManager {
     private val stateExtractor: StateExtractor = StateExtractor(Json.mapper, versionUtils)
     private val iteratorIdManager: IteratorIdManager = IteratorIdManager(versionUtils)
 
-    @Throws(IllegalStateException::class)
-    fun <T: Any> applyState(version: Version, obj: T): T {
-        return applyState(singletonMap(obj, listOf(version)), listOf(obj))[0]
+    fun <T: Any> applyState(version: Version, obj: T, handler: Handler<AsyncResult<T>>): VersionManager {
+        handler.handle(applyState(version, obj))
+
+        return this
     }
 
-    @Throws(IllegalStateException::class)
-    fun <T: Any> applyState(versionList: List<Version>, obj: T): T {
-        return applyState(singletonMap(obj, versionList), listOf(obj))[0]
+    fun <T: Any> applyState(version: Version, obj: T): Future<T> {
+        val fut = Future.future<T>()
+
+        stateApplier.applyState(version, obj, fut.completer())
+
+        return fut
     }
 
-    @Throws(IllegalStateException::class)
-    fun <T: Any> applyState(versionMap: Map<T, List<Version>>, objs: List<T>): List<T> {
-        val failedApply = AtomicBoolean()
-        val collect = objs.parallelStream()
-                .peek { obj ->
-                    versionMap[obj]?.forEach { version ->
-                        try {
-                            stateApplier.applyState(version, obj)
-                        } catch (ise: IllegalStateException) {
-                            failedApply.set(true)
-                        }
-                    }
-                }
-                .collect(toList())
+    fun <T: Any> applyState(versionList: List<Version>, obj: T, handler: Handler<AsyncResult<T>>): VersionManager {
+        handler.handle(applyState(versionList, obj))
 
-        if (failedApply.get()) throw IllegalStateException("Error in state application!")
-
-        return collect
+        return this
     }
 
-    @Throws(IllegalStateException::class)
-    fun <T: Any> extractVersion(pair: DiffPair<T>): Version {
-        return extractVersion(listOf(pair))[0]
+    fun <T: Any> applyState(versionList: List<Version>, obj: T): Future<T> {
+        val fut = Future.future<T>()
+        val futList = mutableListOf<Future<T>>()
+
+        versionList.forEach {
+            futList.add(applyState(it, obj))
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        CompositeFuture.all(futList as List<Future<Any>>).setHandler {
+            when {
+                it.failed() -> fut.fail(it.cause())
+                it.succeeded() -> fut.complete(obj)
+            }
+        }
+
+        return fut
     }
 
-    @Throws(IllegalStateException::class)
-    fun <T: Any> extractVersion(pairs: List<DiffPair<T>>): List<Version> {
-        val failedExtract = AtomicBoolean()
-        val collect = pairs.parallelStream()
-                .map<Version> { pair ->
-                    try {
-                        stateExtractor.extractVersion(pair)
-                    } catch (ise: IllegalStateException) {
-                        failedExtract.set(true)
+    fun <T: Any> applyState(versionMap: Map<T, List<Version>>, objs: List<T>, handler: Handler<AsyncResult<List<T>>>)
+            : VersionManager {
+        handler.handle(applyState(versionMap, objs))
 
-                        null
-                    }
-                }
-                .collect(toList())
-
-        if (failedExtract.get()) throw IllegalStateException("Error in state extract!")
-
-        return collect
+        return this
     }
 
-    @Throws(IllegalStateException::class)
-    fun <T: Any> setIteratorIds(obj: T): T {
-        return setIteratorIds(listOf(obj))[0]
+    fun <T: Any> applyState(versionMap: Map<T, List<Version>>, objs: List<T>): Future<List<T>> {
+        val fut = Future.future<List<T>>()
+        val futList = mutableListOf<Future<T>>()
+
+        objs.forEach {
+            futList.add(applyState(versionMap.getValue(it), it))
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        CompositeFuture.all(futList as List<Future<Any>>).setHandler {
+            when {
+                it.failed() -> fut.fail(it.cause())
+                it.succeeded() -> fut.complete(objs)
+            }
+        }
+
+        return fut
     }
 
-    @Throws(IllegalStateException::class)
-    fun <T: Any> setIteratorIds(objs: List<T>): List<T> {
-        return iteratorIdManager.setIteratorIds(objs) as List<T>
+    fun <T: Any> extractVersion(pair: DiffPair<T>, handler: Handler<AsyncResult<Version>>): VersionManager {
+        handler.handle(extractVersion(pair))
+
+        return this
+    }
+
+    fun <T: Any> extractVersion(pair: DiffPair<T>): Future<Version> {
+        val fut = Future.future<Version>()
+
+        stateExtractor.extractVersion(pair, fut.completer())
+
+        return fut
+    }
+
+    fun <T: Any> extractVersion(pairs: List<DiffPair<T>>, handler: Handler<AsyncResult<List<Version>>>)
+            : VersionManager {
+        handler.handle(extractVersion(pairs))
+
+        return this
+    }
+
+    fun <T: Any> extractVersion(pairs: List<DiffPair<T>>): Future<List<Version>> {
+        val fut = Future.future<List<Version>>()
+        val futList = mutableListOf<Future<Version>>()
+
+        pairs.forEach {
+            futList.add(extractVersion(it))
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        CompositeFuture.all(futList as List<Future<Any>>).setHandler { result ->
+            when {
+                result.failed() -> fut.fail(result.cause())
+                result.succeeded() -> fut.complete(futList.map { it.result() } as List<Version>?)
+            }
+        }
+
+        return fut
+    }
+
+    fun <T: Any> setIteratorIds(obj: T, handler: Handler<AsyncResult<T>>): VersionManager {
+        handler.handle(setIteratorIds(obj))
+
+        return this
+    }
+
+    fun <T: Any> setIteratorIds(obj: T): Future<T> {
+        val fut = Future.future<T>()
+
+        setIteratorIds(listOf(obj)).setHandler {
+            when {
+                it.failed() -> fut.fail(it.cause())
+                it.succeeded() -> fut.complete(it.result()[0])
+            }
+        }
+
+        return fut
+    }
+
+    fun <T: Any> setIteratorIds(objs: List<T>, handler: Handler<AsyncResult<List<T>>>): VersionManager {
+        handler.handle(setIteratorIds(objs))
+
+        return this
+    }
+
+    fun <T: Any> setIteratorIds(objs: List<T>): Future<List<T>> {
+        val fut = Future.future<List<T>>()
+
+        @Suppress("UNCHECKED_CAST")
+        iteratorIdManager.setIteratorIds(objs, fut.completer() as Handler<AsyncResult<Collection<T>>>)
+
+        return fut
     }
 }

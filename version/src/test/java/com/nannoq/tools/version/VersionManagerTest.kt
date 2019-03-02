@@ -7,6 +7,8 @@ import com.nannoq.tools.version.mocks.MockEnumObject
 import com.nannoq.tools.version.mocks.MockVersionListObject
 import com.nannoq.tools.version.mocks.MockVersionObject
 import com.nannoq.tools.version.models.DiffPair
+import io.vertx.core.Handler
+import io.vertx.ext.unit.TestContext
 import io.vertx.ext.unit.junit.VertxUnitRunner
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,25 +33,28 @@ class VersionManagerTest {
     }
 
     @Test
-    fun setIteratorIds_returnsObjectWithIteratorIdsSet() {
+    fun setIteratorIds_returnsObjectWithIteratorIdsSet(context: TestContext) {
+        val async = context.async()
         val iteratorBeforeObjects = IntStream.range(0, 100)
                 .mapToObj { this.newIteratorBeforeObject(it) }
                 .collect(toList())
 
-        val versionObjects = versionManager.setIteratorIds(iteratorBeforeObjects)
+        versionManager.setIteratorIds(iteratorBeforeObjects, Handler { versionObjects ->
+            val iteratorAfterObjects = IntStream.range(0, 100)
+                    .mapToObj { this.newIteratorAfterObject(it) }
+                    .collect(toList())
 
-        val iteratorAfterObjects = IntStream.range(0, 100)
-                .mapToObj { this.newIteratorAfterObject(it) }
-                .collect(toList())
-
-        versionObjects.forEach { versionObject ->
-            try {
-                assertEquals(ObjectMapper().writeValueAsString(iteratorAfterObjects[versionObject.integerOne!!]),
-                        ObjectMapper().writeValueAsString(versionObject))
-            } catch (e: JsonProcessingException) {
-                fail(e.message)
+            versionObjects.result().forEach { versionObject ->
+                try {
+                    assertEquals(ObjectMapper().writeValueAsString(iteratorAfterObjects[versionObject.integerOne!!]),
+                            ObjectMapper().writeValueAsString(versionObject))
+                } catch (e: JsonProcessingException) {
+                    fail(e.message)
+                }
             }
-        }
+
+            async.complete()
+        })
     }
 
     private fun newIteratorBeforeObject(i: Int): MockVersionObject {
@@ -155,7 +160,8 @@ class VersionManagerTest {
     }
 
     @Test
-    fun multipleListModifications_areMappedCorrectly() {
+    fun multipleListModifications_areMappedCorrectly(context: TestContext) {
+        val async = context.async()
         val listObjectsBefore = ArrayList<MockVersionListObject>()
         listObjectsBefore.add(listObjectSupplier().withIteratorId(0))
         listObjectsBefore.add(listObjectSupplier().withIteratorId(1))
@@ -216,88 +222,93 @@ class VersionManagerTest {
                 .withMapSimpleObjects(mapSimpleObjectsAfter)
                 .withMapComplexObjects(mapComplexObjectsAfter)
 
-        val version = versionManager.extractVersion(DiffPair(current = before, updated = after))
+        versionManager.extractVersion(DiffPair(current = before, updated = after), Handler { version ->
+            val newListObjectsBefore = ArrayList<MockVersionListObject>()
+            newListObjectsBefore.add(listObjectSupplier())
+            newListObjectsBefore.add(listObjectSupplier())
+            newListObjectsBefore.add(listObjectSupplier())
+            newListObjectsBefore.add(listObjectSupplier())
+            val newSetObjectsBefore = LinkedHashSet<MockVersionListObject>()
+            newSetObjectsBefore.add(listObjectSupplier().withStringOne("testOne"))
+            newSetObjectsBefore.add(listObjectSupplier().withStringOne("testTwo"))
+            newSetObjectsBefore.add(listObjectSupplier().withStringOne("testThree"))
+            newSetObjectsBefore.add(listObjectSupplier().withStringOne("testFour"))
+            val newMapSimpleObjectsBefore = LinkedHashMap<String, Int>()
+            newMapSimpleObjectsBefore["one"] = 1
+            newMapSimpleObjectsBefore["two"] = 2
+            newMapSimpleObjectsBefore["three"] = 3
+            newMapSimpleObjectsBefore["four"] = 4
+            newMapSimpleObjectsBefore["five"] = 5
+            val newMapComplexObjectsBefore = LinkedHashMap<String, MockVersionObject>()
+            newMapComplexObjectsBefore["one"] = newBeforeSimpleFields()
+            newMapComplexObjectsBefore["two"] = newBeforeSimpleFields()
+            newMapComplexObjectsBefore["three"] = newBeforeSimpleFields()
+            newMapComplexObjectsBefore["four"] = newBeforeSimpleFields()
+            newMapComplexObjectsBefore["five"] = newBeforeSimpleFields()
 
-        val newListObjectsBefore = ArrayList<MockVersionListObject>()
-        newListObjectsBefore.add(listObjectSupplier())
-        newListObjectsBefore.add(listObjectSupplier())
-        newListObjectsBefore.add(listObjectSupplier())
-        newListObjectsBefore.add(listObjectSupplier())
-        val newSetObjectsBefore = LinkedHashSet<MockVersionListObject>()
-        newSetObjectsBefore.add(listObjectSupplier().withStringOne("testOne"))
-        newSetObjectsBefore.add(listObjectSupplier().withStringOne("testTwo"))
-        newSetObjectsBefore.add(listObjectSupplier().withStringOne("testThree"))
-        newSetObjectsBefore.add(listObjectSupplier().withStringOne("testFour"))
-        val newMapSimpleObjectsBefore = LinkedHashMap<String, Int>()
-        newMapSimpleObjectsBefore["one"] = 1
-        newMapSimpleObjectsBefore["two"] = 2
-        newMapSimpleObjectsBefore["three"] = 3
-        newMapSimpleObjectsBefore["four"] = 4
-        newMapSimpleObjectsBefore["five"] = 5
-        val newMapComplexObjectsBefore = LinkedHashMap<String, MockVersionObject>()
-        newMapComplexObjectsBefore["one"] = newBeforeSimpleFields()
-        newMapComplexObjectsBefore["two"] = newBeforeSimpleFields()
-        newMapComplexObjectsBefore["three"] = newBeforeSimpleFields()
-        newMapComplexObjectsBefore["four"] = newBeforeSimpleFields()
-        newMapComplexObjectsBefore["five"] = newBeforeSimpleFields()
+            val newBefore = newBeforeSimpleFields()
+                    .withListObjects(newListObjectsBefore)
+                    .withSetObjects(newSetObjectsBefore)
+                    .withMapSimpleObjects(newMapSimpleObjectsBefore)
+                    .withMapComplexObjects(newMapComplexObjectsBefore)
 
-        val newBefore = newBeforeSimpleFields()
-                .withListObjects(newListObjectsBefore)
-                .withSetObjects(newSetObjectsBefore)
-                .withMapSimpleObjects(newMapSimpleObjectsBefore)
-                .withMapComplexObjects(newMapComplexObjectsBefore)
+            val newListObjectsAfter = ArrayList<MockVersionListObject>()
+            newListObjectsAfter.add(listObjectSupplier().withStringOne("testOne")
+                    .withSubListObjects(
+                            listOf(listObjectSupplier().withStringOne("testOne").withIteratorId(null))))
+            newListObjectsAfter.add(listObjectSupplier())
+            newListObjectsAfter.add(listObjectSupplier().withStringOne("testTwo"))
+            newListObjectsAfter.add(listObjectSupplier().withStringOne("testXOne"))
+            newListObjectsAfter.add(listObjectSupplier().withStringOne("testXTwo"))
+            newListObjectsAfter.add(listObjectSupplier().withStringOne("testXThree"))
+            val newSetObjectsAfter = LinkedHashSet<MockVersionListObject>()
+            newSetObjectsAfter.add(listObjectSupplier().withStringOne("testTestOne"))
+            newSetObjectsAfter.add(listObjectSupplier().withStringOne("testMiddleCreate"))
+            newSetObjectsAfter.add(listObjectSupplier().withStringOne("testTestTwo"))
+            newSetObjectsAfter.add(listObjectSupplier().withStringOne("testXOne"))
+            newSetObjectsAfter.add(listObjectSupplier().withStringOne("testXTwo"))
+            newSetObjectsAfter.add(listObjectSupplier().withStringOne("testXThree"))
+            val newMapSimpleObjectsAfter = LinkedHashMap<String, Int>()
+            newMapSimpleObjectsAfter["one"] = 2
+            newMapSimpleObjectsAfter["nine"] = 10
+            newMapSimpleObjectsAfter["four"] = 4
+            newMapSimpleObjectsAfter["five"] = 6
+            val newMapComplexObjectsAfter = LinkedHashMap<String, MockVersionObject>()
+            newMapComplexObjectsAfter["one"] = newBeforeSimpleFields().withStringOne("testThree")
+            newMapComplexObjectsAfter["nine"] = newBeforeSimpleFields().withStringOne("testTen")
+            newMapComplexObjectsAfter["four"] = newBeforeSimpleFields().withStringOne("testFive")
+            newMapComplexObjectsAfter["five"] = newBeforeSimpleFields()
 
-        val newListObjectsAfter = ArrayList<MockVersionListObject>()
-        newListObjectsAfter.add(listObjectSupplier().withStringOne("testOne")
-                .withSubListObjects(
-                        listOf(listObjectSupplier().withStringOne("testOne").withIteratorId(null))))
-        newListObjectsAfter.add(listObjectSupplier())
-        newListObjectsAfter.add(listObjectSupplier().withStringOne("testTwo"))
-        newListObjectsAfter.add(listObjectSupplier().withStringOne("testXOne"))
-        newListObjectsAfter.add(listObjectSupplier().withStringOne("testXTwo"))
-        newListObjectsAfter.add(listObjectSupplier().withStringOne("testXThree"))
-        val newSetObjectsAfter = LinkedHashSet<MockVersionListObject>()
-        newSetObjectsAfter.add(listObjectSupplier().withStringOne("testTestOne"))
-        newSetObjectsAfter.add(listObjectSupplier().withStringOne("testMiddleCreate"))
-        newSetObjectsAfter.add(listObjectSupplier().withStringOne("testTestTwo"))
-        newSetObjectsAfter.add(listObjectSupplier().withStringOne("testXOne"))
-        newSetObjectsAfter.add(listObjectSupplier().withStringOne("testXTwo"))
-        newSetObjectsAfter.add(listObjectSupplier().withStringOne("testXThree"))
-        val newMapSimpleObjectsAfter = LinkedHashMap<String, Int>()
-        newMapSimpleObjectsAfter["one"] = 2
-        newMapSimpleObjectsAfter["nine"] = 10
-        newMapSimpleObjectsAfter["four"] = 4
-        newMapSimpleObjectsAfter["five"] = 6
-        val newMapComplexObjectsAfter = LinkedHashMap<String, MockVersionObject>()
-        newMapComplexObjectsAfter["one"] = newBeforeSimpleFields().withStringOne("testThree")
-        newMapComplexObjectsAfter["nine"] = newBeforeSimpleFields().withStringOne("testTen")
-        newMapComplexObjectsAfter["four"] = newBeforeSimpleFields().withStringOne("testFive")
-        newMapComplexObjectsAfter["five"] = newBeforeSimpleFields()
+            val newAfter = newAfterSimpleFields()
+                    .withListObjects(newListObjectsAfter)
+                    .withSetObjects(newSetObjectsAfter)
+                    .withMapSimpleObjects(newMapSimpleObjectsAfter)
+                    .withMapComplexObjects(newMapComplexObjectsAfter)
 
-        val newAfter = newAfterSimpleFields()
-                .withListObjects(newListObjectsAfter)
-                .withSetObjects(newSetObjectsAfter)
-                .withMapSimpleObjects(newMapSimpleObjectsAfter)
-                .withMapComplexObjects(newMapComplexObjectsAfter)
+            versionManager.applyState(version.result(), newBefore, Handler {
+                assertEquals(it.result(), newAfter)
 
-        val statefulObject = versionManager.applyState(version, newBefore)
-
-        assertEquals(statefulObject, newAfter)
+                async.complete()
+            })
+        })
     }
 
     @Test
-    fun simpleFields_mapCorrectly() {
+    fun simpleFields_mapCorrectly(context: TestContext) {
+        val async = context.async()
         val before = newBeforeSimpleFields()
         val after = newAfterSimpleFields()
 
-        val version = versionManager.extractVersion(DiffPair(current = before, updated = after))
+        versionManager.extractVersion(DiffPair(current = before, updated = after), Handler { version ->
+            val newBefore = newBeforeSimpleFields()
+            val newAfter = newAfterSimpleFields()
 
-        val newBefore = newBeforeSimpleFields()
-        val newAfter = newAfterSimpleFields()
+            versionManager.applyState(version.result(), newBefore, Handler {
+                assertEquals(it.result(), newAfter)
 
-        val statefulObject = versionManager.applyState(version, newBefore)
-
-        assertEquals(statefulObject, newAfter)
+                async.complete()
+            })
+        })
     }
 
     private fun newBeforeSimpleFields(): MockVersionObject {

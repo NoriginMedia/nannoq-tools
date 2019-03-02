@@ -9,6 +9,9 @@ import com.nannoq.tools.version.VersionUtils.Companion.DELETE_TOKEN
 import com.nannoq.tools.version.VersionUtils.Companion.FIELD_SEPARATOR_TOKEN
 import com.nannoq.tools.version.models.ObjectModification
 import com.nannoq.tools.version.models.Version
+import io.vertx.core.AsyncResult
+import io.vertx.core.Future.succeededFuture
+import io.vertx.core.Handler
 import io.vertx.core.logging.LoggerFactory
 import java.io.IOException
 import java.lang.reflect.Field
@@ -27,6 +30,12 @@ import java.util.stream.Stream
 internal class StateApplier(private val objectMapper: ObjectMapper,
                             private val versionUtils: VersionUtils) {
     private val logger = LoggerFactory.getLogger(StateApplier::class.java)
+
+    fun <T: Any> applyState(version: Version, obj: T, handler: Handler<AsyncResult<T>>): StateApplier {
+        handler.handle(succeededFuture(applyState(version, obj)))
+
+        return this
+    }
 
     @Throws(IllegalStateException::class)
     fun <T: Any> applyState(version: Version, obj: T): T {
