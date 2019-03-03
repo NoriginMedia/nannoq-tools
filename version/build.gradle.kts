@@ -114,12 +114,7 @@ dependencies {
     compile("io.vertx:vertx-service-proxy:$vertx_version")
     compile("io.vertx:vertx-sockjs-service-proxy:$vertx_version")
     compile("io.vertx:vertx-circuit-breaker:$vertx_version")
-    compile("io.vertx:vertx-redis-client:$vertx_version")
     compile("io.vertx:vertx-lang-kotlin-coroutines:$vertx_version")
-
-    // Nannoq Tools
-    compile(project(":repository"))
-    compile(project(":cluster"))
 
     // Kapt
     kapt("io.vertx:vertx-codegen:$vertx_version:processor")
@@ -130,21 +125,21 @@ dependencies {
     compile(group = "org.apache.logging.log4j", name = "log4j-core", version = log4j_version)
     compile(group = "com.lmax", name = "disruptor", version = com_lmax_version)
 
-    // Cache
-    compile("javax.cache:cache-api:1.1.0")
+    // Jackson
+    compile("com.fasterxml.jackson.core:jackson-annotations:2.9.2")
 
     // Commons
+    compile("commons-validator:commons-validator:1.6")
     compile("com.google.code.findbugs:annotations:3.0.0")
-    compile("com.google.guava:guava-jdk5:17.0")
-
-    // XMPP
-    compile("org.igniterealtime.smack:smack:3.2.1")
 
     // Sanitation
     compile("org.jsoup:jsoup:1.10.1")
 
-    // Jackson
-    compile("com.fasterxml.jackson.core:jackson-annotations:2.9.2")
+    // Auth
+    compile("io.jsonwebtoken:jjwt:0.7.0")
+    compile("com.google.api-client:google-api-client:1.21.0")
+    compile("org.facebook4j:facebook4j-core:2.4.10")
+    compile("com.sachinhandiekar:jInstagram:1.2.2")
 
     // Test
     testCompile("junit:junit:$junit_version")
@@ -153,7 +148,10 @@ dependencies {
     testCompile("io.vertx:vertx-config:$vertx_version")
     testCompile("io.vertx:vertx-unit:$vertx_version")
     testCompile("io.rest-assured:rest-assured:$rest_assured_version")
+    testCompile("io.rest-assured:json-path:3.0.1")
+    testCompile("io.rest-assured:json-schema-validator:3.0.1")
     testCompile("com.github.kstyrc:embedded-redis:0.6")
+
 }
 
 configure<KotlinProjectExtension> {
@@ -244,15 +242,15 @@ publishing {
             }
 
             pom.withXml {
-                asNode().appendNode("name", "Nannoq Tools FCM")
-                asNode().appendNode("description", "FCM Layer of Nannoq Tools")
-                asNode().appendNode("url", "https://github.com/NoriginMedia/nannoq-fcm")
+                asNode().appendNode("name", "Nannoq Tools Version")
+                asNode().appendNode("description", "Version Service of Nannoq Tools")
+                asNode().appendNode("url", "https://github.com/NoriginMedia/nannoq-tools")
 
                 val scmNode = asNode().appendNode("scm")
 
-                scmNode.appendNode("url", "https://github.com/NoriginMedia/nannoq-fcm")
-                scmNode.appendNode("connection", "scm:git:git://github.com/NoriginMedia/nannoq-fcm")
-                scmNode.appendNode("developerConnection", "scm:git:ssh:git@github.com/NoriginMedia/nannoq-fcm")
+                scmNode.appendNode("url", "https://github.com/NoriginMedia/nannoq-tools")
+                scmNode.appendNode("connection", "scm:git:git://github.com/NoriginMedia/nannoq-tools")
+                scmNode.appendNode("developerConnection", "scm:git:ssh:git@github.com/NoriginMedia/nannoq-tools")
 
                 val licenses = asNode().appendNode("licenses")
                 val license = licenses.appendNode("license")

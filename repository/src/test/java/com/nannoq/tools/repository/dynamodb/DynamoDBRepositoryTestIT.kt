@@ -352,7 +352,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         createXItems(context, 20, Handler {
             context.assertTrue(it.succeeded())
 
-            it.result().stream().parallel().forEach({ cr ->
+            it.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
                 val testModel = cr.item
                 val id = JsonObject()
@@ -370,7 +370,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 })
 
                 futureList.add(future)
-            })
+            }
         })
 
         CompositeFuture.all(futureList).setHandler {
@@ -391,7 +391,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         createXItems(context, 20, Handler { res ->
             context.assertTrue(res.succeeded())
 
-            res.result().stream().parallel().forEach({ cr ->
+            res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
                 val testModel = cr.item
                 val id = JsonObject()
@@ -414,7 +414,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 })
 
                 futureList.add(future)
-            })
+            }
         })
 
         CompositeFuture.all(futureList).setHandler {
@@ -439,11 +439,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .collect(toList<TestModel>())
 
             val id = items.stream()
-                    .map({
+                    .map {
                         JsonObject()
                                 .put("hash", it.hash)
                                 .put("range", it.range)
-                    })
+                    }
                     .collect(toList<JsonObject>())
 
             repo.batchRead(id, Handler { batchRead ->
@@ -468,7 +468,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         createXItems(context, 20, Handler { res ->
             context.assertTrue(res.succeeded())
 
-            res.result().stream().parallel().forEach({ cr ->
+            res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
                 val testModel = cr.item
                 val id = JsonObject()
@@ -491,7 +491,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 })
 
                 futureList.add(future)
-            })
+            }
         })
 
         CompositeFuture.all(futureList).setHandler { res ->
@@ -882,7 +882,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         createXItems(context, 20, Handler { res ->
             context.assertTrue(res.succeeded())
 
-            res.result().stream().parallel().forEach({ cr ->
+            res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
                 val testModel = cr.item
                 val id = JsonObject()
@@ -896,7 +896,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 })
 
                 futureList.add(future)
-            })
+            }
         })
 
         CompositeFuture.all(futureList).setHandler { res ->
@@ -942,6 +942,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             val result = createRes.result()
 
             service.remoteUpdate(result, Handler { updateRes ->
+                if (updateRes.failed()) context.fail(updateRes.cause())
                 context.assertTrue(updateRes.succeeded())
                 context.assertEquals(updateRes.result().getSomeDateTwo()!!.toString(), testDate.toString())
 

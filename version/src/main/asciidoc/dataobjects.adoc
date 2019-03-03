@@ -1,0 +1,88 @@
+= Cheatsheets
+
+[[AuthPackage]]
+== AuthPackage
+
+++++
+ This class defines a container for a TokenContainer and a UserProfile
+++++
+'''
+
+[cols=">25%,^25%,50%"]
+[frame="topbot"]
+|===
+^|Name | Type ^| Description
+|[[tokenContainer]]`tokenContainer`|`link:dataobjects.html#TokenContainer[TokenContainer]`|-
+|[[userProfile]]`userProfile`|`link:dataobjects.html#UserProfile[UserProfile]`|-
+|===
+
+[[Authorization]]
+== Authorization
+
+++++
+ This class defines the object sent to the VerificationService to authorize a request. Currently support method based
+ on models, with an optional domainIdentifier to authorize creators.
+++++
+'''
+
+[cols=">25%,^25%,50%"]
+[frame="topbot"]
+|===
+^|Name | Type ^| Description
+|[[domainIdentifier]]`domainIdentifier`|`String`|-
+|[[method]]`method`|`String`|-
+|[[model]]`model`|`String`|-
+|===
+
+[[TokenContainer]]
+== TokenContainer
+
+++++
+ This class defines a container for an accessToken (JWT) and a refreshToken.
+++++
+'''
+
+[cols=">25%,^25%,50%"]
+[frame="topbot"]
+|===
+^|Name | Type ^| Description
+|[[accessToken]]`accessToken`|`String`|-
+|[[refreshToken]]`refreshToken`|`String`|-
+|===
+
+[[UserProfile]]
+== UserProfile
+
+++++
+ This class defines a generic UserProfile with basic userinfo.
+++++
+'''
+
+[cols=">25%,^25%,50%"]
+[frame="topbot"]
+|===
+^|Name | Type ^| Description
+|[[email]]`email`|`String`|-
+|[[emailVerified]]`emailVerified`|`Boolean`|-
+|[[familyName]]`familyName`|`String`|-
+|[[givenName]]`givenName`|`String`|-
+|[[name]]`name`|`String`|-
+|[[pictureUrl]]`pictureUrl`|`String`|-
+|[[userId]]`userId`|`String`|-
+|===
+
+[[VerifyResult]]
+== VerifyResult
+
+++++
+ This class defines a result to verify requests, currently only returns id.
+++++
+'''
+
+[cols=">25%,^25%,50%"]
+[frame="topbot"]
+|===
+^|Name | Type ^| Description
+|[[id]]`id`|`String`|-
+|===
+

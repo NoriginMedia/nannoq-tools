@@ -55,13 +55,18 @@ import com.nannoq.tools.repository.repository.results.ItemResult
 import com.nannoq.tools.repository.repository.results.UpdateResult
 import com.nannoq.tools.repository.services.internal.InternalRepositoryService
 import com.nannoq.tools.repository.utils.*
+import com.nannoq.tools.version.manager.VersionManager
+import com.nannoq.tools.version.manager.VersionManagerImpl
+import com.nannoq.tools.version.models.DiffPair
 import io.vertx.core.*
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
+import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.redis.RedisClient
 import io.vertx.serviceproxy.ServiceException
+import kotlinx.coroutines.runBlocking
 import org.apache.commons.lang3.ArrayUtils
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -97,6 +102,7 @@ open class DynamoDBRepository<E>(
 
     private var hasRangeKey: Boolean = false
 
+    private val versionManager: VersionManager = VersionManagerImpl()
     lateinit var dynamoDbMapper: DynamoDBMapper
         protected set
 
@@ -981,13 +987,36 @@ open class DynamoDBRepository<E>(
     }
 
     override fun remoteUpdate(record: E, resultHandler: Handler<AsyncResult<E>>): InternalRepositoryService<E> {
-        update(record, Function {
-            @Suppress("UNCHECKED_CAST")
-            it.setModifiables(record) as E
-        }, Handler { res ->
+        read(JsonObject()
+                .put("hash", record.hash)
+                .put("range", record.range), Handler { readRes ->
             when {
-                res.failed() -> resultHandler.handle(Future.failedFuture(res.cause()))
-                else -> resultHandler.handle(Future.succeededFuture(res.result().item))
+                readRes.failed() -> resultHandler.handle(Future.failedFuture(readRes.cause()))
+                else -> {
+                    logger.info(Json.encodePrettily(readRes.result().item))
+                    logger.info(Json.encodePrettily(record))
+                    val diff = DiffPair(current = readRes.result().item, updated = record)
+
+                    versionManager.extractVersion(diff, Handler { versionRes ->
+                        when {
+                            versionRes.failed() -> resultHandler.handle(Future.failedFuture(versionRes.cause()))
+                            else -> {
+                                logger.info(Json.encodePrettily(versionRes.result()))
+
+                                update(record, Function { record ->
+                                    runBlocking(vertx.dispatcher()) {
+                                        versionManager.applyStateBlocking(versionRes.result(), record)
+                                    }
+                                }, Handler { res ->
+                                    when {
+                                        res.failed() -> resultHandler.handle(Future.failedFuture(res.cause()))
+                                        else -> resultHandler.handle(Future.succeededFuture(res.result().item))
+                                    }
+                                })
+                            }
+                        }
+                    })
+                }
             }
         })
 

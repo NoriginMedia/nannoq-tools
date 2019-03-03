@@ -24,21 +24,11 @@
 
 @file:Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
 
-import com.wiredforcode.gradle.spawn.KillProcessTask
-import com.wiredforcode.gradle.spawn.SpawnProcessTask
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
-import org.gradle.api.tasks.JavaExec
-import org.gradle.internal.impldep.org.bouncycastle.pqc.crypto.gmss.GMSSKeyPairGenerator
-import org.gradle.kotlin.dsl.*
-import org.gradle.script.lang.kotlin.*
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
-import org.jetbrains.kotlin.gradle.plugin.KaptAnnotationProcessorOptions
-import org.jetbrains.kotlin.gradle.plugin.KaptJavacOptionsDelegate
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 import java.net.ServerSocket
 
 val groupId = project.group!!
@@ -93,6 +83,7 @@ plugins {
     id("kotlin")
     id("application")
     id("com.wiredforcode.spawn") version("0.8.0")
+    kotlin("kapt")
 
     @Suppress("RemoveRedundantBackticks")
     `maven-publish`
@@ -161,7 +152,7 @@ dependencies {
     testCompile("com.github.kstyrc:embedded-redis:0.6")
 
     // DynamoDB Test
-    testCompile("com.amazonaws:DynamoDBLocal:[1.11.119,2.0]")
+    testCompile("com.amazonaws:DynamoDBLocal:[1.11.477,2.0]")
     testCompile("com.almworks.sqlite4java:sqlite4java:$sqlLiteVersion")
     testCompile("com.almworks.sqlite4java:sqlite4java-win32-x86:$sqlLiteVersion")
     testCompile("com.almworks.sqlite4java:sqlite4java-win32-x64:$sqlLiteVersion")
@@ -188,11 +179,11 @@ val packageJavadoc by tasks.creating(Jar::class) {
 
 val sourcesJar by tasks.creating(Jar::class) {
     classifier = "sources"
-    from(java.sourceSets["main"].allSource)
+    from(kotlin.sourceSets["main"].kotlin)
 }
 
 tasks {
-    "copyDynamoDBLibs"(Copy::class) {
+    val copyDynamoDBLibs by registering(Copy::class) {
         delete("$projectDir/build/dynamodb-libs")
 
         configurations.getByName("testCompile").resolvedConfiguration.resolvedArtifacts.forEach {
@@ -223,7 +214,7 @@ tasks {
                 Pair("java.library.path", file("$projectDir/build/dynamodb-libs").absolutePath))
     }
 
-    "verify" {
+    val verify by registering(Task::class) {
         dependsOn(listOf("test"))
     }
 
@@ -232,7 +223,7 @@ tasks {
         mustRunAfter(listOf("verify", "signSourcesJar", "signPackageJavadoc"))
     }
 
-    "install" {
+    val install by registering(Task::class) {
         dependsOn(listOf("verify", "publish"))
         mustRunAfter("clean")
 
@@ -272,7 +263,7 @@ publishing {
     }
 
     (publications) {
-        "mavenJava"(MavenPublication::class) {
+        val mavenJava by registering(MavenPublication::class) {
             from(components["java"])
 
             artifact(sourcesJar) {

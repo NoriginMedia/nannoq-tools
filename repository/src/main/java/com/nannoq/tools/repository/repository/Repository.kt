@@ -104,7 +104,7 @@ interface Repository<E : Model> {
             when {
                 res.failed() -> resultHandler.handle(Future.failedFuture<List<CreateResult<E>>>(res.cause()))
                 else -> resultHandler.handle(Future.succeededFuture(res.result().stream()
-                        .map({ CreateResult(it) })
+                        .map { CreateResult(it) }
                         .collect(toList<CreateResult<E>>())))
             }
         })
@@ -175,8 +175,8 @@ interface Repository<E : Model> {
 
     fun batchUpdate(records: List<E>, resultHandler: Handler<AsyncResult<List<UpdateResult<E>>>>) {
         val collect : Map<E, Function<E, E>> = records
-                .map({ r -> SimpleImmutableEntry<E, Function<E, E>>(r, Function { rec -> rec }) })
-                .fold(HashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                .map { r -> SimpleImmutableEntry<E, Function<E, E>>(r, Function { rec -> rec }) }
+                .fold(HashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
 
         batchUpdate(collect, resultHandler)
     }
@@ -186,7 +186,7 @@ interface Repository<E : Model> {
             when {
                 res.failed() -> resultHandler.handle(Future.failedFuture<List<UpdateResult<E>>>(res.cause()))
                 else -> resultHandler.handle(Future.succeededFuture(res.result().stream()
-                        .map({ UpdateResult(it) })
+                        .map { UpdateResult(it) }
                         .collect(toList<UpdateResult<E>>())))
             }
         })
@@ -255,7 +255,7 @@ interface Repository<E : Model> {
                 when {
                     res.failed() -> resultHandler.handle(Future.failedFuture<List<DeleteResult<E>>>(res.cause()))
                     else -> resultHandler.handle(Future.succeededFuture(res.result().stream()
-                            .map({ DeleteResult(it) })
+                            .map { DeleteResult(it) }
                             .collect(toList<DeleteResult<E>>())))
                 }
             })

@@ -24,21 +24,11 @@
 
 @file:Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
 
-import com.wiredforcode.gradle.spawn.KillProcessTask
-import com.wiredforcode.gradle.spawn.SpawnProcessTask
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
-import org.gradle.api.tasks.JavaExec
-import org.gradle.internal.impldep.org.bouncycastle.pqc.crypto.gmss.GMSSKeyPairGenerator
-import org.gradle.kotlin.dsl.*
-import org.gradle.script.lang.kotlin.*
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
-import org.jetbrains.kotlin.gradle.plugin.KaptAnnotationProcessorOptions
-import org.jetbrains.kotlin.gradle.plugin.KaptJavacOptionsDelegate
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 import java.net.ServerSocket
 
 val groupId = project.group!!
@@ -64,7 +54,7 @@ val sqlLiteVersion = "1.0.392"
 buildscript {
     var kotlin_version: String by extra
     var dokka_version: String by extra
-    kotlin_version = "1.3.11"
+    kotlin_version = "1.3.21"
     dokka_version = "0.9.16"
 
     repositories {
@@ -95,6 +85,7 @@ plugins {
     id("kotlin")
     id("application")
     id("com.wiredforcode.spawn") version("0.8.0")
+    kotlin("kapt")
 
     @Suppress("RemoveRedundantBackticks")
     `maven-publish`
@@ -132,6 +123,7 @@ dependencies {
 
     // Nannoq Tools
     compile(project(":cluster"))
+    compile(project(":version"))
 
     // Kapt
     kapt("io.vertx:vertx-codegen:$vertx_version:processor")
@@ -219,14 +211,14 @@ val packageJavadoc by tasks.creating(Jar::class) {
 
 val sourcesJar by tasks.creating(Jar::class) {
     classifier = "sources"
-    from(java.sourceSets["main"].allSource)
+    from(kotlin.sourceSets["main"].kotlin)
 }
 
 tasks {
-    "copyDynamoDBLibs"(Copy::class) {
+    val copyDynamoDBLibs by registering(Copy::class) {
         delete("$projectDir/build/dynamodb-libs")
 
-        configurations.getByName("testCompile").resolvedConfiguration.resolvedArtifacts.forEach({
+        configurations.getByName("testCompile").resolvedConfiguration.resolvedArtifacts.forEach {
             if (isSqlite(it.id.componentIdentifier.displayName)) {
                 copy {
                     from(it.file)
@@ -241,7 +233,7 @@ tasks {
                     into("$projectDir/build/dynamodb-libs")
                 }
             }
-        })
+        }
     }
 
     "test"(Test::class) {
@@ -254,7 +246,7 @@ tasks {
                 Pair("java.library.path", file("$projectDir/build/dynamodb-libs").absolutePath))
     }
 
-    "verify" {
+    val verify by registering(Task::class) {
         dependsOn(listOf("test"))
     }
 
@@ -263,13 +255,13 @@ tasks {
         mustRunAfter(listOf("verify", "signSourcesJar", "signPackageJavadoc"))
     }
 
-    "install" {
+    val install by registering(Task::class) {
         dependsOn(listOf("verify", "publish"))
         mustRunAfter("clean")
 
-        doLast({
+        doLast {
             println("$nameOfArchive installed!")
-        })
+        }
     }
 }
 
@@ -303,7 +295,7 @@ publishing {
     }
 
     (publications) {
-        "mavenJava"(MavenPublication::class) {
+        val mavenJava by registering(MavenPublication::class) {
             from(components["java"])
 
             artifact(sourcesJar) {
