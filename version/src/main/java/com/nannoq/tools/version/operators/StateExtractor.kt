@@ -126,10 +126,13 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
             "long", "Long",
             "double", "Double",
             "float", "Float",
-            "boolean", "Boolean" -> if (current != updated) {
+            "boolean", "Boolean" -> if (!Objects.equals(current, updated)) {
                 changeMap[prepend + field.name] = objectModification(current, updated)
             }
-            "BigInteger", "BigDecimal" -> if (current != updated) {
+            "Date" -> if (!Objects.equals(current, updated)) {
+                changeMap[prepend + field.name] = objectModification(current, updated)
+            }
+            "BigInteger", "BigDecimal" -> if (!Objects.equals(current, updated)) {
                 changeMap[prepend + field.name] = objectModification(current?.toString(),
                         updated?.toString())
             }

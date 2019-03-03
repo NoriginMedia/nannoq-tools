@@ -14,6 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.time.Instant
 import java.util.*
 import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
@@ -329,6 +330,7 @@ class VersionManagerImplTest {
         mockVersionObject.booleanOne = java.lang.Boolean.TRUE
         mockVersionObject.booleanTwo = java.lang.Boolean.FALSE
         mockVersionObject.mockEnumObject = MockEnumObject.A
+        mockVersionObject.dateOne = Date.from(Instant.ofEpochMilli(1000000L))
 
         return mockVersionObject
     }
@@ -351,6 +353,7 @@ class VersionManagerImplTest {
         mockVersionObject.booleanOne = java.lang.Boolean.FALSE
         mockVersionObject.booleanTwo = java.lang.Boolean.TRUE
         mockVersionObject.mockEnumObject = MockEnumObject.B
+        mockVersionObject.dateOne = Date.from(Instant.ofEpochMilli(2000000L))
 
         return mockVersionObject
     }

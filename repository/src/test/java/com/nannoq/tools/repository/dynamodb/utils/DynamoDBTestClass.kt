@@ -30,6 +30,10 @@ abstract class DynamoDBTestClass : ConfigSupport {
                 .setSomeStringTwo("testStringRange")
                 .setSomeStringThree("testStringThree")
                 .setSomeLong(1L)
+                .setSomeLongTwo(0L)
+                .setSomeInteger(0)
+                .setSomeIntegerTwo(1)
+                .setSomeBooleanTwo(false)
                 .setSomeDate(testDate)
                 .setSomeDateTwo(Date())
     }

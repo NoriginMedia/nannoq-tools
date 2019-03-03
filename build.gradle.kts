@@ -25,7 +25,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 val groupValue : String = "com.nannoq"
-val versionValue : String = "1.1.0-SNAPSHOT"
+val versionValue : String = "1.1.1-SNAPSHOT"
 val jvmTargetValue : String = "1.8"
 
 repositories {
@@ -40,7 +40,7 @@ buildscript {
     }
 
     dependencies {
-        classpath(kotlin("gradle-plugin", "1.3.11"))
+        classpath(kotlin("gradle-plugin", "1.3.21"))
     }
 }
 
@@ -78,7 +78,6 @@ subprojects {
         kotlinOptions {
             jvmTarget = jvmTargetValue
             incremental = true
-            suppressWarnings = true
             freeCompilerArgs = listOf("-Xskip-runtime-version-check")
         }
     }

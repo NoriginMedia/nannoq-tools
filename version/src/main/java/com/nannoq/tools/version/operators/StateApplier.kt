@@ -103,7 +103,6 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
                 complexFieldChangeMap.putIfAbsent(klazzField, HashMap())
                 complexFieldChangeMap[klazzField]?.put(subObjectField, fieldChangeMap[field]!!)
             } else {
-
                 val objectModification = fieldChangeMap[field]
                 val declaredField = versionUtils.getField(klazz, field)
                 declaredField?.isAccessible = true
@@ -385,21 +384,26 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
             "boolean", "Boolean",
             "BigDecimal", "BigInteger" ->
                 doSet(failedApply, objectModification, declaredField, obj, buildSimpleValue(newFieldString, typeName))
+            "Date" ->
+                doSet(failedApply, objectModification, declaredField, obj, objectModification.newValue)
             else -> processComplexOrCollectionFields(failedApply, klazz, obj, field, objectModification, declaredField)
         }
     }
 
     private fun buildSimpleValue(valueAsString: String?, typeOfValue: String): Any? {
+        if (valueAsString == null) return null
+
         return when (typeOfValue) {
             "String" -> valueAsString
-            "short", "Short" -> java.lang.Short.valueOf(valueAsString!!)
-            "int", "Integer" -> Integer.valueOf(valueAsString!!)
-            "long", "Long" -> java.lang.Long.valueOf(valueAsString!!)
-            "double", "Double" -> java.lang.Double.valueOf(valueAsString!!)
-            "float", "Float" -> java.lang.Float.valueOf(valueAsString!!)
+            "short", "Short" -> java.lang.Short.valueOf(valueAsString)
+            "int", "Integer" -> Integer.valueOf(valueAsString)
+            "long", "Long" -> java.lang.Long.valueOf(valueAsString)
+            "double", "Double" -> java.lang.Double.valueOf(valueAsString)
+            "float", "Float" -> java.lang.Float.valueOf(valueAsString)
             "boolean", "Boolean" -> java.lang.Boolean.valueOf(valueAsString)
-            "BigDecimal" -> BigDecimal(valueAsString!!)
-            "BigInteger" -> BigInteger(valueAsString!!)
+            "BigDecimal" -> BigDecimal(valueAsString)
+            "BigInteger" -> BigInteger(valueAsString)
+            "Date" -> Date.parse(valueAsString)
             else -> null
         }
     }
@@ -534,8 +538,11 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     @Throws(IllegalAccessException::class)
     private fun doSet(failedApply: AtomicBoolean,
                       objectModification: ObjectModification, declaredField: Field, obj: Any, value: Any?) {
-        when {
-            objectModification.oldValue.toString() == declaredField.get(obj).toString() -> declaredField.set(obj, value)
+        val currentValueAsString = declaredField.get(obj)?.toString()
+        val oldValueAsString = objectModification.oldValue?.toString()
+
+        when (oldValueAsString) {
+            currentValueAsString -> declaredField.set(obj, value)
             else -> {
                 failedApply.set(true)
 

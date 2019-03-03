@@ -8,13 +8,13 @@ class MockVersionObject {
 
     var stringOne: String? = null
     var shortOne: Short? = null
-    var shortTwo: Short = 0
+    var shortTwo: Short? = 0
     var integerOne: Int? = null
     var integerTwo: Int = 0
     var longOne: Long? = null
-    var longTwo: Long = 0
+    var longTwo: Long? = 0
     var doubleOne: Double? = null
-    var doubleTwo: Double = 0.toDouble()
+    var doubleTwo: Double? = 0.toDouble()
     var floatOne: Float? = null
     var floatTwo: Float = 0.toFloat()
     var booleanOne: Boolean? = null
@@ -22,6 +22,7 @@ class MockVersionObject {
     var mockEnumObject: MockEnumObject? = null
     var bigIntegerOne: BigInteger? = null
     var bigDecimalOne: BigDecimal? = null
+    var dateOne: Date? = null
     var mockVersionObject: MockVersionObject? = null
     var listObjects: List<MockVersionListObject>? = null
     var setObjects: Set<MockVersionListObject>? = null
@@ -80,6 +81,7 @@ class MockVersionObject {
         if (mockEnumObject != other.mockEnumObject) return false
         if (bigIntegerOne != other.bigIntegerOne) return false
         if (bigDecimalOne != other.bigDecimalOne) return false
+        if (dateOne != other.dateOne) return false
         if (mockVersionObject != other.mockVersionObject) return false
         if (listObjects != other.listObjects) return false
         if (setObjects != other.setObjects) return false
@@ -92,7 +94,7 @@ class MockVersionObject {
     override fun hashCode(): Int {
         var result = stringOne?.hashCode() ?: 0
         result = 31 * result + (shortOne ?: 0)
-        result = 31 * result + shortTwo
+        result = 31 * result + (shortTwo ?: 0)
         result = 31 * result + (integerOne ?: 0)
         result = 31 * result + integerTwo
         result = 31 * result + (longOne?.hashCode() ?: 0)
@@ -106,6 +108,7 @@ class MockVersionObject {
         result = 31 * result + (mockEnumObject?.hashCode() ?: 0)
         result = 31 * result + (bigIntegerOne?.hashCode() ?: 0)
         result = 31 * result + (bigDecimalOne?.hashCode() ?: 0)
+        result = 31 * result + (dateOne?.hashCode() ?: 0)
         result = 31 * result + (mockVersionObject?.hashCode() ?: 0)
         result = 31 * result + (listObjects?.hashCode() ?: 0)
         result = 31 * result + (setObjects?.hashCode() ?: 0)

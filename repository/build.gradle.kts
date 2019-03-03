@@ -123,6 +123,7 @@ dependencies {
 
     // Nannoq Tools
     compile(project(":cluster"))
+    compile(project(":version"))
 
     // Kapt
     kapt("io.vertx:vertx-codegen:$vertx_version:processor")
