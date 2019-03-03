@@ -2,7 +2,7 @@ package com.nannoq.tools.version
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.nannoq.tools.version.manager.VersionManager
+import com.nannoq.tools.version.manager.VersionManagerImpl
 import com.nannoq.tools.version.mocks.MockEnumObject
 import com.nannoq.tools.version.mocks.MockVersionListObject
 import com.nannoq.tools.version.mocks.MockVersionObject
@@ -21,8 +21,8 @@ import kotlin.test.assertEquals
 import kotlin.test.fail
 
 @RunWith(VertxUnitRunner::class)
-class VersionManagerTest {
-    private val versionManager = VersionManager()
+class VersionManagerImplTest {
+    private val versionManager = VersionManagerImpl()
 
     private val listObjectSupplier = {
         val mockVersionListObject = MockVersionListObject()

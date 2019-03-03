@@ -24,21 +24,11 @@
 
 @file:Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
 
-import com.wiredforcode.gradle.spawn.KillProcessTask
-import com.wiredforcode.gradle.spawn.SpawnProcessTask
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
-import org.gradle.api.tasks.JavaExec
-import org.gradle.internal.impldep.org.bouncycastle.pqc.crypto.gmss.GMSSKeyPairGenerator
-import org.gradle.kotlin.dsl.*
-import org.gradle.script.lang.kotlin.*
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
-import org.jetbrains.kotlin.gradle.plugin.KaptAnnotationProcessorOptions
-import org.jetbrains.kotlin.gradle.plugin.KaptJavacOptionsDelegate
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 import java.net.ServerSocket
 
 val groupId = project.group!!
@@ -61,7 +51,7 @@ val nannoq_tools_version: String by project
 buildscript {
     var kotlin_version: String by extra
     var dokka_version: String by extra
-    kotlin_version = "1.3.11"
+    kotlin_version = "1.3.21"
     dokka_version = "0.9.16"
 
     repositories {
@@ -91,6 +81,7 @@ plugins {
     id("kotlin")
     id("application")
     id("com.wiredforcode.spawn") version("0.8.0")
+    kotlin("kapt")
 
     @Suppress("RemoveRedundantBackticks")
     `maven-publish`
@@ -181,7 +172,7 @@ val packageJavadoc by tasks.creating(Jar::class) {
 
 val sourcesJar by tasks.creating(Jar::class) {
     classifier = "sources"
-    from(java.sourceSets["main"].allSource)
+    from(kotlin.sourceSets["main"].kotlin)
 }
 
 tasks {
@@ -190,7 +181,7 @@ tasks {
         systemProperties = mapOf(Pair("vertx.logger-delegate-factory-class-name", logger_factory_version))
     }
 
-    "verify" {
+    val verify by registering(Task::class) {
         dependsOn(listOf("test"))
     }
 
@@ -199,13 +190,13 @@ tasks {
         mustRunAfter(listOf("verify", "signSourcesJar", "signPackageJavadoc"))
     }
 
-    "install" {
+    val install by registering(Task::class) {
         dependsOn(listOf("verify", "publish"))
         mustRunAfter("clean")
 
-        doLast({
+        doLast {
             println("$nameOfArchive installed!")
-        })
+        }
     }
 }
 
@@ -239,7 +230,7 @@ publishing {
     }
 
     (publications) {
-        "mavenJava"(MavenPublication::class) {
+        val mavenJava by registering(MavenPublication::class) {
             from(components["java"])
 
             artifact(sourcesJar) {

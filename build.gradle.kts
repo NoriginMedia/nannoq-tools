@@ -47,7 +47,7 @@ buildscript {
 plugins {
     base
 
-    kotlin("jvm") version "1.3.11" apply false
+    kotlin("jvm") version "1.3.21" apply false
     id("com.github.ksoichiro.console.reporter") version("0.5.0")
     id("io.codearte.nexus-staging") version("0.12.0")
 }

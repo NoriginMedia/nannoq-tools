@@ -1,15 +1,11 @@
 package com.nannoq.tools.version
 
 import com.nannoq.tools.version.models.IteratorId
-
 import java.lang.reflect.Field
 import java.util.*
 import java.util.function.Predicate
 
 class VersionUtils {
-    @Suppress("PrivatePropertyName")
-    private val FIELD_MAP = HashMap<Class<*>, MutableMap<String, Field>>()
-
     private val isFieldVersionIteratorId: Predicate<Field>
         get() = Predicate { f -> f.getDeclaredAnnotation(IteratorId::class.java) != null }
 
@@ -154,7 +150,8 @@ class VersionUtils {
     @Throws(NoSuchFieldException::class)
     internal fun getAddOrRemovalField(klazz: Class<*>, addRemoveField: String): Field {
         val split = addRemoveField.split("[\\[]".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-        val fieldName = if (split[0].contains("_")) split[0].split("[_]".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()[2] else split[0]
+        val fieldName = if (split[0].contains("_")) split[0].split("[_]".toRegex()).dropLastWhile { it.isEmpty() }
+                .toTypedArray()[2] else split[0]
         val declaredField = getField(klazz, fieldName)
         declaredField!!.isAccessible = true
 
@@ -182,5 +179,7 @@ class VersionUtils {
         internal const val COLLECTION_START_TOKEN = "["
         internal const val COLLECTION_END_TOKEN = "]"
         private const val DEFAULT_ITERATOR_ID = "iteratorId"
+        @Suppress("PrivatePropertyName")
+        private val FIELD_MAP = HashMap<Class<*>, MutableMap<String, Field>>()
     }
 }
