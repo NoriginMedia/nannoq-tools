@@ -25,7 +25,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 val groupValue : String = "com.nannoq"
-val versionValue : String = "1.1.1-SNAPSHOT"
+val versionValue : String = "1.1.1"
 val jvmTargetValue : String = "1.8"
 
 repositories {
