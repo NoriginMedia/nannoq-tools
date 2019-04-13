@@ -42,6 +42,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
 import io.vertx.serviceproxy.ServiceException.fail
+import org.apache.logging.log4j.core.config.plugins.convert.HexConverter.parseHexBinary
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
 import java.util.*
@@ -49,7 +50,6 @@ import java.util.function.Supplier
 import javax.crypto.Mac
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
-import javax.xml.bind.DatatypeConverter
 
 /**
  * This class defines an implementation of a VerificationService. It verifies both incoming JWTS, and also checks
@@ -72,7 +72,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     private val redisClient: RedisClient
 
     init {
-        this.SIGNING_KEY = SecretKeySpec(DatatypeConverter.parseHexBinary(KEY_BASE), KEY_ALGORITHM)
+        this.SIGNING_KEY = SecretKeySpec(parseHexBinary(KEY_BASE), KEY_ALGORITHM)
         this.domainIdentifier = appConfig.getString("domainIdentifier")
         this.redisClient = RedisUtils.getRedisClient(vertx, appConfig)
         this.ISSUER = appConfig.getString("authJWTIssuer")

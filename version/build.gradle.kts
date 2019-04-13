@@ -51,7 +51,7 @@ val nannoq_tools_version: String by project
 buildscript {
     var kotlin_version: String by extra
     var dokka_version: String by extra
-    kotlin_version = "1.3.21"
+    kotlin_version = "1.3.30"
     dokka_version = "0.9.16"
 
     repositories {
@@ -105,7 +105,6 @@ dependencies {
     // Vert.x
     compile("io.vertx:vertx-core:$vertx_version")
     compile("io.vertx:vertx-web:$vertx_version")
-    compile("com.hazelcast:hazelcast-all:$hazelcast_version")
     compile("io.vertx:vertx-hazelcast:$vertx_version")
     compile("io.vertx:vertx-codegen:$vertx_version")
     compile("io.vertx:vertx-lang-js:$vertx_version")
@@ -152,10 +151,6 @@ dependencies {
     testCompile("io.rest-assured:json-schema-validator:3.0.1")
     testCompile("com.github.kstyrc:embedded-redis:0.6")
 
-}
-
-configure<KotlinProjectExtension> {
-    experimental.coroutines = Coroutines.ENABLE
 }
 
 val dokka by tasks.getting(DokkaTask::class) {

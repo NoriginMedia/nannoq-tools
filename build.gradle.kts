@@ -40,14 +40,14 @@ buildscript {
     }
 
     dependencies {
-        classpath(kotlin("gradle-plugin", "1.3.21"))
+        classpath(kotlin("gradle-plugin", "1.3.30"))
     }
 }
 
 plugins {
     base
 
-    kotlin("jvm") version "1.3.21" apply false
+    kotlin("jvm") version "1.3.30" apply false
     id("com.github.ksoichiro.console.reporter") version("0.5.0")
     id("io.codearte.nexus-staging") version("0.12.0")
 }

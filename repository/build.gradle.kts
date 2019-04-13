@@ -54,7 +54,7 @@ val sqlLiteVersion = "1.0.392"
 buildscript {
     var kotlin_version: String by extra
     var dokka_version: String by extra
-    kotlin_version = "1.3.21"
+    kotlin_version = "1.3.30"
     dokka_version = "0.9.16"
 
     repositories {
@@ -109,7 +109,6 @@ dependencies {
     // Vert.x
     compile("io.vertx:vertx-core:$vertx_version")
     compile("io.vertx:vertx-web:$vertx_version")
-    compile("com.hazelcast:hazelcast-all:$hazelcast_version")
     compile("io.vertx:vertx-hazelcast:$vertx_version")
     compile("io.vertx:vertx-codegen:$vertx_version")
     compile("io.vertx:vertx-lang-js:$vertx_version")
@@ -191,10 +190,6 @@ dependencies {
 
     // S3 Test
     testCompile("io.findify:s3mock_2.12:0.2.4")
-}
-
-configure<KotlinProjectExtension> {
-    experimental.coroutines = Coroutines.ENABLE
 }
 
 val dokka by tasks.getting(DokkaTask::class) {

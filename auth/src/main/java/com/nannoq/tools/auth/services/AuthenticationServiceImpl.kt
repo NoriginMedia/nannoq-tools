@@ -59,6 +59,7 @@ import io.vertx.redis.RedisClient
 import io.vertx.serviceproxy.ServiceException
 import io.vertx.serviceproxy.ServiceException.fail
 import org.apache.commons.codec.digest.DigestUtils
+import org.apache.logging.log4j.core.config.plugins.convert.HexConverter.parseHexBinary
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
 import java.util.*
@@ -67,7 +68,6 @@ import java.util.stream.Collectors.toConcurrentMap
 import javax.crypto.Mac
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
-import javax.xml.bind.DatatypeConverter
 
 @Suppress("unused")
 /**
@@ -99,7 +99,7 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     private val instaGramProvider: InstaGram
 
     init {
-        this.SIGNING_KEY = SecretKeySpec(DatatypeConverter.parseHexBinary(KEY_BASE), KEY_ALGORITHM)
+        this.SIGNING_KEY = SecretKeySpec(parseHexBinary(KEY_BASE), KEY_ALGORITHM)
         this.EMAIL_HASH_KEY_BASE = appConfig.getString("emailHashKeybase")
         val CALL_BACK_PROVIDER_URL = appConfig.getString("callbackProviderUrl")
         this.CALLBACK_URL = appConfig.getString("callBackRoot") + CALL_BACK_PROVIDER_URL
