@@ -25,7 +25,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 val groupValue : String = "com.nannoq"
-val versionValue : String = "1.1.1-SNAPSHOT"
+val versionValue : String by project
 val jvmTargetValue : String = "1.8"
 
 repositories {
@@ -87,8 +87,4 @@ dependencies {
     subprojects.forEach {
         archives(it)
     }
-}
-
-nexusStaging {
-    packageGroup = groupValue
 }

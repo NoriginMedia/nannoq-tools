@@ -27,8 +27,6 @@
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import org.jetbrains.dokka.gradle.DokkaTask
-import org.jetbrains.kotlin.gradle.dsl.Coroutines
-import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
 import java.net.ServerSocket
 
 val groupId = project.group!!
@@ -63,8 +61,6 @@ buildscript {
 
     dependencies {
         classpath("gradle.plugin.com.palantir.gradle.docker:gradle-docker:0.20.1")
-        classpath("com.github.jengelman.gradle.plugins:shadow:4.0.3")
-        classpath("com.wiredforcode:gradle-spawn-plugin:0.8.0")
         classpath(kotlin("gradle-plugin", kotlin_version))
         classpath("org.jetbrains.dokka:dokka-gradle-plugin:$dokka_version")
     }
@@ -79,10 +75,9 @@ repositories {
 }
 
 plugins {
+    base
     id("java")
     id("kotlin")
-    id("application")
-    id("com.wiredforcode.spawn") version("0.8.0")
     kotlin("kapt")
 
     @Suppress("RemoveRedundantBackticks")
@@ -164,16 +159,17 @@ val dokka by tasks.getting(DokkaTask::class) {
     outputFormat = "html"
     outputDirectory = "$buildDir/docs"
     jdkVersion = 8
+    reportUndocumented = false
 }
 
 val packageJavadoc by tasks.creating(Jar::class) {
     dependsOn("dokka")
-    classifier = "javadoc"
+    archiveClassifier.set("javadoc")
     from(dokka.outputDirectory)
 }
 
 val sourcesJar by tasks.creating(Jar::class) {
-    classifier = "sources"
+    archiveClassifier.set("sources")
     from(kotlin.sourceSets["main"].kotlin)
 }
 
@@ -209,21 +205,12 @@ tasks {
                 Pair("java.library.path", file("$projectDir/build/dynamodb-libs").absolutePath))
     }
 
-    val verify by registering(Task::class) {
-        dependsOn(listOf("test"))
-    }
-
     "publish" {
         dependsOn(listOf("signSourcesJar", "signPackageJavadoc"))
         mustRunAfter(listOf("signSourcesJar", "signPackageJavadoc"))
-    }
-
-    val install by registering(Task::class) {
-        dependsOn(listOf("verify"))
-        mustRunAfter("clean")
 
         doLast {
-            println("$nameOfArchive installed!")
+            println("Published $projectVersion")
         }
     }
 }
