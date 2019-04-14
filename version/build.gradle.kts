@@ -181,12 +181,12 @@ tasks {
     }
 
     "publish" {
-        dependsOn(listOf("verify", "signSourcesJar", "signPackageJavadoc"))
-        mustRunAfter(listOf("verify", "signSourcesJar", "signPackageJavadoc"))
+        dependsOn(listOf("signSourcesJar", "signPackageJavadoc"))
+        mustRunAfter(listOf("signSourcesJar", "signPackageJavadoc"))
     }
 
     val install by registering(Task::class) {
-        dependsOn(listOf("verify", "publish"))
+        dependsOn(listOf("verify"))
         mustRunAfter("clean")
 
         doLast {
