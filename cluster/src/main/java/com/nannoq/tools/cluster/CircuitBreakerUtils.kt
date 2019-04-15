@@ -42,7 +42,7 @@ import io.vertx.serviceproxy.ServiceException
  * @version 17.11.2017
  */
 object CircuitBreakerUtils {
-    private val logger = LoggerFactory.getLogger(CircuitBreakerUtils::class.java!!.simpleName)
+    private val logger = LoggerFactory.getLogger(CircuitBreakerUtils::class.java.simpleName)
 
     fun <T> performRequestWithCircuitBreaker(circuitBreaker: CircuitBreaker,
                                              resultHandler: Handler<AsyncResult<T>>,

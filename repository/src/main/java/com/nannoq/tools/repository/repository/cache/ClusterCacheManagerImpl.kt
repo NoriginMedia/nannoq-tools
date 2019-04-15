@@ -58,14 +58,14 @@ import javax.cache.expiry.AccessedExpiryPolicy
 import javax.cache.expiry.Duration.FIVE_MINUTES
 
 /**
- * The cachemanger contains the logic for setting, removing, and replace caches.
+ * The ClusterCacheManagerImpl contains the logic for setting, removing, and replace caches.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
 class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Vertx) : CacheManager<E> where E : Cacheable, E : Model {
     private val ITEM_LIST_KEY_MAP: String = TYPE.simpleName + "/ITEMLIST"
-    private val AGGREGATION_KEY_MAP: String
+    private val AGGREGATION_KEY_MAP: String = TYPE.simpleName + "/AGGREGATION"
 
     private val CACHE_READ_TIMEOUT_VALUE = 500L
     private val CACHE_WRITE_TIMEOUT_VALUE = 10000L
@@ -74,7 +74,6 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
     private val hasTypeJsonField: Boolean
 
     init {
-        this.AGGREGATION_KEY_MAP = TYPE.simpleName + "/AGGREGATION"
 
         hasTypeJsonField = Arrays.stream(TYPE.declaredAnnotations).anyMatch { a -> a is JsonTypeInfo }
     }

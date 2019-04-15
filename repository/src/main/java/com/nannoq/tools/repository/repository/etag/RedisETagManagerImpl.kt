@@ -38,7 +38,7 @@ import io.vertx.redis.RedisClient
 import java.util.*
 
 /**
- * The cachemanger contains the logic for setting, removing, and replace etags.
+ * The RedisETagManagerImpl contains the logic for setting, removing, and replace etags.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
@@ -59,18 +59,22 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
 
     private fun doEtagRemovalWithRetry(etagKeyBase: String, resultHandler: Handler<AsyncResult<Boolean>>) {
         performJedisWithRetry(REDIS_CLIENT) {
-            it.hgetall(etagKeyBase) {
+            it.hgetall(etagKeyBase) { result ->
                 when {
-                    it.failed() -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                    result.failed() -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                     else -> {
-                        val result = it.result()
-                        val itemsToRemove = ArrayList<String>()
-                        result.iterator().forEachRemaining { itemsToRemove.add(it.key) }
+                        val getAllResult = result.result()
+                        val itemsToRemove = mutableListOf<String>()
+                        getAllResult.iterator().forEachRemaining { entry -> itemsToRemove.add(entry.key) }
 
-                        performJedisWithRetry(REDIS_CLIENT) {
-                            it.hdelMany(etagKeyBase, itemsToRemove) {
-                                resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                        if (itemsToRemove.isNotEmpty()) {
+                            performJedisWithRetry(REDIS_CLIENT) { client ->
+                                client.hdelMany(etagKeyBase, itemsToRemove) {
+                                    resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
+                                }
                             }
+                        } else {
+                            resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                         }
                     }
                 }
@@ -81,9 +85,9 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
     override fun replaceAggregationEtag(etagItemListHashKey: String, etagKey: String, newEtag: String,
                                         resultHandler: Handler<AsyncResult<Boolean>>) {
         performJedisWithRetry(REDIS_CLIENT) {
-            it.hset(etagItemListHashKey, etagKey, newEtag) {
+            it.hset(etagItemListHashKey, etagKey, newEtag) { result ->
                 when {
-                    it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                    result.failed() -> resultHandler.handle(Future.failedFuture(result.cause()))
                     else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                 }
             }
@@ -92,16 +96,15 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
 
     override fun setSingleRecordEtag(etagMap: Map<String, String>,
                                      resultHandler: Handler<AsyncResult<Boolean>>) {
-        RedisUtils.performJedisWithRetry(REDIS_CLIENT, {
-            etagMap.keys
-                    .forEach { key ->
-                        it.set(key, etagMap[key], {
-                            if (it.failed()) {
-                                logger.error("Could not set " + etagMap[key] + " for " + key + ",cause: " + it.cause())
-                            }
-                        })
+        RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
+            etagMap.keys.forEach { key ->
+                it.set(key, etagMap[key]) {
+                    if (it.failed()) {
+                        logger.error("Could not set " + etagMap[key] + " for " + key + ", cause: " + it.cause())
                     }
-        })
+                }
+            }
+        }
 
         resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
     }
@@ -113,9 +116,9 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
             val etag = item.etag
 
             RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
-                it.hset(etagKeyBase, key, etag) {
-                    if (it.failed()) {
-                        logger.error("Unable to store projection etag!", it.cause())
+                it.hset(etagKeyBase, key, etag) { result ->
+                    if (result.failed()) {
+                        logger.error("Unable to store projection etag!", result.cause())
                     }
                 }
             }
@@ -131,12 +134,12 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         }
     }
 
-    override fun checkItemEtag(etagKeyBase: String, key: String, etag: String,
+    override fun checkItemEtag(etagKeyBase: String, key: String, requestEtag: String,
                                resultHandler: Handler<AsyncResult<Boolean>>) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
-            it.hget(etagKeyBase, key) {
+            it.hget(etagKeyBase, key) { result ->
                 when {
-                    it.succeeded() && it.result() != null && it.result() == etag ->
+                    result.succeeded() && result.result() != null && result.result() == requestEtag ->
                         resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                     else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                 }
@@ -147,13 +150,13 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
     override fun checkItemListEtag(etagItemListHashKey: String, etagKey: String, etag: String,
                                    resultHandler: Handler<AsyncResult<Boolean>>) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
-            it.hget(etagItemListHashKey, etagKey) {
+            it.hget(etagItemListHashKey, etagKey) { result ->
                 if (logger.isDebugEnabled) {
-                    logger.debug("Stored etag: " + it.result() + ", request: " + etag)
+                    logger.debug("Stored etag: " + result.result() + ", request: " + etag)
                 }
 
                 when {
-                    it.succeeded() && it.result() != null && it.result() == etag ->
+                    result.succeeded() && result.result() != null && result.result() == etag ->
                         resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                     else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                 }
@@ -164,9 +167,9 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
     override fun checkAggregationEtag(etagItemListHashKey: String, etagKey: String, etag: String,
                                       resultHandler: Handler<AsyncResult<Boolean>>) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
-            it.hget(etagItemListHashKey, etagKey) {
+            it.hget(etagItemListHashKey, etagKey) { result ->
                 when {
-                    it.succeeded() && it.result() != null && it.result() == etag ->
+                    result.succeeded() && result.result() != null && result.result() == etag ->
                         resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                     else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                 }

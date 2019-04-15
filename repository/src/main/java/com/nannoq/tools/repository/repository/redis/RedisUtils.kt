@@ -38,30 +38,20 @@ import io.vertx.redis.RedisOptions
  * @version 17.11.2017
  */
 object RedisUtils {
-    private val logger = LoggerFactory.getLogger(RedisUtils::class.java!!.getSimpleName())
+    private val logger = LoggerFactory.getLogger(RedisUtils::class.java.simpleName)
 
     fun getRedisClient(config: JsonObject): RedisClient {
         return getRedisClient(Vertx.currentContext().owner(), config)
     }
 
     fun getRedisClient(vertx: Vertx, config: JsonObject): RedisClient {
-        val redisServer = config.getString("redis_host")
-        val redisPort = config.getInteger("redis_port")
+        val redisServer = config.getString("redis_host") ?: "localhost"
+        val redisPort = config.getInteger("redis_port") ?: 6380
         val redisOptions = RedisOptions()
         redisOptions.host = redisServer
+        redisOptions.port = redisPort
 
-        if (redisServer != null && redisServer == "localhost") redisOptions.port = 6380
-        if (redisPort != null) redisOptions.port = redisPort
-
-        val redisClient = RedisClient.create(vertx, redisOptions)
-
-        redisClient.info { res ->
-            if (res.failed()) {
-                logger.error("Error getting Redis Info, are you connected?", res.cause())
-            }
-        }
-
-        return redisClient
+        return RedisClient.create(vertx, redisOptions)
     }
 
     fun performJedisWithRetry(redisClient: RedisClient, consumer: (RedisClient) -> Unit) {

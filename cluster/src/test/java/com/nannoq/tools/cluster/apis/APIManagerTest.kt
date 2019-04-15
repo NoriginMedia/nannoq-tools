@@ -26,58 +26,59 @@ package com.nannoq.tools.cluster.apis
 
 import com.nannoq.tools.cluster.services.ServiceManager
 import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.RunTestOnContext
-import io.vertx.ext.unit.junit.VertxUnitRunner
-import org.junit.Rule
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.Test
-import org.junit.runner.RunWith
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import java.util.concurrent.TimeUnit
 
 /**
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@RunWith(VertxUnitRunner::class)
+@Execution(ExecutionMode.CONCURRENT)
+@ExtendWith(VertxExtension::class)
 class APIManagerTest {
-    @Rule
-    @JvmField
-    val rule = RunTestOnContext()
-
-    val apiManager: APIManager
-        get() = getApiManager("localhost")
-
     @Test
-    fun performRequestWithCircuitBreaker(testContext: TestContext) {
-        ServiceManager.getInstance().publishApi(getApiManager("www.google.com").createExternalApiRecord("TEST", "/"))
-        val async = testContext.async()
+    fun performRequestWithCircuitBreaker(vertx: Vertx, testContext: VertxTestContext) {
+        ServiceManager.getInstance().publishApi(getApiManager("www.google.com", vertx)
+                .createExternalApiRecord("TEST", "/"))
 
         ServiceManager.getInstance().consumeApi("TEST", Handler { res ->
-            testContext.assertTrue(res.succeeded())
+            assertThat(res.succeeded()).isTrue()
 
-            res.result().get("/").handler({ resRes ->
-                testContext.assertTrue(resRes.statusCode() == 200 || resRes.statusCode() == 302)
-                async.complete()
-            }).end()
+            res.result().get("/").handler {
+                assertThat(it.statusCode() == 200 || it.statusCode() == 302).isTrue()
+                testContext.completeNow()
+            }.end()
         })
+
+        assertThat(testContext.awaitCompletion(5, TimeUnit.SECONDS)).isTrue()
+
+        if (testContext.failed()) throw testContext.causeOfFailure()
     }
 
     @Test
-    fun createInternalApiRecord(testContext: TestContext) {
-        val record = apiManager.createInternalApiRecord("TEST_API", "/api")
+    fun createInternalApiRecord(vertx: Vertx, testContext: VertxTestContext) {
+        val record = getApiManager("localhost", vertx).createInternalApiRecord("TEST_API", "/api")
 
-        testContext.assertEquals("TEST_API", record.name)
+        assertThat("TEST_API").isEqualTo(record.name)
     }
 
     @Test
-    fun createExternalApiRecord(testContext: TestContext) {
-        val record = apiManager.createExternalApiRecord("TEST_API", "/api")
+    fun createExternalApiRecord(vertx: Vertx, testContext: VertxTestContext) {
+        val record = getApiManager("localhost", vertx).createExternalApiRecord("TEST_API", "/api")
 
-        testContext.assertEquals("TEST_API", record.name)
+        assertThat("TEST_API").isEqualTo(record.name)
     }
 
-    fun getApiManager(host: String): APIManager {
-        return APIManager(rule.vertx(), JsonObject()
+    private fun getApiManager(host: String, vertx: Vertx): APIManager {
+        return APIManager(vertx, JsonObject()
                 .put("publicHost", host)
                 .put("privateHost", host),
                 object : APIHostProducer {

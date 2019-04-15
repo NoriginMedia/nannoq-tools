@@ -45,7 +45,7 @@ class OrderByParameter {
     val isDesc: Boolean
         get() = direction == null || direction!!.equals("desc", ignoreCase = true)
 
-    var isValid: Boolean = false
+    val isValid: Boolean
         get() = this.field != null && (isAsc && !isDesc || isDesc && !isAsc)
 
     class OrderByParameterBuilder internal constructor() {

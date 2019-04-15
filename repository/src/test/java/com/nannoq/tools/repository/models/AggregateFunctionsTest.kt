@@ -26,10 +26,10 @@
 package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.utils.AggregateFunctions
-import org.junit.Test
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.jupiter.api.Test
 
 class AggregateFunctionsTest {
     @Test

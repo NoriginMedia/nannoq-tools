@@ -27,10 +27,8 @@ package com.nannoq.tools.repository.utils
 
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
-import java.util.Arrays
-import java.util.Objects
+import java.util.*
 
 /**
  * This class defines the operation to be performed on a specific field, with OR and AND types included.
@@ -116,7 +114,7 @@ class FilterParameter {
     val isIllegalRangedKeyParam: Boolean
         get() = isContains || isNotContains || isIn
 
-    var isValid: Boolean = false
+    val isValid: Boolean
         get() {
             val logger = LoggerFactory.getLogger(FilterParameter::class.java)
             logger.debug("EQ: $isEq")

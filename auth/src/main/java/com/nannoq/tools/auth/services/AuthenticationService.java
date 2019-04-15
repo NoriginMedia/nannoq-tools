@@ -65,6 +65,7 @@ public interface AuthenticationService {
         return this;
     }
 
+    @SuppressWarnings("unused")
     @ProxyClose
     void close();
 }

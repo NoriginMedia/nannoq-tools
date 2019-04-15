@@ -506,7 +506,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                                       cacheId: String, filteringExpression: DynamoDBQueryExpression<E>?,
                                       projections: Array<String>, GSI: String?,
                                       startTime: AtomicLong, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
-        vertx.executeBlocking<ItemListResult<E>>({
+        vertx.executeBlocking<ItemListResult<E>>({ future ->
             val multiple = identifiers.getBoolean(MULTIPLE_KEY)
             val unFilteredIndex = filteringExpression == null
             var alternateIndex: String? = null
@@ -539,7 +539,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
                 itemListFuture.setHandler { itemListResult ->
                     when {
-                        itemListResult.failed() -> it.fail(itemListResult.cause())
+                        itemListResult.failed() -> future.fail(itemListResult.cause())
                         else -> {
                             val returnList = itemListResult.result()
                             val itemList = returnList.itemList
@@ -585,7 +585,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                                 else -> itemListCacheFuture.complete()
                             }
 
-                            itemListCacheFuture.setHandler { _ -> it.complete(returnList) }
+                            itemListCacheFuture.setHandler { future.complete(returnList) }
                         }
                     }
                 }
@@ -597,15 +597,15 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                         "Error Type:     " + ase.errorType + ", " +
                         "Request ID:     " + ase.requestId)
 
-                it.fail(ase)
+                future.fail(ase)
             } catch (ace: AmazonClientException) {
                 logger.error("Internal Dynamodb Error, " + "Error Message:  " + ace.message)
 
-                it.fail(ace)
+                future.fail(ace)
             } catch (e: Exception) {
                 logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
 
-                it.fail(e)
+                future.fail(e)
             }
         }, false, {
             when {
@@ -644,7 +644,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
 
         val multipleIds = identifiers.getJsonArray("range").stream()
-                .map<String>({ it.toString() })
+                .map<String> { it.toString() }
                 .collect(toList())
 
         val keyPairsList = multipleIds.stream()
@@ -688,7 +688,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         var allItems = items[COLLECTION]?.stream()
                 ?.map { item -> item as E }
                 ?.sorted(Comparator.comparing(Function<E, String> { it.range!! },
-                        Comparator.comparingInt<String>({ multipleIds.indexOf(it) })))
+                        Comparator.comparingInt<String> { multipleIds.indexOf(it) }))
                 ?.collect(toList())
         var oldPageToken: AttributeValue? = null
 
@@ -924,7 +924,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
 
         if (pageToken != null) {
             val id = pageTokenMap!![IDENTIFIER]?.s
-            oldPageToken = pageTokenMap?.remove("oldPageToken")
+            oldPageToken = pageTokenMap.remove("oldPageToken")
 
             val first = allItems.stream()
                     .filter { item ->
@@ -983,7 +983,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
 
         val multipleIds = identifiers.getJsonArray("range").stream()
-                .map<String>({ it.toString() })
+                .map<String> { it.toString() }
                 .collect(toList())
 
         val keyPairsList = multipleIds.stream()
@@ -1027,7 +1027,7 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         var allItems = items[COLLECTION]?.stream()
                 ?.map { item -> item as E }
                 ?.sorted(Comparator.comparing(if (hashOnlyModel()) Function<E, String> { it.hash!! } else Function { it.range!! },
-                        Comparator.comparingInt<String>({ multipleIds.indexOf(it) })))
+                        Comparator.comparingInt<String> { multipleIds.indexOf(it) }))
                 ?.collect(toList())
 
         var oldPageToken: AttributeValue? = null

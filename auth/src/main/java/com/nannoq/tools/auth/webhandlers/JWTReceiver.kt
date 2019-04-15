@@ -136,7 +136,7 @@ class JWTReceiver @JvmOverloads constructor(private val verifier: VerificationSe
     private fun revokeToken(token: String): Future<Void> {
         val revokeFuture = Future.future<Void>()
 
-        verifier.revokeToken(token, { revokeResult ->
+        verifier.revokeToken(token) { revokeResult ->
             when {
                 revokeResult.failed() ->
                     when {
@@ -145,12 +145,12 @@ class JWTReceiver @JvmOverloads constructor(private val verifier: VerificationSe
                     }
                 else -> revokeFuture.complete()
             }
-        })
+        }
 
         return revokeFuture
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(JWTReceiver::class.java!!.simpleName)
+        private val logger = LoggerFactory.getLogger(JWTReceiver::class.java.simpleName)
     }
 }

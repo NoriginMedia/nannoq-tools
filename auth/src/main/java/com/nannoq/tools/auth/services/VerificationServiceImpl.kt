@@ -102,7 +102,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     @Fluent
     override fun verifyJWT(token: String, authorization: Authorization,
                            resultHandler: Handler<AsyncResult<VerifyResult>>): VerificationService {
-        verifyToken(token, {
+        verifyToken(token) {
             when {
                 it.failed() -> {
                     logger.error("ERROR JWT: " + it.cause())
@@ -118,9 +118,9 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                                 returnAuth(claims, resultHandler)
                             } else {
                                 when {
-                                    authorizer.isAsync -> verifyAuthorization(claims, authorization, {
-                                        authResult(claims, resultHandler, it.succeeded())
-                                    })
+                                    authorizer.isAsync -> verifyAuthorization(claims, authorization) { result ->
+                                        authResult(claims, resultHandler, result.succeeded())
+                                    }
                                     else -> authResult(claims, resultHandler, verifyAuthorization(claims, authorization))
                                 }
                             }
@@ -136,7 +136,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                     }
                 }
             }
-        })
+        }
 
         return this
     }
@@ -283,7 +283,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     @Fluent
     override fun revokeToken(token: String,
                              resultHandler: Handler<AsyncResult<Boolean>>): VerificationService {
-        verifyToken(token, {
+        verifyToken(token) {
             when {
                 it.failed() -> {
                     logger.error("Could not verify JWT for revoke...", it.cause())
@@ -299,7 +299,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                     doGarbageCollectionAfterRevoke(registry, id, resultHandler)
                 }
             }
-        })
+        }
 
         return this
     }
@@ -326,7 +326,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                         else -> {
                             val refreshArray = tokenResult.result()
                                     .split(REFRESH_TOKEN_SPLITTER.toRegex())
-                                    .dropLastWhile({ it.isEmpty() })
+                                    .dropLastWhile { it.isEmpty() }
                                     .toTypedArray()
 
                             transaction.del(refreshArray[0]) {
@@ -382,7 +382,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                                             val value = stringObjectEntry.value
                                             val refreshArray = value.toString()
                                                     .split(REFRESH_TOKEN_SPLITTER.toRegex())
-                                                    .dropLastWhile({ it.isEmpty() })
+                                                    .dropLastWhile { it.isEmpty() }
                                                     .toTypedArray()
 
                                             transaction.del(refreshArray[0]) {
@@ -425,18 +425,18 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
         fetchUserIds(Handler {
             when {
                 it.failed() -> logger.error("Could not read userids...", it.cause())
-                else -> it.result().forEach({ id ->
-                    RedisUtils.performJedisWithRetry(redisClient) {
+                else -> it.result().forEach { id ->
+                    RedisUtils.performJedisWithRetry(redisClient) { client ->
                         val registryKey = id + VALID_JWT_REGISTRY_KEY
 
-                        it.hgetall(registryKey) { jwts ->
+                        client.hgetall(registryKey) { jwts ->
                             when {
                                 jwts.failed() -> logger.error("Could not read jwts for $id", jwts.cause())
-                                else -> checkJwts(jwts.result(), id, registryKey, it)
+                                else -> checkJwts(jwts.result(), id, registryKey, client)
                             }
                         }
                     }
-                })
+                }
             }
         })
 
@@ -459,7 +459,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
                 val value = stringObjectEntry.value
                 val refreshArray = value.toString()
                         .split(REFRESH_TOKEN_SPLITTER.toRegex())
-                        .dropLastWhile({ it.isEmpty() })
+                        .dropLastWhile { it.isEmpty() }
                         .toTypedArray()
 
                 val date = java.lang.Long.parseLong(refreshArray[1])
@@ -490,7 +490,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(VerificationServiceImpl::class.java!!.simpleName)
+        private val logger = LoggerFactory.getLogger(VerificationServiceImpl::class.java.simpleName)
 
         private var KEY_ALGORITHM = "HmacSHA512"
     }

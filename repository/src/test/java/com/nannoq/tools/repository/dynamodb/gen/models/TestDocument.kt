@@ -14,10 +14,10 @@ import java.util.*
 @JsonInclude(JsonInclude.Include.NON_NULL)
 class TestDocument : ETagable {
     override var etag: String? = null
-    var someStringOne: String? = null
-    var someStringTwo: String? = null
-    var someStringThree: String? = null
-    var someStringFour: String? = null
+    private var someStringOne: String? = null
+    private var someStringTwo: String? = null
+    private var someStringThree: String? = null
+    private var someStringFour: String? = null
     @get:DynamoDBVersionAttribute
     var version: Long? = null
 

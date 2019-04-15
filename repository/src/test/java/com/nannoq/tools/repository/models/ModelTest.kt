@@ -29,7 +29,7 @@ import com.nannoq.tools.repository.models.utils.FilterParameterTestClass
 import io.vertx.core.json.JsonObject
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
 class ModelTest {
     @Test

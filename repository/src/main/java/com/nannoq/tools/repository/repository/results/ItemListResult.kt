@@ -38,7 +38,7 @@ import com.nannoq.tools.repository.utils.PageTokens
 class ItemListResult<K : Model> {
     private var etagBase: String? = null
     var count: Int = 0
-    var totalCount: Int = 0
+    private var totalCount: Int = 0
     var items: List<K>? = null
     var paging: PageTokens? = null
     var projections: Array<String>? = null

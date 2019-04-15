@@ -182,22 +182,22 @@ class XMPPPacketListener internal constructor(private val server: FcmServer,
                 val transaction = it.transaction()
 
                 transaction.multi {
-                    transaction.hdel(REDIS_MESSAGE_HASH, messageId) {
-                        if (it.failed()) {
+                    transaction.hdel(REDIS_MESSAGE_HASH, messageId) { result ->
+                        if (result.failed()) {
                             logger.error("Could not remove message hash...")
                         }
                     }
 
-                    transaction.del(messageId + "_retry_count") {
-                        if (it.failed()) {
+                    transaction.del(messageId + "_retry_count") { result ->
+                        if (result.failed()) {
                             logger.error("Could not remove reply count...")
                         }
                     }
                 }
 
-                transaction.exec {
+                transaction.exec { result ->
                     when {
-                        it.failed() -> logger.error("Could not execute redis transaction...")
+                        result.failed() -> logger.error("Could not execute redis transaction...")
                         else -> logger.info("Message sent successfully, purged from redis...")
                     }
                 }
@@ -267,10 +267,10 @@ class XMPPPacketListener internal constructor(private val server: FcmServer,
 
     private fun sendReply(messageId: String) {
         RedisUtils.performJedisWithRetry(redisClient) {
-            it.hget(REDIS_MESSAGE_HASH, messageId) {
+            it.hget(REDIS_MESSAGE_HASH, messageId) { result ->
                 when {
-                    it.failed() -> logger.error("Unable to get map for message...")
-                    else -> sender.send(messageId, it.result())
+                    result.failed() -> logger.error("Unable to get map for message...")
+                    else -> sender.send(messageId, result.result())
                 }
             }
         }

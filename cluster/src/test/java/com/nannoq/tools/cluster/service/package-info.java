@@ -26,6 +26,8 @@
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-package com.nannoq.tools.cluster.service
 
-import io.vertx.codegen.annotations.ModuleGen
+@ModuleGen(name = "nannoqHeartbeatService", groupPackage="com.nannoq.tools.cluster.service")
+package com.nannoq.tools.cluster.service;
+
+import io.vertx.codegen.annotations.ModuleGen;

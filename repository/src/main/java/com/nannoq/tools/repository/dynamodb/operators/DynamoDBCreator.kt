@@ -120,6 +120,7 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                                 val es = listOf(finalRecord)
 
                                 DYNAMO_DB_MAPPER.save(finalRecord, buildExistingExpression(finalRecord, false))
+
                                 val purgeFuture = Future.future<Boolean>()
                                 destroyEtagsAfterCachePurge(writeFuture, finalRecord, purgeFuture)
 

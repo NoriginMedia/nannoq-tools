@@ -31,7 +31,7 @@ import com.nannoq.tools.repository.utils.*
 import com.nannoq.tools.repository.utils.AggregateFunctions.MAX
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Test
+import org.junit.jupiter.api.Test
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedDeque
 

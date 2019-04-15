@@ -26,21 +26,18 @@
 package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.utils.CrossModelGroupingConfiguration
-import org.junit.Before
-import org.junit.Test
-
-import java.util.Collections
-
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
 class CrossModelGroupingConfigurationTest {
     private var validGroupingConfiguration: CrossModelGroupingConfiguration? = null
 
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
     fun setUp() {
-        validGroupingConfiguration = CrossModelGroupingConfiguration(listOf<String>("releaseDate"))
+        validGroupingConfiguration = CrossModelGroupingConfiguration(listOf("releaseDate"))
     }
 
     @Test
@@ -56,7 +53,7 @@ class CrossModelGroupingConfigurationTest {
     fun hasGroupRanging() {
         assertFalse(validGroupingConfiguration!!.hasGroupRanging())
         validGroupingConfiguration = CrossModelGroupingConfiguration(
-                listOf<String>("releaseDate"), "DATE", "WEEK")
+                listOf("releaseDate"), "DATE", "WEEK")
         assertTrue(validGroupingConfiguration!!.hasGroupRanging())
     }
 }

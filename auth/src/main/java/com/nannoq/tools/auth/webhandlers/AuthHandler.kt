@@ -55,7 +55,7 @@ class AuthHandler(private val TYPE: Class<*>, private val domainIdentifier: Stri
             auth != null ->
                 when {
                     auth.startsWith("APIKEY ") -> {
-                        val key = auth.substring("APIKEY".length).trim({ it <= ' ' })
+                        val key = auth.substring("APIKEY".length).trim { it <= ' ' }
 
                         when (key) {
                             apiKey -> {
@@ -68,7 +68,7 @@ class AuthHandler(private val TYPE: Class<*>, private val domainIdentifier: Stri
                         }
                     }
                     auth.startsWith("Bearer") -> {
-                        val token = auth.substring("Bearer".length).trim({ it <= ' ' })
+                        val token = auth.substring("Bearer".length).trim { it <= ' ' }
 
                         if (logger.isInfoEnabled) {
                             addLogMessageToRequestLog(routingContext, "Preparing request to auth backend...")

@@ -134,18 +134,18 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                     items.parallelStream()
                         .collect(groupingBy({
                             calculateGroupingKey<E>(it, levelOne)
-                        }, groupingBy<E, String>({
+                        }, groupingBy<E, String> {
                             calculateGroupingKey(it, levelTwo)
-                        })))
+                        }))
                 else ->
                     items.parallelStream()
                         .collect(groupingBy({
                             calculateGroupingKey<E>(it, levelOne)
                         }, groupingBy({
                             calculateGroupingKey<E>(it, levelTwo)
-                        }, groupingBy<E, String>({
+                        }, groupingBy<E, String> {
                             calculateGroupingKey(it, levelThree)
-                        }))))
+                        })))
             }
         })
     }
@@ -208,7 +208,7 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                                                 val items = JsonArray()
                                                 valueExtractor.apply(records, field!!).stream()
                                                         .map { o -> o.toJsonFormat() }
-                                                        .forEach({ items.add(it) })
+                                                        .forEach { items.add(it) }
 
                                                 setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, items.encode(), resultHandler)
                                             }
@@ -333,10 +333,10 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                                                 avg = JsonObject()
 
                                                 records.stream()
-                                                        .mapToDouble({ r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) })
-                                                        .filter({ Objects.nonNull(it) })
+                                                        .mapToDouble { r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) }
+                                                        .filter { Objects.nonNull(it) }
                                                         .average()
-                                                        .ifPresent({ value -> avg.put("avg", value) })
+                                                        .ifPresent { value -> avg.put("avg", value) }
 
                                                 if (avg.size() == 0) {
                                                     avg.put("avg", 0.0)
@@ -459,8 +459,8 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                                             sumGrouping(allResult.result(), aggregateFunction, field)
                                         else
                                             JsonObject().put("sum", records.stream()
-                                                    .mapToDouble({ r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) })
-                                                    .filter({ Objects.nonNull(it) })
+                                                    .mapToDouble { r -> db.extractValueAsDouble(db.checkAndGetField(field!!), r) }
+                                                    .filter { Objects.nonNull(it) }
                                                     .sum())
 
                                         setEtagAndCacheAndReturnContent(etagKey, identifiers.encode().hashCode(), cacheKey, sum.encode(), resultHandler)
@@ -552,7 +552,7 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                         arrayOf("etag")
                     else
                         aggregateFunction.groupBy!!
-                                .map({ it.groupBy })
+                                .map { it.groupBy }
                                 .distinct()
                                 .toTypedArray()
                                 .requireNoNulls()
@@ -750,8 +750,8 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
 
         when {
             collect.isEmpty() -> return collect.entries
-                    .map({ e -> SimpleEntry(e.key, e.value) })
-                    .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                    .map { e -> SimpleEntry(e.key, e.value) }
+                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
             else -> {
                 val next = collect.entries.iterator().next()
                 val isCollection = next.value is Collection<*> || next.value is Map<*, *>
@@ -760,8 +760,8 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 val comp = when {
                     keyIsRanged -> comparing(Function <SimpleEntry<String, T>, JsonObject> { e -> JsonObject(e.key) },
                             comparing<JsonObject, Long> { keyOne -> keyOne.getLong("floor") })
-                    isCollection -> comparing<SimpleEntry<String, T>, String>({ it.key })
-                    else -> comparing<SimpleEntry<String, T>, String>({ Json.encode(it.value) })
+                    isCollection -> comparing<SimpleEntry<String, T>, String> { it.key }
+                    else -> comparing<SimpleEntry<String, T>, String> { Json.encode(it.value) }
                 }
 
                 val sorted = collect.entries.stream()
@@ -771,11 +771,11 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 return when {
                     groupingConfiguration.isFullList -> sorted
                             .collect(toList())
-                            .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                            .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
                     else -> sorted
                             .limit(groupingConfiguration.groupingListLimit.toLong())
                             .collect(toList())
-                            .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                            .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
                 }
             }
         }
@@ -794,11 +794,11 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         return when {
             groupingConfiguration.isFullList -> sorted
                     .collect(toList())
-                    .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
             else -> sorted
                     .limit(groupingConfiguration.groupingListLimit.toLong())
                     .collect(toList())
-                    .fold(LinkedHashMap(), { accumulator, item -> accumulator[item.key] = item.value; accumulator})
+                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
         }
     }
 
@@ -875,12 +875,13 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
             }
 
             when {
-                eTagManager != null -> eTagManager.replaceAggregationEtag(etagItemListHashKey, etagKey, newEtag, Handler {
-                    when {
-                        it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
-                        else -> resultHandler.handle(Future.succeededFuture(content))
-                    }
-                })
+                eTagManager != null ->
+                    eTagManager.replaceAggregationEtag(etagItemListHashKey, etagKey, newEtag, Handler { result ->
+                        when {
+                            result.failed() -> resultHandler.handle(Future.failedFuture(result.cause()))
+                            else -> resultHandler.handle(Future.succeededFuture(content))
+                        }
+                    })
                 else -> resultHandler.handle(Future.succeededFuture(content))
             }
         })

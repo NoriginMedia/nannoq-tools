@@ -38,6 +38,7 @@ import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
 import java.lang.reflect.Field
@@ -123,13 +124,13 @@ interface Repository<E : Model> {
         return createFuture
     }
 
-    open fun update(record: E, resultHandler: Handler<AsyncResult<UpdateResult<E>>>) {
+    fun update(record: E, resultHandler: Handler<AsyncResult<UpdateResult<E>>>) {
         batchUpdate(Collections.singletonMap<E, Function<E, E>>(record, Function { r -> r }), Handler {
             doUpdate(resultHandler, it)
         })
     }
 
-    open fun update(record: E): Future<UpdateResult<E>> {
+    fun update(record: E): Future<UpdateResult<E>> {
         val updateFuture = Future.future<UpdateResult<E>>()
 
         update(record, Function { r -> r }, Handler {
@@ -716,7 +717,7 @@ interface Repository<E : Model> {
     }
 
     companion object {
-        val logger = LoggerFactory.getLogger(Repository::class.java.simpleName)
+        val logger: Logger = LoggerFactory.getLogger(Repository::class.java.simpleName)
 
         const val ORDER_BY_KEY = "orderBy"
         const val LIMIT_KEY = "limit"

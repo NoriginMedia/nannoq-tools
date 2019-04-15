@@ -80,7 +80,7 @@ class GenericItemList {
         val jsonItems = JsonArray()
 
         if (items != null) {
-            items!!.forEach({ jsonItems.add(it) })
+            items!!.forEach { jsonItems.add(it) }
         }
 
         jsonObject.put("items", jsonItems)

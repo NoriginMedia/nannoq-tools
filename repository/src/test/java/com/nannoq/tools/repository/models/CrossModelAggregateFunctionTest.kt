@@ -25,20 +25,17 @@
 
 package com.nannoq.tools.repository.models
 
+import com.nannoq.tools.repository.utils.AggregateFunctions.*
 import com.nannoq.tools.repository.utils.CrossModelAggregateFunction
 import com.nannoq.tools.repository.utils.CrossModelGroupingConfiguration
-import org.junit.Before
-import org.junit.Test
-
-import java.util.Collections
-
-import com.nannoq.tools.repository.utils.AggregateFunctions.*
 import org.junit.Assert.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
 class CrossModelAggregateFunctionTest {
     private var validAggregateFunction: CrossModelAggregateFunction? = null
 
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
     fun setUp() {
         validAggregateFunction = CrossModelAggregateFunction(COUNT, "viewCount")
@@ -98,7 +95,7 @@ class CrossModelAggregateFunctionTest {
     fun getGroupBy() {
         assertTrue(validAggregateFunction!!.groupBy!!.isEmpty())
         assertTrue(CrossModelAggregateFunction(COUNT, "viewCount",
-                listOf<CrossModelGroupingConfiguration>(CrossModelGroupingConfiguration(listOf<String>("viewCount")))).hasGrouping())
+                listOf(CrossModelGroupingConfiguration(listOf("viewCount")))).hasGrouping())
     }
 
     @Test
@@ -106,6 +103,6 @@ class CrossModelAggregateFunctionTest {
     fun hasGrouping() {
         assertFalse(validAggregateFunction!!.hasGrouping())
         assertTrue(CrossModelAggregateFunction(COUNT, "viewCount",
-                listOf<CrossModelGroupingConfiguration>(CrossModelGroupingConfiguration(listOf<String>("viewCount")))).hasGrouping())
+                listOf(CrossModelGroupingConfiguration(listOf("viewCount")))).hasGrouping())
     }
 }

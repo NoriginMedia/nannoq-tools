@@ -293,7 +293,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                         logger.debug("Aggregate: " + Json.encodePrettily(aggregateFunction))
 
                         val collect = array.stream()
-                                .map({ itemAsString -> JsonObject(itemAsString.toString()) })
+                                .map { itemAsString -> JsonObject(itemAsString.toString()) }
                                 .sorted(doubleSorter)
                                 .collect(toMap<JsonObject, String, Double, LinkedHashMap<String, Double>>(
                                         { keyMapper.apply(resultPack, it) },
@@ -316,7 +316,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                         logger.debug("Aggregate: " + Json.encodePrettily(aggregateFunction))
 
                         val collect = array.stream()
-                                .map({ itemAsString -> JsonObject(itemAsString.toString()) })
+                                .map { itemAsString -> JsonObject(itemAsString.toString()) }
                                 .sorted(longSorter)
                                 .collect(toMap<JsonObject, String, Double, LinkedHashMap<String, Double>>(
                                         { keyMapper.apply(resultPack, it) },
@@ -348,8 +348,8 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         var valueMapper = Function<List<Map<String, Double>>, JsonArray> { groupingList ->
             val results = JsonArray()
             val countMap = LinkedHashMap<String, Long>()
-            groupingList.forEach({ map ->
-                map.forEach({ k, v ->
+            groupingList.forEach { map ->
+                map.forEach { k, v ->
                     when {
                         aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging() -> {
                             val groupingObject = JsonObject(k)
@@ -368,8 +368,8 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                                 else -> countMap[k] = v.toLong()
                             }
                     }
-                })
-            })
+                }
+            }
 
             countMap.entries.stream()
                     .sorted(createValueComparator(asc, if (aggregateFunction.hasGrouping())
@@ -395,8 +395,8 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                 valueMapper = Function { groupingList ->
                     val results = JsonArray()
                     val countMap = LinkedHashMap<String, Double>()
-                    groupingList.forEach({ map ->
-                        map.forEach({ k, v ->
+                    groupingList.forEach { map ->
+                        map.forEach { k, v ->
                             when {
                                 aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging() -> {
                                     val groupingObject = JsonObject(k)
@@ -415,8 +415,8 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                                         else -> countMap[k] = v
                                     }
                             }
-                        })
-                    })
+                        }
+                    }
 
                     countMap.entries.stream()
                             .sorted(createValueComparator(asc,
@@ -659,7 +659,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
     }
 
     private fun getGroupedParametersForFields(pm: FilterPackModel): Map<String, List<FilterPackField>> {
-        return pm.fields!!.stream().collect(groupingBy({ it.field }))
+        return pm.fields!!.stream().collect(groupingBy { it.field })
     }
 
     private fun verifyRequest(routingContext: RoutingContext,
@@ -733,7 +733,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
             crossTableProjection.fields == null -> ConcurrentHashSet()
             else -> crossTableProjection.fields!!.stream()
                     .map<String> { field ->
-                        val fieldSplit = field.split("\\.".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()
+                        val fieldSplit = field.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
 
                         if (fieldSplit[0].equals(collection, ignoreCase = true)) fieldSplit[1] else null
                     }
@@ -783,7 +783,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                     innerGroupBy.stream()
                             .filter { gb -> gb.startsWith(modelName) }
                             .findFirst()
-                            .map<String> { s -> s.split("\\.".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()[1] }
+                            .map<String> { s -> s.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()[1] }
                             .orElse(null)
                 }
                 .findFirst()
@@ -898,7 +898,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                     projections = array.stream()
                             .map { o -> o.toString()
                                     .split("\\.".toRegex())
-                                    .dropLastWhile({ it.isEmpty() })
+                                    .dropLastWhile { it.isEmpty() }
                                     .toTypedArray()[1]
                             }
                             .collect(toList())

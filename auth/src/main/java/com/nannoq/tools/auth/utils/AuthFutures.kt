@@ -55,7 +55,7 @@ object AuthFutures {
             authentication != null ->
                 when {
                     authentication.startsWith("Bearer ") ->
-                        tokenFuture.complete(authentication.substring("Bearer".length).trim({ it <= ' ' }))
+                        tokenFuture.complete(authentication.substring("Bearer".length).trim { it <= ' ' })
                     else -> tokenFuture.fail(IllegalArgumentException("Auth does not start with Bearer!"))
                 }
             else -> tokenFuture.fail(IllegalArgumentException("Auth is null!"))
@@ -67,7 +67,7 @@ object AuthFutures {
     fun verifyToken(verifier: VerificationService, token: String): Future<Jws<Claims>> {
         val claimsFuture = Future.future<Jws<Claims>>()
 
-        verifier.verifyToken(token, { resultHandler ->
+        verifier.verifyToken(token) { resultHandler ->
             when {
                 resultHandler.failed() ->
                     when {
@@ -76,7 +76,7 @@ object AuthFutures {
                     }
                 else -> claimsFuture.complete(resultHandler.result())
             }
-        })
+        }
 
         return claimsFuture
     }
@@ -89,7 +89,7 @@ object AuthFutures {
         return Future.future<U>().setHandler { handler -> doAuthFailure(routingContext, handler) }
     }
 
-    fun <U> doAuthFailure(routingContext: RoutingContext, handler: AsyncResult<U>) {
+    private fun <U> doAuthFailure(routingContext: RoutingContext, handler: AsyncResult<U>) {
         val errorMessage: String
 
         errorMessage = if (handler.cause() is ServiceException) {
@@ -119,7 +119,7 @@ object AuthFutures {
         doAuthFailureRedirect(routingContext, handler, null)
     }
 
-    fun <U> doAuthFailureRedirect(routingContext: RoutingContext, handler: AsyncResult<U>, location: String?) {
+    private fun <U> doAuthFailureRedirect(routingContext: RoutingContext, handler: AsyncResult<U>, location: String?) {
         val errorMessage: String
 
         errorMessage = if (handler.cause() is ServiceException) {
@@ -155,7 +155,7 @@ object AuthFutures {
         return Future.future<U>().setHandler { handler -> doAuthFailure(handler, resultHandler) }
     }
 
-    fun <U, T> doAuthFailure(handler: AsyncResult<U>, resultHandler: Handler<AsyncResult<T>>) {
+    private fun <U, T> doAuthFailure(handler: AsyncResult<U>, resultHandler: Handler<AsyncResult<T>>) {
         val errorMessage = "AUTH ERROR: Authentication Cause is: " + handler.cause().message
 
         when {

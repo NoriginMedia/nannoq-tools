@@ -65,11 +65,11 @@ import java.util.stream.Collectors.toList
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, appConfig: JsonObject, protected val REPOSITORY: Repository<E>,
-                                 protected val idSupplier: Function<RoutingContext, JsonObject>,
+open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appConfig: JsonObject, private val REPOSITORY: Repository<E>,
+                                 private val idSupplier: Function<RoutingContext, JsonObject>,
                                  eTagManager: ETagManager<E>?) : RestController<E> where E : ETagable, E : Model {
-    protected val COLLECTION: String
-    protected val eTagManager: ETagManager<E>?
+    private val COLLECTION: String
+    private val eTagManager: ETagManager<E>?
     private val fields: Array<Field>
     private val methods: Array<Method>
 
@@ -341,7 +341,7 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
             }
 
             postProcessQuery(routingContext, aggregateFunction, orderByQueue, params,
-                    if (projections == null) arrayOf() else projections, indexName[0], limit[0])
+                    projections ?: arrayOf(), indexName[0], limit[0])
         } else {
             val errorObject = JsonObject()
             errorObject.put("request_errors", errors)
@@ -544,8 +544,8 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         }
     }
 
-    protected fun doAggregation(routingContext: RoutingContext, id: JsonObject,
-                                queryPack: QueryPack, projections: Array<String>) {
+    private fun doAggregation(routingContext: RoutingContext, id: JsonObject,
+                              queryPack: QueryPack, projections: Array<String>) {
         REPOSITORY.aggregation(id, queryPack, projections, Handler {
             when {
                 it.failed() -> {
@@ -760,7 +760,7 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         })
     }
 
-    protected fun getAndVerifyId(routingContext: RoutingContext): JsonObject {
+    private fun getAndVerifyId(routingContext: RoutingContext): JsonObject {
         return idSupplier.apply(routingContext)
     }
 
@@ -785,7 +785,7 @@ open class RestControllerImpl<E>(vertx: Vertx, protected val TYPE: Class<E>, app
         private val defaultSupplier = Function<RoutingContext, JsonObject> {
             val ids = JsonObject()
 
-            it.pathParams().forEach({ key, value -> ids.put(key, value) })
+            it.pathParams().forEach { key, value -> ids.put(key, value) }
 
             if (logger.isDebugEnabled) {
                 logger.debug("Identifiers are: " + ids.encodePrettily())

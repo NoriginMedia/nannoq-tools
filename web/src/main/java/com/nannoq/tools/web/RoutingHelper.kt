@@ -55,12 +55,12 @@ object RoutingHelper {
 
     private const val DATABASE_PROCESS_TIME = "X-Database-Time-To-Process"
 
-    val requestLogger = RequestLogHandler()
-    val responseLogger = ResponseLogHandler()
+    private val requestLogger = RequestLogHandler()
+    private val responseLogger = ResponseLogHandler()
 
     private val bodyHandler = BodyHandler.create().setMergeFormAttributes(true)
     private val timeOutHandler = Handler<RoutingContext> {
-        it.vertx().setTimer(9000L, { time -> if (!it.request().isEnded) it.fail(503) })
+        it.vertx().setTimer(9000L) { time -> if (!it.request().isEnded) it.fail(503) }
 
         it.next()
     }
@@ -103,9 +103,9 @@ object RoutingHelper {
         routeWithAuth(routeProducer, authHandler, null, routeSetter)
     }
 
-    fun routeWithAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
-                      finallyHandler: Handler<RoutingContext>?,
-                      routeSetter: Consumer<Supplier<Route>>) {
+    private fun routeWithAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
+                              finallyHandler: Handler<RoutingContext>?,
+                              routeSetter: Consumer<Supplier<Route>>) {
         prependStandards(routeProducer)
         routeProducer.get().handler(authHandler)
         routeSetter.accept(routeProducer)
@@ -117,9 +117,9 @@ object RoutingHelper {
         routeWithBodyHandlerAndAuth(routeProducer, authHandler, null, routeSetter)
     }
 
-    fun routeWithBodyHandlerAndAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
-                                    finallyHandler: Handler<RoutingContext>?,
-                                    routeSetter: Consumer<Supplier<Route>>) {
+    private fun routeWithBodyHandlerAndAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
+                                            finallyHandler: Handler<RoutingContext>?,
+                                            routeSetter: Consumer<Supplier<Route>>) {
         prependStandards(routeProducer)
         routeProducer.get().handler(bodyHandler)
         routeProducer.get().handler(authHandler)
@@ -170,7 +170,7 @@ object RoutingHelper {
         routeProducer.get().handler(responseLogger)
     }
 
-    fun handleErrors(routingContext: RoutingContext) {
+    private fun handleErrors(routingContext: RoutingContext) {
         val statusCode = routingContext.statusCode()
 
         routingContext.response().statusCode = if (statusCode != -1) statusCode else 500
@@ -217,8 +217,8 @@ object RoutingHelper {
             return mutableMapOf()
         }
 
-        return Arrays.stream<String>(decoded.split("&".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray())
-                .map({ splitQueryParameter(it) })
+        return Arrays.stream<String>(decoded.split("&".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
+                .map { splitQueryParameter(it) }
                 .collect(groupingBy(
                         { it.key },
                         { mutableMapOf<String, List<String>>() },

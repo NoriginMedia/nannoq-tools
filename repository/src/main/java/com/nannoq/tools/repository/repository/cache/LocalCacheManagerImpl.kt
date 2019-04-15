@@ -47,7 +47,7 @@ import java.util.function.Supplier
 import java.util.stream.Collectors.toList
 
 /**
- * The cachemanger contains the logic for setting, removing, and replace caches.
+ * The LocalCacheManagerImpl contains the logic for setting, removing, and replace caches.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
@@ -189,7 +189,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                 when (content) {
                     null -> resultHandler.handle(ServiceException.fail(404, "Cache result is null..."))
                     else -> {
-                        if (logger.isDebugEnabled()) {
+                        if (logger.isDebugEnabled) {
                             logger.debug("Returning cached content...")
                         }
 
@@ -348,7 +348,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                 when {
                     strings != null -> JsonArray(strings).stream()
                             .map { it.toString() }
-                            .forEach({ cache!!.remove(it) })
+                            .forEach { cache!!.remove(it) }
                     else -> localMap[cachePartitionKey] = JsonArray().encode()
                 }
             } catch (e: InstantiationException) {
@@ -357,7 +357,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                 logger.error("Unable to build partitionKey", e)
             }
 
-            if (logger.isDebugEnabled()) {
+            if (logger.isDebugEnabled) {
                 logger.debug("Cache cleared: " + cache!!.size)
             }
         } catch (e: Exception) {

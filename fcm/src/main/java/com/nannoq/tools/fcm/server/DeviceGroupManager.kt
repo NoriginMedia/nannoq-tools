@@ -23,6 +23,8 @@
  *
  */
 
+@file:Suppress("UnstableApiUsage", "UnstableApiUsage", "UnstableApiUsage", "UnstableApiUsage")
+
 package com.nannoq.tools.fcm.server
 
 import com.google.common.net.MediaType
@@ -87,7 +89,6 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
                             null -> {
                                 val creationJson = Json.encode(MessageSender.createDeviceGroupCreationJson(
                                         notificationKeyName, device.fcmId))
-                                val finalChannelMap = channelMap
 
                                 logger.info("Creation Json is: " + Json.encodePrettily(creationJson))
 
@@ -116,7 +117,7 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
                                                 it.complete(java.lang.Boolean.TRUE)
 
                                                 doDeviceGroupResult(
-                                                        notificationKey, finalChannelMap,
+                                                        notificationKey, channelMap,
                                                         device, notificationKeyName, channelKeyName,
                                                         resultHandler)
                                             }
@@ -133,7 +134,7 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
                                                         notificationKeyName + " with " + "id: " +
                                                         device.fcmId))
 
-                                                doDeviceGroupResult(null, finalChannelMap,
+                                                doDeviceGroupResult(null, channelMap,
                                                         device, notificationKeyName, channelKeyName,
                                                         resultHandler)
                                             }
@@ -148,7 +149,7 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
                                     req.putHeader(HttpHeaders.CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
                                     req.putHeader("project_id", GCM_SENDER_ID)
                                     req.end(creationJson)
-                                }, { logger.error("Failed DeviceGroupAdd: $it") })
+                                }) { logger.error("Failed DeviceGroupAdd: $it") }
                             }
                             else -> addToGroup(device.fcmId, notificationKeyName, key, resultHandler)
                         }
@@ -280,10 +281,10 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
             req.putHeader(HttpHeaders.CONTENT_TYPE, MediaType.JSON_UTF_8.toString())
             req.putHeader("project_id", GCM_SENDER_ID)
             req.end(addJson)
-        }, {
+        }) {
             logger.error("Failed Add to Group...")
 
             resultHandler.handle(failedFuture(IllegalArgumentException()))
-        })
+        }
     }
 }

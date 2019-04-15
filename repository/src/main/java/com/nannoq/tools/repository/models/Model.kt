@@ -87,7 +87,7 @@ interface Model {
             val errorObject = JsonObject()
             errorObject.put("error_type", "VALIDATION")
             val errorObjects = JsonArray()
-            errors.stream().map<JsonObject>({ it.toJson() }).forEach({ errorObjects.add(it) })
+            errors.stream().map<JsonObject> { it.toJson() }.forEach { errorObjects.add(it) }
 
             errorObject.put("errors", errorObjects)
 

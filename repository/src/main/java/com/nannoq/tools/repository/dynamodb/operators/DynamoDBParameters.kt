@@ -194,7 +194,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
             val count = intArrayOf(0)
             val paramSize = params.keys.size
 
-            params.keys.stream().map<List<FilterParameter>>({ params[it] }).forEach { paramList ->
+            params.keys.stream().map<List<FilterParameter>> { params[it] }.forEach { paramList ->
                 val orderCounter = intArrayOf(0)
                 keyConditionString[0] += "("
 
@@ -463,7 +463,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
             val count = intArrayOf(0)
             val paramSize = params.keys.size
 
-            params.keys.stream().map<List<FilterParameter>>({ params[it] }).forEach { paramList ->
+            params.keys.stream().map<List<FilterParameter>> { params[it] }.forEach { paramList ->
                 keyConditionString[0] += "("
                 val orderCounter = intArrayOf(0)
 
@@ -729,7 +729,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
 
     internal fun isIllegalRangedKeyQueryParams(nameParams: List<FilterParameter>): Boolean {
         return nameParams.stream()
-                .anyMatch({ it.isIllegalRangedKeyParam })
+                .anyMatch { it.isIllegalRangedKeyParam }
     }
 
     internal fun buildProjections(projections: Array<String>?, indexName: String): Array<String>? {
@@ -830,7 +830,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         if (pageTokenMap != null) {
             when {
                 splitToken != null -> {
-                    pageTokenMap["oldPageToken"] = AttributeValue().withS(splitToken.get(0))
+                    pageTokenMap["oldPageToken"] = AttributeValue().withS(splitToken[0])
                 }
                 else -> pageTokenMap["oldPageToken"] = AttributeValue().withS(null)
             }

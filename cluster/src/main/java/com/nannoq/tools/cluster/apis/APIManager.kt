@@ -137,7 +137,7 @@ class APIManager @JvmOverloads constructor(
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(APIManager::class.java!!.simpleName)
+        private val logger = LoggerFactory.getLogger(APIManager::class.java.simpleName)
 
         private const val GENERIC_HTTP_REQUEST_CIRCUITBREAKER = "com.apis.generic.circuitbreaker"
         private const val API_CIRCUIT_BREAKER_BASE = "com.apis.circuitbreaker."

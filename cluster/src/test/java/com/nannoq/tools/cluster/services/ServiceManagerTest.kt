@@ -29,97 +29,56 @@ import com.nannoq.tools.cluster.apis.APIManager
 import com.nannoq.tools.cluster.service.HeartBeatServiceImpl
 import io.vertx.core.AsyncResult
 import io.vertx.core.Handler
-import io.vertx.core.http.HttpClient
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.unit.Async
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.RunTestOnContext
-import io.vertx.ext.unit.junit.VertxUnitRunner
-import org.junit.After
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
-import org.junit.rules.TestName
-import org.junit.runner.RunWith
-
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 import java.util.stream.IntStream
 
 /**
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@RunWith(VertxUnitRunner::class)
+@Execution(ExecutionMode.CONCURRENT)
+@ExtendWith(VertxExtension::class)
 class ServiceManagerTest {
 
-    @Rule
-    @JvmField
-    val rule = RunTestOnContext()
-
-    @Rule
-    @JvmField
-    val name = TestName()
-
-    val apiManager: APIManager
-        get() = APIManager(rule.vertx(), JsonObject()
-                .put("publicHost", "localhost")
-                .put("privateHost", "localhost"),
-                object : APIHostProducer {
-                    override fun getInternalHost(name: String): String {
-                        return "localhost"
-                    }
-
-                    override fun getExternalHost(name: String): String {
-                        return "localhost"
-                    }
-                })
-
-    @Before
+    @Test
     @Throws(Exception::class)
-    fun setUp(testContext: TestContext) {
-        logger.info("Setup: " + name.methodName)
-    }
-
-    @After
-    @Throws(Exception::class)
-    fun tearDown(testContext: TestContext) {
-        logger.info("Teardown " + name.methodName)
+    fun publishApi(vertx: Vertx, testContext: VertxTestContext) {
+        ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"))
+        ServiceManager.getInstance(vertx).consumeApi("SOME_API", testContext.completing())
     }
 
     @Test
     @Throws(Exception::class)
-    fun publishApi(testContext: TestContext) {
-        ServiceManager.getInstance(rule.vertx()).publishApi(apiManager.createExternalApiRecord("SOME_API", "/api"))
-        ServiceManager.getInstance(rule.vertx()).consumeApi("SOME_API", testContext.asyncAssertSuccess<HttpClient>())
-    }
+    fun unPublishApi(vertx: Vertx, testContext: VertxTestContext) {
+        val checkpoint = testContext.checkpoint(3)
 
-    @Test
-    @Throws(Exception::class)
-    fun unPublishApi(testContext: TestContext) {
-        val async = testContext.async()
+        ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"), Handler { res ->
+            ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { if (it.succeeded()) checkpoint.flag() })
+            ServiceManager.getInstance(vertx).unPublishApi(res.result(), Handler { if (it.succeeded()) checkpoint.flag() })
+            ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { if (it.succeeded()) checkpoint.flag() })
 
-        ServiceManager.getInstance(rule.vertx()).publishApi(apiManager.createExternalApiRecord("SOME_API", "/api"), Handler {
-            ServiceManager.getInstance(rule.vertx()).consumeApi("SOME_API", testContext.asyncAssertSuccess<HttpClient>())
-            ServiceManager.getInstance(rule.vertx()).unPublishApi(it.result(), testContext.asyncAssertSuccess())
-            ServiceManager.getInstance(rule.vertx()).consumeApi("SOME_API", testContext.asyncAssertFailure<HttpClient>())
-
-            async.complete()
+            testContext.completeNow()
         })
     }
 
     @Test
     @Throws(Exception::class)
-    fun consumeApi(testContext: TestContext) {
-        ServiceManager.getInstance(rule.vertx()).publishApi(apiManager.createExternalApiRecord("SOME_API", "/api"))
+    fun consumeApi(vertx: Vertx, testContext: VertxTestContext) {
+        ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"))
 
-        IntStream.range(0, 100).parallel().forEach { i ->
-            val async = testContext.async()
-
-            ServiceManager.getInstance(rule.vertx()).consumeApi("SOME_API", Handler { apiRes ->
-                if (apiRes.failed()) {
-                    testContext.fail(apiRes.cause())
-                } else {
-                    async.complete()
+        IntStream.range(0, 100).parallel().forEach {
+            ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { apiRes ->
+                when {
+                    apiRes.failed() -> testContext.failNow(apiRes.cause())
+                    else -> testContext.completeNow()
                 }
             })
         }
@@ -127,22 +86,22 @@ class ServiceManagerTest {
 
     @Test
     @Throws(Exception::class)
-    fun publishService(testContext: TestContext) {
-        ServiceManager.getInstance(rule.vertx()).publishService(HeartbeatService::class.java, HeartBeatServiceImpl())
-        ServiceManager.getInstance(rule.vertx()).publishService(HeartbeatService::class.java, "SOME_ADDRESS", HeartBeatServiceImpl())
-        ServiceManager.getInstance(rule.vertx()).consumeService(HeartbeatService::class.java, testContext.asyncAssertSuccess<HeartbeatService>())
-        ServiceManager.getInstance(rule.vertx()).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", testContext.asyncAssertSuccess<HeartbeatService>())
+    fun publishService(vertx: Vertx, testContext: VertxTestContext) {
+        val checkpoint = testContext.checkpoint(2)
+
+        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, HeartBeatServiceImpl())
+        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, "SOME_ADDRESS", HeartBeatServiceImpl())
+        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler { if (it.succeeded()) checkpoint.flag() })
+        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", Handler { if (it.succeeded()) checkpoint.flag() })
     }
 
     @Test
     @Throws(Exception::class)
-    fun unPublishService(testContext: TestContext) {
-        val async = testContext.async()
-
-        ServiceManager.getInstance(rule.vertx()).publishService(HeartbeatService::class.java, HeartBeatServiceImpl(), Handler { record ->
-            ServiceManager.getInstance(rule.vertx()).consumeService(HeartbeatService::class.java, Handler {
-                ServiceManager.getInstance(rule.vertx()).unPublishService(HeartbeatService::class.java, record.result(), Handler {
-                    ServiceManager.getInstance(rule.vertx()).consumeService(HeartbeatService::class.java, Handler { async.complete() })
+    fun unPublishService(vertx: Vertx, testContext: VertxTestContext) {
+        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, HeartBeatServiceImpl(), Handler { record ->
+            ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler {
+                ServiceManager.getInstance(vertx).unPublishService(HeartbeatService::class.java, record.result(), Handler {
+                    ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler { testContext.completeNow() })
                 })
             })
         })
@@ -150,32 +109,41 @@ class ServiceManagerTest {
 
     @Test
     @Throws(Exception::class)
-    fun consumeService(testContext: TestContext) {
-        ServiceManager.getInstance(rule.vertx()).publishService(HeartbeatService::class.java, HeartBeatServiceImpl())
-        ServiceManager.getInstance(rule.vertx()).publishService(HeartbeatService::class.java, "SOME_ADDRESS", HeartBeatServiceImpl())
+    fun consumeService(vertx: Vertx, testContext: VertxTestContext) {
+        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, HeartBeatServiceImpl())
+        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, "SOME_ADDRESS", HeartBeatServiceImpl())
 
         IntStream.range(0, 100).parallel().forEach {
-            val async = testContext.async()
-            val secondAsync = testContext.async()
-
-            ServiceManager.getInstance(rule.vertx()).consumeService(HeartbeatService::class.java, Handler { checkService(testContext, async, it) })
-            ServiceManager.getInstance(rule.vertx()).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", Handler { res -> checkService(testContext, secondAsync, res) })
+            ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler { checkService(testContext, it) })
+            ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", Handler { res -> checkService(testContext, res) })
         }
     }
 
-    fun checkService(testContext: TestContext, async: Async, res: AsyncResult<HeartbeatService>) {
+    private fun checkService(testContext: VertxTestContext, res: AsyncResult<HeartbeatService>) {
         if (res.failed()) {
-            testContext.fail(res.cause())
+            testContext.failNow(res.cause())
         } else {
             res.result().ping(Handler {
                 if (it.failed()) {
-                    testContext.fail(it.cause())
+                    testContext.failNow(it.cause())
                 } else {
-                    async.complete()
+                    testContext.completeNow()
                 }
             })
         }
     }
+
+    private fun getAPIManager(vertx: Vertx) = APIManager(vertx, JsonObject()
+            .put("publicHost", "localhost")
+            .put("privateHost", "localhost"), object : APIHostProducer {
+                override fun getInternalHost(name: String): String {
+                    return "localhost"
+                }
+
+                override fun getExternalHost(name: String): String {
+                    return "localhost"
+                }
+            })
 
     companion object {
         private val logger = LoggerFactory.getLogger(ServiceManagerTest::class.java.simpleName)

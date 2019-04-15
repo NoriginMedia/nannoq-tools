@@ -181,8 +181,8 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
                         resultHandler.handle(unableToParseException)
                     }
-                    else -> buildAuthPackage(it.result(), Handler {
-                        resultHandler.handle(succeededFuture(it.result()))
+                    else -> buildAuthPackage(it.result(), Handler { result ->
+                        resultHandler.handle(succeededFuture(result.result()))
                     })
                 }
             })
@@ -193,8 +193,8 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
                         resultHandler.handle(unableToParseException)
                     }
-                    else -> buildAuthPackage(it.result(), Handler {
-                        resultHandler.handle(succeededFuture(it.result()))
+                    else -> buildAuthPackage(it.result(), Handler { result ->
+                        resultHandler.handle(succeededFuture(result.result()))
                     })
                 }
             })
@@ -205,8 +205,8 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
                         resultHandler.handle(unableToParseException)
                     }
-                    else -> buildAuthPackage(it.result(), Handler {
-                        resultHandler.handle(succeededFuture(it.result()))
+                    else -> buildAuthPackage(it.result(), Handler { result ->
+                        resultHandler.handle(succeededFuture(result.result()))
                     })
                 }
             })
@@ -419,11 +419,11 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     override fun refresh(refreshToken: String,
                          resultHandler: Handler<AsyncResult<TokenContainer>>): AuthenticationService {
         getTokenCache(refreshToken).compose({
-            getClaims(it).compose({
-                val oldId = it["id"].toString()
+            getClaims(it).compose({ map ->
+                val oldId = map["id"].toString()
 
-                getTokenContainer(it).compose({ tokenContainer ->
-                    deleteOld(it, refreshToken, oldId, tokenContainer).compose({
+                getTokenContainer(map).compose({ tokenContainer ->
+                    deleteOld(map, refreshToken, oldId, tokenContainer).compose({
                         container -> resultHandler.handle(succeededFuture(container))
                     }, authFail<Any, TokenContainer>(resultHandler))
                 }, authFail<Any, TokenContainer>(resultHandler))
@@ -453,18 +453,18 @@ constructor(vertx: Vertx, appConfig: JsonObject,
             val transaction = it.transaction()
 
             transaction.multi {
-                transaction.del(refreshToken) {
-                    if (it.failed()) { logger.debug("Del RefreshToken failed!") }
+                transaction.del(refreshToken) { result ->
+                    if (result.failed()) { logger.debug("Del RefreshToken failed!") }
                 }
 
-                transaction.hdel(registry, oldId) {
-                    if (it.failed()) { logger.debug("Del JwtValidity failed!") }
+                transaction.hdel(registry, oldId) { result ->
+                    if (result.failed()) { logger.debug("Del JwtValidity failed!") }
                 }
             }
 
-            transaction.exec {
+            transaction.exec { result ->
                 when {
-                    it.failed() -> tokenContainerFuture.fail(InternalError("Unable to purge old refresh..."))
+                    result.failed() -> tokenContainerFuture.fail(InternalError("Unable to purge old refresh..."))
                     else -> {
                         logger.debug("Purged all remnants of old refresh...")
 

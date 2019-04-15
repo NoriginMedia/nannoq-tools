@@ -61,11 +61,7 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                          private val cacheManager: CacheManager<E>,
                          private val eTagManager: ETagManager<E>?)
         where E : Cacheable, E : ETagable, E : DynamoDBModel, E : Model {
-    private val DYNAMO_DB_MAPPER: DynamoDBMapper
-
-    init {
-        this.DYNAMO_DB_MAPPER = db.dynamoDbMapper
-    }
+    private val DYNAMO_DB_MAPPER: DynamoDBMapper = db.dynamoDbMapper
 
     fun doDelete(identifiers: List<JsonObject>, resultHandler: Handler<AsyncResult<List<E>>>) {
         vertx.executeBlocking<List<E>>({ future ->
@@ -149,12 +145,12 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                             }
                         }
 
-                        cacheManager.purgeCache(purgeFuture, items, {
+                        cacheManager.purgeCache(purgeFuture, items) {
                             val hash = it.hash
                             val range = it.range
 
                             TYPE.simpleName + "_" + hash + if (range == "") "" else "/$range"
-                        })
+                        }
                     }
                 }
             } catch (ase: AmazonServiceException) {

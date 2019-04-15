@@ -1,29 +1,30 @@
+@file:Suppress("unused")
+
 package com.nannoq.tools.web.controllers.utils
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.nannoq.tools.repository.dynamodb.DynamoDBRepository
 import com.nannoq.tools.web.controllers.gen.models.TestModel
 import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.RunTestOnContext
-import io.vertx.ext.unit.junit.Timeout
-import io.vertx.ext.unit.junit.VertxUnitRunner
-import org.junit.*
-import org.junit.rules.TestName
-import org.junit.runner.RunWith
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
+import org.junit.jupiter.api.*
+import org.junit.jupiter.api.extension.ExtendWith
 import redis.embedded.RedisServer
 import java.util.*
+import kotlin.collections.HashMap
 
-@RunWith(VertxUnitRunner::class)
+@ExtendWith(VertxExtension::class)
 abstract class DynamoDBTestClass : ConfigSupport {
     @Suppress("unused")
     private val logger: Logger = LoggerFactory.getLogger(javaClass.simpleName)
 
-    protected val testDate = Date()
+    private val testDate = Date()
     protected val nonNullTestModel = {
         TestModel()
                 .setSomeStringOne("testString")
@@ -33,55 +34,44 @@ abstract class DynamoDBTestClass : ConfigSupport {
                 .setSomeDate(testDate)
                 .setSomeDateTwo(Date())
     }
-
-    @JvmField
-    @Rule
-    val rule = RunTestOnContext()
-
-    @JvmField
-    @Rule
-    val timeout: Timeout = Timeout.seconds(30)
-
-    @JvmField
-    @Rule
-    var name = TestName()
+    
+    protected val contextObjects: MutableMap<String, Any> = HashMap()
 
     companion object {
         private lateinit var dynamoDBUtils: DynamoDBUtils
 
-        @BeforeClass
+        @BeforeAll
         @JvmStatic
         fun setupClass() {
             dynamoDBUtils = DynamoDBUtils()
         }
 
-        @AfterClass
+        @AfterAll
         @JvmStatic
         fun teardownClass() {
             dynamoDBUtils.stopAll()
         }
     }
 
-    @Before
-    fun setup(context: TestContext) {
+    @BeforeEach
+    fun setup(vertx: Vertx, testInfo: TestInfo, context: VertxTestContext) {
         val freePort = findFreePort()
         val redisPort = findFreePort()
         val httpPort = findFreePort()
         dynamoDBUtils.startDynamoDB(freePort)
-        context.put<String>("${name.methodName}-port", freePort)
-        context.put<String>("${name.methodName}-redis-port", redisPort)
-        context.put<String>("${name.methodName}-http-port", httpPort)
-        context.put<String>("${name.methodName}-endpoint", "http://localhost:$freePort")
+        contextObjects["${testInfo.testMethod.get().name}-port"] = freePort
+        contextObjects["${testInfo.testMethod.get().name}-redis-port"] = redisPort
+        contextObjects["${testInfo.testMethod.get().name}-http-port"] = httpPort
+        contextObjects["${testInfo.testMethod.get().name}-endpoint"] = "http://localhost:$freePort"
 
         val redisServer = RedisServer(redisPort)
         redisServer.start()
 
-        context.put<String>("${name.methodName}-redis", redisServer)
+        contextObjects["${testInfo.testMethod.get().name}-redis"] = redisServer
 
         Json.mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
-        val async = context.async()
-        val endpoint = context.get<String>("${name.methodName}-endpoint")
+        val endpoint = contextObjects["${testInfo.testMethod.get().name}-endpoint"]
         val config = JsonObject()
                 .put("dynamo_endpoint", endpoint)
                 .put("redis_host", "localhost")
@@ -89,21 +79,22 @@ abstract class DynamoDBTestClass : ConfigSupport {
         val classCollection = mapOf(Pair("testModels", TestModel::class.java))
         val finalConfig = getTestConfig().mergeIn(config)
 
-        context.put<String>("${name.methodName}-repo", DynamoDBRepository(rule.vertx(), TestModel::class.java, finalConfig))
-        context.put<JsonObject>("${name.methodName}-config", finalConfig)
+        contextObjects["${testInfo.testMethod.get().name}-repo"] = DynamoDBRepository(vertx, TestModel::class.java, finalConfig)
+        contextObjects["${testInfo.testMethod.get().name}-config"] = finalConfig
 
         DynamoDBRepository.initializeDynamoDb(finalConfig, classCollection, Handler {
-            if (it.failed()) context.fail(it.cause())
-            async.complete()
+            if (it.failed()) context.failNow(it.cause())
+            context.completeNow()
         })
     }
 
-    @After
-    fun teardown(context: TestContext) {
-        val freePort = context.get<Int>("${name.methodName}-port")
+    @AfterEach
+    fun teardown(testInfo: TestInfo, context: VertxTestContext) {
+        val freePort = contextObjects["${testInfo.testMethod.get().name}-port"] as Int
         dynamoDBUtils.stopDynamoDB(freePort)
 
-        val redis: RedisServer = context.get("${name.methodName}-redis")
+        val redis: RedisServer = contextObjects["${testInfo.testMethod.get().name}-redis"] as RedisServer
         redis.stop()
+        context.completeNow()
     }
 }

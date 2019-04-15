@@ -25,19 +25,19 @@
 
 package com.nannoq.tools.repository.models
 
-import org.junit.After
-import org.junit.Before
-import org.junit.Ignore
-import org.junit.Test
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Test
 
-@Ignore
+@Disabled
 class CachedContentTest {
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
     fun setUp() {
     }
 
-    @After
+    @AfterEach
     @Throws(Exception::class)
     fun tearDown() {
     }

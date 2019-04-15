@@ -40,7 +40,7 @@ class ApiKeyHandler(private val apiKey: String) : Handler<RoutingContext> {
 
         when {
             incomingKey.startsWith("APIKEY ") -> {
-                val key = incomingKey.substring("APIKEY".length).trim({ it <= ' ' })
+                val key = incomingKey.substring("APIKEY".length).trim { it <= ' ' }
 
                 when (key) {
                     apiKey -> routingContext.next()

@@ -26,16 +26,15 @@
 package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.utils.OrderByParameter
-import org.junit.Before
-import org.junit.Test
-
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
 class OrderByParameterTest {
     private var validParameter: OrderByParameter? = null
 
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
     fun setUp() {
         validParameter = OrderByParameter.builder()

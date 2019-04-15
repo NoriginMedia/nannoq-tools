@@ -77,7 +77,7 @@ class MessageSender internal constructor(private val server: FcmServer) {
         val retryKey = messageId + "_retry_count"
 
         RedisUtils.performJedisWithRetry(redisClient!!) {
-            it.hset(REDIS_MESSAGE_HASH, messageId, jsonValue, { hSetResult ->
+            it.hset(REDIS_MESSAGE_HASH, messageId, jsonValue) { hSetResult ->
                 if (hSetResult.failed()) {
                     logger.error("HSET Failed for id:$messageId")
                 }
@@ -85,7 +85,7 @@ class MessageSender internal constructor(private val server: FcmServer) {
                 val extension = FcmPacketExtension(jsonValue)
                 val request = extension.toPacket()
 
-                it.get(retryKey, { getResult ->
+                it.get(retryKey) { getResult ->
                     when {
                         getResult.failed() -> {
                             logger.error("SET Failed for id: $messageId")
@@ -116,15 +116,15 @@ class MessageSender internal constructor(private val server: FcmServer) {
 
                             val retryCount = "" + retryCountAsInt + 1
 
-                            it.set(retryKey, retryCount, {
-                                if (it.failed()) {
+                            it.set(retryKey, retryCount) { result ->
+                                if (result.failed()) {
                                     logger.error("Re set of retry failed for $messageId")
                                 }
-                            })
+                            }
                         }
                     }
-                })
-            })
+                }
+            }
         }
     }
 

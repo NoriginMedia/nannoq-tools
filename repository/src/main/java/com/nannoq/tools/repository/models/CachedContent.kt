@@ -36,6 +36,7 @@ import io.vertx.core.file.AsyncFile
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpClientOptions
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.streams.Pump
 import org.apache.http.HttpHeaders
@@ -154,9 +155,7 @@ interface CachedContent {
                                             } catch (e: Exception) {
                                                 logger.error("Failure in external storage!", e)
 
-                                                if (file != null) {
-                                                    file.delete()
-                                                }
+                                                file?.delete()
 
                                                 it.tryFail(e)
                                             }
@@ -214,6 +213,6 @@ interface CachedContent {
     }
 
     companion object {
-        val logger = LoggerFactory.getLogger(CachedContent::class.java.simpleName)
+        val logger: Logger = LoggerFactory.getLogger(CachedContent::class.java.simpleName)
     }
 }

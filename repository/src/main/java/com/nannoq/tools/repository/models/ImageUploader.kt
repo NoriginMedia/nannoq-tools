@@ -32,6 +32,7 @@ import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.AsyncFile
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpClientOptions
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.streams.Pump
 import io.vertx.ext.web.FileUpload
@@ -191,7 +192,7 @@ interface ImageUploader {
         }
 
         req.setFollowRedirects(true)
-        req.exceptionHandler({ fut.fail(it) })
+        req.exceptionHandler { fut.fail(it) }
         req.end()
     }
 
@@ -264,6 +265,6 @@ interface ImageUploader {
     }
 
     companion object {
-        val logger = LoggerFactory.getLogger(ImageUploader::class.java!!.getSimpleName())
+        val logger: Logger = LoggerFactory.getLogger(ImageUploader::class.java.simpleName)
     }
 }

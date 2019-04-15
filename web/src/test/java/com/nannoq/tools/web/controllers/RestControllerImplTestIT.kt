@@ -33,23 +33,25 @@ import com.nannoq.tools.web.controllers.gen.models.TestModel
 import com.nannoq.tools.web.controllers.utils.DynamoDBTestClass
 import io.restassured.RestAssured.given
 import io.restassured.response.Response
-import io.vertx.core.AsyncResult
-import io.vertx.core.CompositeFuture
-import io.vertx.core.Future
-import io.vertx.core.Handler
+import io.vertx.core.*
+import io.vertx.core.http.HttpServer
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.VertxUnitRunner
 import io.vertx.ext.web.Router
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
 import junit.framework.TestCase.assertEquals
 import org.apache.http.HttpHeaders
-import org.junit.After
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.Assert.assertNotEquals
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInfo
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 import java.time.LocalDate
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
@@ -63,53 +65,55 @@ import java.util.stream.IntStream
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@RunWith(VertxUnitRunner::class)
+@Execution(ExecutionMode.CONCURRENT)
+@ExtendWith(VertxExtension::class)
 class RestControllerImplTestIT : DynamoDBTestClass() {
     private var controller: RestControllerImpl<TestModel>? = null
     private var crossModelController: CrossModelAggregationController? = null
 
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
-    fun setUp(context: TestContext) {
-        val repo: DynamoDBRepository<TestModel> = context.get("${name.methodName}-repo")
-        val config: JsonObject = context.get("${name.methodName}-config")
-        val port: Int = context.get("${name.methodName}-http-port")
+    fun setUp(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
+        @Suppress("UNCHECKED_CAST")
+        val repo: DynamoDBRepository<TestModel> = contextObjects["${testInfo.testMethod.get().name}-repo"] as DynamoDBRepository<TestModel>
+        val config: JsonObject = contextObjects["${testInfo.testMethod.get().name}-config"] as JsonObject
+        val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
-        controller = RestControllerImpl(rule.vertx(), TestModel::class.java, config, repo)
+        controller = RestControllerImpl(vertx, TestModel::class.java, config, repo)
         crossModelController = CrossModelAggregationController({ repo }, arrayOf(TestModel::class.java))
+        val router = createRouter(vertx, controller!!, crossModelController!!)
 
-        val httpAsync = context.async()
-
-        rule.vertx().createHttpServer()
-                .requestHandler { createRouter(controller!!, crossModelController!!).accept(it) }
-                .listen(port) { httpAsync.complete() }
+        vertx.createHttpServer()
+                .requestHandler(router)
+                .listen(port, context.completing<HttpServer>())
     }
 
-    private fun createRouter(controller: RestControllerImpl<TestModel>,
+    private fun createRouter(vertx: Vertx, controller: RestControllerImpl<TestModel>,
                              crossModelcontroller: CrossModelAggregationController): Router {
-        val router = Router.router(rule.vertx())
+        val router = Router.router(vertx)
 
         routeWithLogger(Supplier { router.get("/parent/:hash/testModels/:range") }, Consumer { route -> route.get().handler { controller.show(it) } })
         routeWithLogger(Supplier { router.get("/parent/:hash/testModels") }, Consumer { route -> route.get().handler { controller.index(it) } })
         routeWithBodyAndLogger(Supplier { router.post("/parent/:hash/testModels") }, Consumer { route -> route.get().handler { controller.create(it) } })
         routeWithBodyAndLogger(Supplier { router.put("/parent/:hash/testModels/:range") }, Consumer { route -> route.get().handler { controller.update(it) } })
         routeWithLogger(Supplier { router.delete("/parent/:hash/testModels/:range") }, Consumer { route -> route.get().handler { controller.destroy(it) } })
-
         routeWithLogger(Supplier { router.get("/aggregations") }, Consumer { route -> route.get().handler(crossModelcontroller) })
 
         return router
     }
 
-    @After
-    fun tearDown(context: TestContext) {
+    @AfterEach
+    fun tearDown(context: VertxTestContext) {
         controller = null
+        context.completeNow()
     }
 
-    private fun createXItems(context: TestContext, count: Int, 
+    private fun createXItems(testInfo: TestInfo, count: Int,
                              resultHandler: Handler<AsyncResult<List<CreateResult<TestModel>>>>) {
         val items = ArrayList<TestModel>()
         val futures = CopyOnWriteArrayList<Future<*>>()
-        val repo: DynamoDBRepository<TestModel> = context.get("${name.methodName}-repo")
+        @Suppress("UNCHECKED_CAST")
+        val repo: DynamoDBRepository<TestModel> = contextObjects["${testInfo.testMethod.get().name}-repo"] as DynamoDBRepository<TestModel>
 
         IntStream.range(0, count).forEach {
             val testModel = nonNullTestModel()
@@ -132,7 +136,7 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         items.forEach { item ->
             val future = Future.future<CreateResult<TestModel>>()
 
-            repo.create(item, future.completer())
+            repo.create(item, future)
 
             futures.add(future)
 
@@ -147,9 +151,11 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
             } else {
                 @Suppress("UNCHECKED_CAST")
                 val collect = futures.stream()
-                        .map({ it.result() })
+                        .map { it.result() }
                         .map { o -> o as CreateResult<TestModel> }
                         .collect(toList())
+
+                Thread.sleep(2000) // compensate for eventual consistency in testing
 
                 resultHandler.handle(Future.succeededFuture(collect))
             }
@@ -157,21 +163,20 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
     }
 
     @Test
-    fun show(context: TestContext) {
-        val async = context.async()
-        val port: Int = context.get("${name.methodName}-http-port")
+    fun show(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
+        val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
-        rule.vertx().executeBlocking<Void>({
+        vertx.executeBlocking<Void>({
             var response = createByRest(port, nonNullTestModel())
             val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
             response = getResponse(port, testModel, null, 200)
-            response = getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
+            getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
 
             it.complete()
         }, false, {
-            if (it.failed()) context.fail(it.cause())
+            if (it.failed()) context.failNow(it.cause())
 
-            async.complete()
+            context.completeNow()
         })
     }
 
@@ -188,25 +193,24 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
     }
 
     @Test
-    fun index(context: TestContext) {
-        val port: Int = context.get("${name.methodName}-http-port")
-        val async = context.async()
+    fun index(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
+        val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
-        createXItems(context, 25, Handler {
-            rule.vertx().executeBlocking<Any>({
+        createXItems(testInfo, 25, Handler {
+            vertx.executeBlocking<Any>({
                 try {
                     val response = getIndex(port, null, null, 200)
                     getIndex(port, response.header(HttpHeaders.ETAG), null, 304)
                     getIndex(port, response.header(HttpHeaders.ETAG), null, 200, "?limit=50")
                     getPage(port, null, it)
                 } catch (e: Exception) {
-                    context.fail(e)
+                    context.failNow(e)
                 }
             }, false, {
                 if (it.failed()) {
-                    context.fail(it.cause())
+                    context.failNow(it.cause())
                 } else {
-                    async.complete()
+                    context.completeNow()
                 }
             })
         })
@@ -244,39 +248,37 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
     }
 
     @Test
-    fun aggregateIndex(context: TestContext) {
-        val port: Int = context.get("${name.methodName}-http-port")
-        val async = context.async()
+    fun aggregateIndex(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
+        val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
-        createXItems(context, 100, Handler {
-            rule.vertx().executeBlocking<Any>({
+        createXItems(testInfo, 100, Handler {
+            vertx.executeBlocking<Any>({
                 try {
                     val query = "?aggregate=%7B%22function%22%3A%22MAX%22%2C%22field%22%3A%22someLong%22%2C%22groupBy%22%3A%5B%7B%22groupBy%22%3A%22someStringOne%22%7D%5D%7D"
                     val index = getIndex(port, null, null, 200, query)
                     val etag = index.header(HttpHeaders.ETAG)
-                    context.assertEquals(etag, getIndex(port, null, null, 200, query).header(HttpHeaders.ETAG))
+                    assertThat(etag).isEqualTo(getIndex(port, null, null, 200, query).header(HttpHeaders.ETAG))
                     getIndex(port, etag, null, 304, query)
 
-                    async.complete()
+                    context.completeNow()
                 } catch (e: Exception) {
-                    context.fail(e)
+                    context.failNow(e)
                 }
             }, false, {
                 if (it.failed()) {
-                    context.fail(it.cause())
+                    context.failNow(it.cause())
                 } else {
-                    async.complete()
+                    context.completeNow()
                 }
             })
         })
     }
 
     @Test
-    fun create(context: TestContext) {
-        val port: Int = context.get("${name.methodName}-http-port")
-        val async = context.async()
+    fun create(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
+        val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
-        rule.vertx().executeBlocking<Void>({
+        vertx.executeBlocking<Void>({
             var response = createByRest(port, nonNullTestModel())
             val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
             response = getResponse(port, testModel, null, 200)
@@ -284,9 +286,9 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
 
             it.complete()
         }, false, {
-            if (it.failed()) context.fail(it.cause())
+            if (it.failed()) context.failNow(it.cause())
 
-            async.complete()
+            context.completeNow()
         })
     }
 
@@ -304,11 +306,10 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
     }
 
     @Test
-    fun update(context: TestContext) {
-        val port: Int = context.get("${name.methodName}-http-port")
-        val async = context.async()
+    fun update(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
+        val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
-        rule.vertx().executeBlocking<Void>({
+        vertx.executeBlocking<Void>({
             var response = createByRest(port, nonNullTestModel())
             var testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
             val oldEtag = testModel.etag
@@ -338,18 +339,17 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
 
             it.complete()
         }, false, {
-            if (it.failed()) context.fail(it.cause())
+            if (it.failed()) context.failNow(it.cause())
 
-            async.complete()
+            context.completeNow()
         })
     }
 
     @Test
-    fun delete(context: TestContext) {
-        val port: Int = context.get("${name.methodName}-http-port")
-        val async = context.async()
+    fun delete(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
+        val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
-        rule.vertx().executeBlocking<Void>({
+        vertx.executeBlocking<Void>({
             var response = createByRest(port, nonNullTestModel())
             val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
             response = getResponse(port, testModel, null, 200)
@@ -366,9 +366,9 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
 
             it.complete()
         }, false, {
-            if (it.failed()) context.fail(it.cause())
+            if (it.failed()) context.failNow(it.cause())
 
-            async.complete()
+            context.completeNow()
         })
     }
 

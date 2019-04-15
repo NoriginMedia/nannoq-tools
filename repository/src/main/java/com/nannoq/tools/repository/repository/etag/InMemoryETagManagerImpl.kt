@@ -34,7 +34,7 @@ import io.vertx.core.shareddata.LocalMap
 import java.util.*
 
 /**
- * The cachemanger contains the logic for setting, removing, and replace etags.
+ * The InMemoryETagManagerImpl contains the logic for setting, removing, and replace etags.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
@@ -119,7 +119,7 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
             vertx.isClustered -> getClusteredItemListMap(etagItemListHashKey, Handler {
                 when {
                     it.failed() -> resultHandler.handle(Future.failedFuture<Boolean>(it.cause()))
-                    else -> it.result().put(etagKey, newEtag, { setRes ->
+                    else -> it.result().put(etagKey, newEtag) { setRes ->
                         when {
                             setRes.failed() -> {
                                 logger.error("Unable to set etag!", setRes.cause())
@@ -128,7 +128,7 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
                             }
                             else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
                         }
-                    })
+                    }
                 }
             })
             else -> {
@@ -161,9 +161,9 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
                             setFutures.add(setFuture)
                         }
 
-                        CompositeFuture.all(setFutures).setHandler {
+                        CompositeFuture.all(setFutures).setHandler { result ->
                             when {
-                                it.failed() -> resultHandler.handle(Future.failedFuture(it.cause()))
+                                result.failed() -> resultHandler.handle(Future.failedFuture(result.cause()))
                                 else -> resultHandler.handle(Future.succeededFuture())
                             }
                         }
@@ -172,7 +172,7 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
             })
             else -> {
                 val localObjectMap = localObjectMap
-                etagMap.forEach({ k, v -> localObjectMap[k] = v })
+                etagMap.forEach { k, v -> localObjectMap[k] = v }
 
                 resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
             }
@@ -188,7 +188,7 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
             when {
                 vertx.isClustered -> getClusteredObjectMap(etagKeyBase, Handler { mapRes ->
                     if (mapRes.succeeded()) {
-                        mapRes.result().put(key, etag, { setRes -> })
+                        mapRes.result().put(key, etag) { setRes -> }
                     }
                 })
                 else -> getLocalObjectMap(etagKeyBase)[key] = etag
@@ -207,16 +207,16 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
             vertx.isClustered -> getClusteredItemListMap(etagItemListHashKey, Handler {
                 when {
                     it.failed() -> itemListEtagFuture.fail(it.cause())
-                    else -> it.result().put(etagKey, etag, {
+                    else -> it.result().put(etagKey, etag) { result ->
                         when {
-                            it.failed() -> {
-                                logger.error("Unable to set etag!", it.cause())
+                            result.failed() -> {
+                                logger.error("Unable to set etag!", result.cause())
 
-                                itemListEtagFuture.fail(it.cause())
+                                itemListEtagFuture.fail(result.cause())
                             }
                             else -> itemListEtagFuture.complete(java.lang.Boolean.TRUE)
                         }
-                    })
+                    }
                 }
             })
             else -> {

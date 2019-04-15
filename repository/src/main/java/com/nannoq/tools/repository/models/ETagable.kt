@@ -26,6 +26,7 @@
 package com.nannoq.tools.repository.models
 
 import com.fasterxml.jackson.annotation.JsonInclude
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import java.lang.reflect.Field
 import java.util.*
@@ -96,6 +97,6 @@ interface ETagable {
     fun generateEtagKeyIdentifier(): String
 
     companion object {
-        val logger = LoggerFactory.getLogger(ETagable::class.java.simpleName)
+        val logger: Logger = LoggerFactory.getLogger(ETagable::class.java.simpleName)
     }
 }

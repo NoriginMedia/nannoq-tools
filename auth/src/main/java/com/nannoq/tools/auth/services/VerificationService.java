@@ -44,7 +44,7 @@ import javax.annotation.Nonnull;
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@SuppressWarnings({"UnusedReturnValue", "NullableProblems"})
+@SuppressWarnings({"UnusedReturnValue", "NullableProblems", "unused"})
 @ProxyGen
 @VertxGen
 public interface VerificationService {
