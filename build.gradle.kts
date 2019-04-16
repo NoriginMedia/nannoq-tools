@@ -275,7 +275,7 @@ subprojects {
             mustRunAfter(listOf("signSourcesJar", "signPackageJavadoc"))
 
             doLast {
-                println("Published ${extra["versionValue"] as String}")
+                println("Published ${project.extra["versionValue"] as String}")
             }
         }
     }
