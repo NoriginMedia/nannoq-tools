@@ -118,7 +118,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .map { o -> o as CreateResult<TestModel> }
                         .collect(toList())
 
-                Thread.sleep(2000) // compensate for eventual consistency in testing
+                Thread.sleep(5000) // compensate for eventual consistency in testing
 
                 resultHandler.handle(Future.succeededFuture(collect))
             }
@@ -339,7 +339,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         val updatedItem = updateRes.result().item
 
                         assertThat(count).isNotEqualTo(updatedItem.getSomeLong())
-                        assertThat((updatedItem.getSomeLong() == count + 1)).isTrue()
+                        assertThat(updatedItem.getSomeLong() == count + 1).isTrue()
                     }
 
                     context.completeNow()
@@ -394,7 +394,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         repo.create(nonNullTestModel(), Handler { createRes ->
             context.verify {
-                assertThat((createRes.succeeded())).isTrue()
+                assertThat(createRes.succeeded()).isTrue()
                 assertThat(createRes.result().item.hash).isEqualTo(nonNullTestModel().hash)
                 assertThat(nonNullTestModel().range).isEqualTo(createRes.result().item.range)
             }
@@ -419,7 +419,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         createXItems(testInfo, 20, Handler { result ->
             context.verify {
-                assertThat(result.succeeded()).isTrue()
+                assertThat(result.succeeded()).describedAs("Create failed").isTrue()
             }
 
             result.result().stream().parallel().forEach { cr ->
@@ -431,12 +431,12 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
                 repo.delete(id, Handler {
                     context.verify {
-                        assertThat(it.succeeded()).isTrue()
+                        assertThat(it.succeeded()).describedAs("Delete failed").isTrue()
                     }
 
                     repo.read(id, Handler { readRes ->
                         context.verify {
-                            assertThat(readRes.succeeded()).isTrue()
+                            assertThat(readRes.succeeded()).describedAs("Read failed").isTrue()
                         }
 
                         future.tryComplete()
@@ -463,7 +463,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         createXItems(testInfo, 20, Handler { res ->
             context.verify {
-                assertThat(res.succeeded()).isTrue()
+                assertThat(res.succeeded()).describedAs("Create failed").isTrue()
             }
 
             res.result().stream().parallel().forEach { cr ->
@@ -528,8 +528,8 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             repo.batchRead(id, Handler { batchRead ->
                 context.verify {
-                    assertThat((batchRead.succeeded())).isTrue()
-                    assertThat((batchRead.result().size == res.result().size)).isTrue()
+                    assertThat(batchRead.succeeded()).isTrue()
+                    assertThat(batchRead.result().size == res.result().size).isTrue()
 
                     batchRead.result().stream()
                             .map { it.item }
@@ -560,14 +560,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
                 repo.read(id, false, arrayOf("someLong"), Handler { firstRead ->
                     context.verify {
-                        assertThat((firstRead.succeeded())).isTrue()
+                        assertThat(firstRead.succeeded()).isTrue()
                     }
 
                     if (firstRead.succeeded()) {
                         repo.read(id, false, arrayOf("someLong"), Handler { secondRead ->
                             context.verify {
-                                assertThat((secondRead.succeeded())).isTrue()
-                                assertThat((secondRead.result().isCacheHit)).isTrue()
+                                assertThat(secondRead.succeeded()).isTrue()
+                                assertThat(secondRead.result().isCacheHit).isTrue()
                             }
 
                             future.tryComplete()
@@ -631,7 +631,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             repo.readAll(idObject, fpList, Handler { allItemsRes ->
                 context.verify {
-                    assertThat((allItemsRes.succeeded())).isTrue()
+                    assertThat(allItemsRes.succeeded()).isTrue()
                     assertThat(allItemsRes.result().isEmpty())
                             .describedAs("Actual: " + allItemsRes.result().size)
                             .isTrue()
@@ -829,7 +829,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         createXItems(testInfo, 100, Handler {
             repo.readAllWithoutPagination("testString", Handler { allItems ->
                 context.verify {
-                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.succeeded()).isTrue()
                     assertThat(allItems.result().size)
                             .describedAs("Size incorrect: " + allItems.result().size)
                             .isEqualTo(100)
@@ -854,7 +854,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             repo.readAllWithoutPagination("testString", queryPack, Handler { allItems ->
                 context.verify {
-                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.succeeded()).isTrue()
                     assertThat(allItems.result().size)
                             .describedAs("Size incorrect: " + allItems.result().size)
                             .isEqualTo(100)
@@ -879,7 +879,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             repo.readAllWithoutPagination("testString", queryPack, arrayOf(), Handler { allItems ->
                 context.verify {
-                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.succeeded()).isTrue()
                     assertThat(allItems.result().size)
                             .describedAs("Size incorrect: " + allItems.result().size)
                             .isEqualTo(100)
@@ -905,7 +905,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             repo.readAllWithoutPagination("testStringThree", queryPack, arrayOf(), "TEST_GSI", Handler { allItems ->
                 context.verify {
-                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.succeeded()).isTrue()
                     assertThat(allItems.result().size)
                             .describedAs("Size incorrect: " + allItems.result().size)
                             .isEqualTo(100)
@@ -930,7 +930,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             repo.readAllWithoutPagination(queryPack, arrayOf(), Handler { allItems ->
                 context.verify {
-                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.succeeded()).isTrue()
                     assertThat(allItems.result().size)
                             .describedAs("Size incorrect: " + allItems.result().size)
                             .isEqualTo(100)
@@ -956,7 +956,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             repo.readAllWithoutPagination(queryPack, arrayOf(), "TEST_GSI", Handler { allItems ->
                 context.verify {
-                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.succeeded()).isTrue()
                     assertThat(allItems.result().size)
                             .describedAs("Size incorrect: " + allItems.result().size)
                             .isEqualTo(100)
@@ -974,7 +974,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         createXItems(testInfo, 100, Handler {
             repo.readAllPaginated(Handler { allItems ->
                 context.verify {
-                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.succeeded()).isTrue()
                     assertThat(allItems.result().size)
                             .describedAs("Size incorrect: " + allItems.result().size)
                             .isEqualTo(100)
@@ -991,7 +991,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
             context.verify {
-                assertThat((createRes.succeeded())).isTrue()
+                assertThat(createRes.succeeded()).isTrue()
                 assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
                 assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
 
@@ -1069,7 +1069,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
             context.verify {
-                assertThat((createRes.succeeded())).isTrue()
+                assertThat(createRes.succeeded()).isTrue()
                 assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
                 assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
             }
@@ -1096,7 +1096,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
             context.verify {
-                assertThat((createRes.succeeded())).isTrue()
+                assertThat(createRes.succeeded()).isTrue()
                 assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
                 assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
             }

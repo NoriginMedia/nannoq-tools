@@ -230,10 +230,11 @@ subprojects {
 
     testlogger {
         theme = ThemeType.STANDARD_PARALLEL
+        showPassed = false
+        showSkipped = false
         showStandardStreams = true
         showPassedStandardStreams = false
         showSkippedStandardStreams = false
-        showFailedStandardStreams = true
     }
 
     kapt {
@@ -379,9 +380,8 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
 
     tasks {
         val dynamoDbDeps by registering(Copy::class) {
-            delete("$projectDir/build/dynamodb-libs")
             from(dynamodb)
-            into("$projectDir/build/dynamodb-libs")
+            into("$projectDir/build/tmp/dynamodb-libs")
         }
 
         "test"(Test::class) {
@@ -389,7 +389,7 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
 
             systemProperties = mapOf(
                     Pair("vertx.logger-delegate-factory-class-name", project.extra["logger_factory_version"] as String),
-                    Pair("java.library.path", file("$projectDir/build/dynamodb-libs").absolutePath))
+                    Pair("java.library.path", file("$projectDir/build/tmp/dynamodb-libs").absolutePath))
         }
     }
 }
