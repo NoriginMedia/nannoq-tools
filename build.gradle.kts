@@ -230,6 +230,10 @@ subprojects {
 
     testlogger {
         theme = ThemeType.STANDARD_PARALLEL
+        showStandardStreams = true
+        showPassedStandardStreams = false
+        showSkippedStandardStreams = false
+        showFailedStandardStreams = true
     }
 
     kapt {
