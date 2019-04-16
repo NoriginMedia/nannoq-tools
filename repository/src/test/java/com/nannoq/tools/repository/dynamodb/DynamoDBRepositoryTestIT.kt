@@ -436,7 +436,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
                     repo.read(id, Handler { readRes ->
                         context.verify {
-                            assertThat(readRes.succeeded()).describedAs("Read failed").isTrue()
+                            assertThat(readRes.succeeded()).describedAs("Read succeeded").isFalse()
                         }
 
                         future.tryComplete()
