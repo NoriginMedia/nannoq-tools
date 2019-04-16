@@ -35,7 +35,6 @@ import org.junit.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.parallel.Execution
 import org.junit.jupiter.api.parallel.ExecutionMode
-import java.util.concurrent.TimeUnit
 
 /**
  * @author Anders Mikkelsen
@@ -50,31 +49,35 @@ class APIManagerTest {
                 .createExternalApiRecord("TEST", "/"))
 
         ServiceManager.getInstance().consumeApi("TEST", Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            testContext.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             res.result().get("/").handler {
-                assertThat(it.statusCode() == 200 || it.statusCode() == 302).isTrue()
-                testContext.completeNow()
+                testContext.verify {
+                    assertThat(it.statusCode() == 200 || it.statusCode() == 302).isTrue()
+                    testContext.completeNow()
+                }
             }.end()
         })
-
-        assertThat(testContext.awaitCompletion(5, TimeUnit.SECONDS)).isTrue()
-
-        if (testContext.failed()) throw testContext.causeOfFailure()
     }
 
     @Test
     fun createInternalApiRecord(vertx: Vertx, testContext: VertxTestContext) {
         val record = getApiManager("localhost", vertx).createInternalApiRecord("TEST_API", "/api")
 
-        assertThat("TEST_API").isEqualTo(record.name)
+        testContext.verify {
+            assertThat("TEST_API").isEqualTo(record.name)
+        }
     }
 
     @Test
     fun createExternalApiRecord(vertx: Vertx, testContext: VertxTestContext) {
         val record = getApiManager("localhost", vertx).createExternalApiRecord("TEST_API", "/api")
 
-        assertThat("TEST_API").isEqualTo(record.name)
+        testContext.verify {
+            assertThat("TEST_API").isEqualTo(record.name)
+        }
     }
 
     private fun getApiManager(host: String, vertx: Vertx): APIManager {

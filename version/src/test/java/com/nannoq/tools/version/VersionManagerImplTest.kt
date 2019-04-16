@@ -73,8 +73,10 @@ class VersionManagerImplTest {
 
             versionObjects.result().forEach { versionObject ->
                 try {
-                    assertEquals(ObjectMapper().writeValueAsString(iteratorAfterObjects[versionObject.integerOne!!]),
-                            ObjectMapper().writeValueAsString(versionObject))
+                    context.verify {
+                        assertEquals(ObjectMapper().writeValueAsString(iteratorAfterObjects[versionObject.integerOne!!]),
+                                ObjectMapper().writeValueAsString(versionObject))
+                    }
                 } catch (e: JsonProcessingException) {
                     fail(e.message)
                 }
@@ -312,9 +314,11 @@ class VersionManagerImplTest {
                     .withMapComplexObjects(newMapComplexObjectsAfter)
 
             versionManager.applyState(version.result(), newBefore, Handler {
-                assertEquals(it.result(), newAfter)
+                context.verify {
+                    assertEquals(it.result(), newAfter)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -329,9 +333,11 @@ class VersionManagerImplTest {
             val newAfter = newAfterSimpleFields()
 
             versionManager.applyState(version.result(), newBefore, Handler {
-                assertEquals(it.result(), newAfter)
+                context.verify {
+                    assertEquals(it.result(), newAfter)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }

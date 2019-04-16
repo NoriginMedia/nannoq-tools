@@ -61,9 +61,28 @@ class ServiceManagerTest {
         val checkpoint = testContext.checkpoint(3)
 
         ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"), Handler { res ->
-            ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { if (it.succeeded()) checkpoint.flag() })
-            ServiceManager.getInstance(vertx).unPublishApi(res.result(), Handler { if (it.succeeded()) checkpoint.flag() })
-            ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { if (it.succeeded()) checkpoint.flag() })
+            ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler {
+                if (it.succeeded()) {
+                    checkpoint.flag()
+                } else {
+                    testContext.failNow(it.cause())
+                }
+            })
+            ServiceManager.getInstance(vertx).unPublishApi(res.result(), Handler {
+                if (it.succeeded()) {
+                    checkpoint.flag()
+
+                    ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { result ->
+                        if (result.failed()) {
+                            checkpoint.flag()
+                        } else {
+                            testContext.failNow(RuntimeException("This api shouldnt be available"))
+                        }
+                    })
+                } else {
+                    testContext.failNow(it.cause())
+                }
+            })
 
             testContext.completeNow()
         })
@@ -91,8 +110,20 @@ class ServiceManagerTest {
 
         ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, HeartBeatServiceImpl())
         ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, "SOME_ADDRESS", HeartBeatServiceImpl())
-        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler { if (it.succeeded()) checkpoint.flag() })
-        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", Handler { if (it.succeeded()) checkpoint.flag() })
+        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler {
+            if (it.succeeded()) {
+                checkpoint.flag()
+            } else {
+                testContext.failNow(it.cause())
+            }
+        })
+        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", Handler {
+            if (it.succeeded()) {
+                checkpoint.flag()
+            } else {
+                testContext.failNow(it.cause())
+            }
+        })
     }
 
     @Test

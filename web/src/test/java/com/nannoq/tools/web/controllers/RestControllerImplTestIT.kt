@@ -167,10 +167,12 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
         vertx.executeBlocking<Void>({
-            var response = createByRest(port, nonNullTestModel())
-            val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
-            response = getResponse(port, testModel, null, 200)
-            getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
+            context.verify {
+                var response = createByRest(port, nonNullTestModel())
+                val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
+                response = getResponse(port, testModel, null, 200)
+                getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
+            }
 
             it.complete()
         }, false, {
@@ -199,12 +201,14 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         createXItems(testInfo, 25, Handler {
             vertx.executeBlocking<Any>({
                 try {
-                    val response = getIndex(port, null, null, 200)
-                    getIndex(port, response.header(HttpHeaders.ETAG), null, 304)
-                    getIndex(port, response.header(HttpHeaders.ETAG), null, 200, "?limit=50")
-                    getPage(port, null, it)
+                    context.verify {
+                        val response = getIndex(port, null, null, 200)
+                        getIndex(port, response.header(HttpHeaders.ETAG), null, 304)
+                        getIndex(port, response.header(HttpHeaders.ETAG), null, 200, "?limit=50")
+                        getPage(port, null, it)
+                    }
                 } catch (e: Exception) {
-                    context.failNow(e)
+                    it.fail(e)
                 }
             }, false, {
                 if (it.failed()) {
@@ -254,15 +258,17 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         createXItems(testInfo, 100, Handler {
             vertx.executeBlocking<Any>({
                 try {
-                    val query = "?aggregate=%7B%22function%22%3A%22MAX%22%2C%22field%22%3A%22someLong%22%2C%22groupBy%22%3A%5B%7B%22groupBy%22%3A%22someStringOne%22%7D%5D%7D"
-                    val index = getIndex(port, null, null, 200, query)
-                    val etag = index.header(HttpHeaders.ETAG)
-                    assertThat(etag).isEqualTo(getIndex(port, null, null, 200, query).header(HttpHeaders.ETAG))
-                    getIndex(port, etag, null, 304, query)
+                    context.verify {
+                        val query = "?aggregate=%7B%22function%22%3A%22MAX%22%2C%22field%22%3A%22someLong%22%2C%22groupBy%22%3A%5B%7B%22groupBy%22%3A%22someStringOne%22%7D%5D%7D"
+                        val index = getIndex(port, null, null, 200, query)
+                        val etag = index.header(HttpHeaders.ETAG)
+                        assertThat(etag).isEqualTo(getIndex(port, null, null, 200, query).header(HttpHeaders.ETAG))
+                        getIndex(port, etag, null, 304, query)
 
-                    context.completeNow()
+                        it.complete()
+                    }
                 } catch (e: Exception) {
-                    context.failNow(e)
+                    it.fail(e)
                 }
             }, false, {
                 if (it.failed()) {
@@ -279,12 +285,14 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
         vertx.executeBlocking<Void>({
-            var response = createByRest(port, nonNullTestModel())
-            val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
-            response = getResponse(port, testModel, null, 200)
-            getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
+            context.verify {
+                var response = createByRest(port, nonNullTestModel())
+                val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
+                response = getResponse(port, testModel, null, 200)
+                getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
 
-            it.complete()
+                it.complete()
+            }
         }, false, {
             if (it.failed()) context.failNow(it.cause())
 
@@ -310,34 +318,36 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
         vertx.executeBlocking<Void>({
-            var response = createByRest(port, nonNullTestModel())
-            var testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
-            val oldEtag = testModel.etag
-            response = getResponse(port, testModel, null, 200)
-            assertEquals(oldEtag, response.header(HttpHeaders.ETAG))
-            getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
+            context.verify {
+                var response = createByRest(port, nonNullTestModel())
+                var testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
+                val oldEtag = testModel.etag
+                response = getResponse(port, testModel, null, 200)
+                assertEquals(oldEtag, response.header(HttpHeaders.ETAG))
+                getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
 
-            testModel.setSomeLong(1L)
+                testModel.setSomeLong(1L)
 
-            response = given()
-                    .port(port)
-                    .body(testModel.toJsonFormat().encode())
-                .`when`()
-                    .put("/parent/" + testModel.hash + "/testModels/" + testModel.range)
-                .then()
-                    .statusCode(200)
+                response = given()
+                        .port(port)
+                        .body(testModel.toJsonFormat().encode())
+                        .`when`()
+                        .put("/parent/" + testModel.hash + "/testModels/" + testModel.range)
+                        .then()
+                        .statusCode(200)
                         .extract()
-                            .response()
+                        .response()
 
-            val updatedTestModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
-            response = getResponse(port, testModel, null, 200)
-            testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
-            assertNotEquals(oldEtag, response.header(HttpHeaders.ETAG))
+                val updatedTestModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
+                response = getResponse(port, testModel, null, 200)
+                testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
+                assertNotEquals(oldEtag, response.header(HttpHeaders.ETAG))
 
-            assertEquals(1L, testModel.getSomeLong())
-            assertEquals(1L, updatedTestModel.getSomeLong())
+                assertEquals(1L, testModel.getSomeLong())
+                assertEquals(1L, updatedTestModel.getSomeLong())
 
-            it.complete()
+                it.complete()
+            }
         }, false, {
             if (it.failed()) context.failNow(it.cause())
 
@@ -350,21 +360,23 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         val port: Int = contextObjects["${testInfo.testMethod.get().name}-http-port"] as Int
 
         vertx.executeBlocking<Void>({
-            var response = createByRest(port, nonNullTestModel())
-            val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
-            response = getResponse(port, testModel, null, 200)
-            getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
-            response = getIndex(port, null, null, 200)
-            val etagRoot = response.header(HttpHeaders.ETAG)
-            getIndex(port, response.header(HttpHeaders.ETAG), null, 304)
-            val etagQuery = getIndex(port, response.header(HttpHeaders.ETAG), null, 200, "?limit=50").header(HttpHeaders.ETAG)
-            destroyByRest(port, testModel)
-            getResponse(port, testModel, testModel.etag, 404)
-            getResponse(port, testModel, null, 404)
-            getIndex(port, etagRoot, null, 304)
-            getIndex(port, etagQuery, null, 304, "?limit=50")
+            context.verify {
+                var response = createByRest(port, nonNullTestModel())
+                val testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
+                response = getResponse(port, testModel, null, 200)
+                getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
+                response = getIndex(port, null, null, 200)
+                val etagRoot = response.header(HttpHeaders.ETAG)
+                getIndex(port, response.header(HttpHeaders.ETAG), null, 304)
+                val etagQuery = getIndex(port, response.header(HttpHeaders.ETAG), null, 200, "?limit=50").header(HttpHeaders.ETAG)
+                destroyByRest(port, testModel)
+                getResponse(port, testModel, testModel.etag, 404)
+                getResponse(port, testModel, null, 404)
+                getIndex(port, etagRoot, null, 304)
+                getIndex(port, etagQuery, null, 304, "?limit=50")
 
-            it.complete()
+                it.complete()
+            }
         }, false, {
             if (it.failed()) context.failNow(it.cause())
 

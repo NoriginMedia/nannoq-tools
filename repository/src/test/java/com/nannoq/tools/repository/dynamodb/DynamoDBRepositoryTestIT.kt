@@ -130,9 +130,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val config: JsonObject = contextObjects["${testInfo.testMethod.get().name}-config"] as JsonObject
 
-        assertThat(config.getString("content_bucket") ?: "default").isEqualTo(repo.bucketName)
+        context.verify {
+            assertThat(config.getString("content_bucket") ?: "default").isEqualTo(repo.bucketName)
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -144,39 +146,47 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     fun getField(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertThat(repo.getField("someStringOne")).isNotNull
+        context.verify {
+            assertThat(repo.getField("someStringOne")).isNotNull
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     fun getFieldFail(testInfo: TestInfo, context: VertxTestContext) {
-        assertThrows<UnknownError> {
-            val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
+        context.verify {
+            assertThrows<UnknownError> {
+                val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-            repo.getField("someBogusField")
+                repo.getField("someBogusField")
+            }
+
+            context.completeNow()
         }
-
-        context.completeNow()
     }
 
     @Test
     fun getFieldAsObject(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertThat(repo.getFieldAsObject<Any, TestModel>("someStringOne", nonNullTestModel())).isNotNull
+        context.verify {
+            assertThat(repo.getFieldAsObject<Any, TestModel>("someStringOne", nonNullTestModel())).isNotNull
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     fun getFieldAsString(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertThat(repo.getField("someStringOne")).isNotNull
-        assertThat(repo.getFieldAsString("someStringOne", nonNullTestModel()).javaClass).isEqualTo(String::class.java)
+        context.verify {
+            assertThat(repo.getField("someStringOne")).isNotNull
+            assertThat(repo.getFieldAsString("someStringOne", nonNullTestModel()).javaClass).isEqualTo(String::class.java)
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -184,86 +194,96 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val field = repo.checkAndGetField("someLong")
 
-        assertThat(field).isNotNull.describedAs("CheckAndGetField is null!")
-        assertThat(field.type == java.lang.Long::class.java).describedAs("CheckAndGetField is not a long!").isTrue()
+        context.verify {
+            assertThat(field).isNotNull.describedAs("CheckAndGetField is null!")
+            assertThat(field.type == java.lang.Long::class.java).describedAs("CheckAndGetField is not a long!").isTrue()
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     fun checkAndGetFieldNonIncrementable(testInfo: TestInfo, context: VertxTestContext) {
-        assertThrows<IllegalArgumentException> {
-            val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-            assertThat(repo.checkAndGetField("someStringOne")).isNotNull.describedAs("CheckAndGetField is null!")
+        context.verify {
+            assertThrows<IllegalArgumentException> {
+
+                assertThat(repo.checkAndGetField("someStringOne")).isNotNull.describedAs("CheckAndGetField is null!")
+            }
+
+            context.completeNow()
         }
-
-        context.completeNow()
     }
 
     @Test
     fun hasField(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
-
         val declaredFields = TestModel::class.java.declaredFields
 
-        assertThat(repo.hasField(declaredFields, "someStringOne")).isTrue()
-        assertThat(repo.hasField(declaredFields, "someBogusField")).isFalse()
+        context.verify {
+            assertThat(repo.hasField(declaredFields, "someStringOne")).isTrue()
+            assertThat(repo.hasField(declaredFields, "someBogusField")).isFalse()
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     fun getAlternativeIndexIdentifier(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertThat(repo.getAlternativeIndexIdentifier(PAGINATION_INDEX))
-                .describedAs("alternateIndex not correct!").isEqualTo("someDate")
+        context.verify {
+            assertThat(repo.getAlternativeIndexIdentifier(PAGINATION_INDEX))
+                    .describedAs("alternateIndex not correct!").isEqualTo("someDate")
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     @Throws(ParseException::class)
     fun getIndexValue(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
-
         val attributeValue = repo.getIndexValue("someDate", nonNullTestModel())
         val df1 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX")
         val date = df1.parse(attributeValue.s)
 
-        assertThat(date).describedAs("Not the same date!").isEqualTo(testDate)
+        context.verify {
+            assertThat(date).describedAs("Not the same date!").isEqualTo(testDate)
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     fun createAttributeValue(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val attributeValueString = repo.createAttributeValue("someStringOne", "someTestString")
-
-        assertThat(attributeValueString.s).describedAs("Value not correct!").isEqualTo("someTestString")
-
         val attributeValueLong = repo.createAttributeValue("someLong", "1000")
 
-        assertThat(attributeValueLong.n).describedAs("Value not correct!").isEqualTo("1000")
+        context.verify {
+            assertThat(attributeValueString.s).describedAs("Value not correct!").isEqualTo("someTestString")
+            assertThat(attributeValueLong.n).describedAs("Value not correct!").isEqualTo("1000")
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     fun createAttributeValueWithComparison(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
-
         val attributeValueGE = repo.createAttributeValue("someLong", "1000", ComparisonOperator.GE)
         val attributeValueLE = repo.createAttributeValue("someLong", "1000", ComparisonOperator.LE)
 
-        assertThat(attributeValueGE.n)
-                .describedAs("Value not correct: ${Json.encodePrettily(attributeValueGE)}").isEqualTo("999")
-        assertThat(attributeValueLE.n)
-                .describedAs("Value not correct: ${Json.encodePrettily(attributeValueLE)}").isEqualTo("1001")
+        context.verify {
+            assertThat(attributeValueGE.n)
+                    .describedAs("Value not correct: ${Json.encodePrettily(attributeValueGE)}").isEqualTo("999")
+            assertThat(attributeValueLE.n)
+                    .describedAs("Value not correct: ${Json.encodePrettily(attributeValueLE)}").isEqualTo("1001")
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -274,13 +294,15 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             val testModel = res.result().item
             val newest = repo.fetchNewestRecord(TestModel::class.java, testModel.hash!!, testModel.range)
 
-            assertThat(newest).isNotNull
-            assertThat(testModel)
-                    .describedAs("Original: " + testModel.toJsonFormat().encodePrettily() +
-                    ", Newest: " + newest!!.toJsonFormat().encodePrettily())
-                    .isEqualTo(newest)
+            context.verify {
+                assertThat(newest).isNotNull
+                assertThat(testModel)
+                        .describedAs("Original: " + testModel.toJsonFormat().encodePrettily() +
+                                ", Newest: " + newest!!.toJsonFormat().encodePrettily())
+                        .isEqualTo(newest)
 
-            context.completeNow()
+                context.completeNow()
+            }
         }
     }
 
@@ -290,13 +312,15 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val exists = repo.buildExpectedAttributeValue("someStringOne", true)
         val notExists = repo.buildExpectedAttributeValue("someStringOne", false)
 
-        assertThat(exists.isExists!!).isTrue()
-        assertThat(notExists.isExists!!).isFalse()
+        context.verify {
+            assertThat(exists.isExists!!).isTrue()
+            assertThat(notExists.isExists!!).isFalse()
 
-        assertThat(exists.value.s).isEqualTo("someStringOne")
-        assertThat(notExists.value).isNull()
+            assertThat(exists.value.s).isEqualTo("someStringOne")
+            assertThat(notExists.value).isNull()
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -308,16 +332,18 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             val count = item.getSomeLong()!!
 
             repo.update(item, repo.incrementField(item, "someLong"), Handler { updateRes ->
-                if (updateRes.failed()) {
-                    context.failNow(updateRes.cause())
-                } else {
-                    val updatedItem = updateRes.result().item
+                context.verify {
+                    if (updateRes.failed()) {
+                        context.failNow(updateRes.cause())
+                    } else {
+                        val updatedItem = updateRes.result().item
 
-                    assertThat(count).isNotEqualTo(updatedItem.getSomeLong())
-                    assertThat((updatedItem.getSomeLong() == count + 1)).isTrue()
+                        assertThat(count).isNotEqualTo(updatedItem.getSomeLong())
+                        assertThat((updatedItem.getSomeLong() == count + 1)).isTrue()
+                    }
+
+                    context.completeNow()
                 }
-
-                context.completeNow()
             })
         }
     }
@@ -331,16 +357,18 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             val count = item.getSomeLong()!!
 
             repo.update(item, repo.decrementField(item, "someLong"), Handler {
-                if (it.failed()) {
-                    context.failNow(it.cause())
-                } else {
-                    val updatedItem = it.result().item
+                context.verify {
+                    if (it.failed()) {
+                        context.failNow(it.cause())
+                    } else {
+                        val updatedItem = it.result().item
 
-                    assertThat(count).isNotEqualTo(updatedItem.getSomeLong())
-                    assertThat(updatedItem.getSomeLong() == count - 1).isTrue()
+                        assertThat(count).isNotEqualTo(updatedItem.getSomeLong())
+                        assertThat(updatedItem.getSomeLong() == count - 1).isTrue()
+                    }
+
+                    context.completeNow()
                 }
-
-                context.completeNow()
             })
         }
     }
@@ -350,11 +378,13 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         repo.create(nonNullTestModel(), Handler {
-            assertThat(it.succeeded()).isTrue()
-            assertThat(it.result().item.hash).isEqualTo(nonNullTestModel().hash)
-            assertThat(nonNullTestModel().range).isEqualTo(it.result().item.range)
+            context.verify {
+                assertThat(it.succeeded()).isTrue()
+                assertThat(it.result().item.hash).isEqualTo(nonNullTestModel().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(it.result().item.range)
 
-            context.completeNow()
+                context.completeNow()
+            }
         })
     }
 
@@ -363,17 +393,21 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         repo.create(nonNullTestModel(), Handler { createRes ->
-            assertThat((createRes.succeeded())).isTrue()
-            assertThat(createRes.result().item.hash).isEqualTo(nonNullTestModel().hash)
-            assertThat(nonNullTestModel().range).isEqualTo(createRes.result().item.range)
+            context.verify {
+                assertThat((createRes.succeeded())).isTrue()
+                assertThat(createRes.result().item.hash).isEqualTo(nonNullTestModel().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().item.range)
+            }
 
             val testDate = Date()
             repo.update(createRes.result().item, Function { it.setSomeDateTwo(testDate) }, Handler {
-                assertThat(it.succeeded()).isTrue()
-                assertThat(it.result().item).isNotEqualTo(nonNullTestModel())
-                assertThat(it.result().item.getSomeDateTwo()).isEqualTo(testDate)
+                context.verify {
+                    assertThat(it.succeeded()).isTrue()
+                    assertThat(it.result().item).isNotEqualTo(nonNullTestModel())
+                    assertThat(it.result().item.getSomeDateTwo()).isEqualTo(testDate)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -384,7 +418,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
         createXItems(testInfo, 20, Handler { result ->
-            assertThat(result.succeeded()).isTrue()
+            context.verify {
+                assertThat(result.succeeded()).isTrue()
+            }
 
             result.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
@@ -394,10 +430,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("range", testModel.range)
 
                 repo.delete(id, Handler {
-                    assertThat(it.succeeded()).isTrue()
+                    context.verify {
+                        assertThat(it.succeeded()).isTrue()
+                    }
 
                     repo.read(id, Handler { readRes ->
-                        assertThat(readRes.succeeded()).isTrue()
+                        context.verify {
+                            assertThat(readRes.succeeded()).isTrue()
+                        }
 
                         future.tryComplete()
                     })
@@ -422,7 +462,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
         createXItems(testInfo, 20, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
@@ -432,12 +474,16 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("range", testModel.range)
 
                 repo.read(id, Handler { result ->
-                    assertThat(result.succeeded()).isTrue()
+                    context.verify {
+                        assertThat(result.succeeded()).isTrue()
+                    }
 
                     if (result.succeeded()) {
                         repo.read(id, Handler {
-                            assertThat(it.succeeded()).isTrue()
-                            assertThat(it.result().isCacheHit).isTrue()
+                            context.verify {
+                                assertThat(it.succeeded()).isTrue()
+                                assertThat(it.result().isCacheHit).isTrue()
+                            }
 
                             future.tryComplete()
                         })
@@ -464,7 +510,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         createXItems(testInfo, 20, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             val items = res.result().stream()
                     .map { it.item }
@@ -479,14 +527,16 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .collect(toList<JsonObject>())
 
             repo.batchRead(id, Handler { batchRead ->
-                assertThat((batchRead.succeeded())).isTrue()
-                assertThat((batchRead.result().size == res.result().size)).isTrue()
+                context.verify {
+                    assertThat((batchRead.succeeded())).isTrue()
+                    assertThat((batchRead.result().size == res.result().size)).isTrue()
 
-                batchRead.result().stream()
-                        .map { it.item }
-                        .forEach { assertThat(items).contains(it) }
+                    batchRead.result().stream()
+                            .map { it.item }
+                            .forEach { assertThat(items).contains(it) }
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -497,7 +547,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
         createXItems(testInfo, 20, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
@@ -507,12 +559,16 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("range", testModel.range)
 
                 repo.read(id, false, arrayOf("someLong"), Handler { firstRead ->
-                    assertThat((firstRead.succeeded())).isTrue()
+                    context.verify {
+                        assertThat((firstRead.succeeded())).isTrue()
+                    }
 
                     if (firstRead.succeeded()) {
                         repo.read(id, false, arrayOf("someLong"), Handler { secondRead ->
-                            assertThat((secondRead.succeeded())).isTrue()
-                            assertThat((secondRead.result().isCacheHit)).isTrue()
+                            context.verify {
+                                assertThat((secondRead.succeeded())).isTrue()
+                                assertThat((secondRead.result().isCacheHit)).isTrue()
+                            }
 
                             future.tryComplete()
                         })
@@ -539,15 +595,19 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         createXItems(testInfo, 100, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             repo.readAll(Handler { allItemsRes ->
-                assertThat(allItemsRes.succeeded()).isTrue()
-                assertThat(allItemsRes.result().isNotEmpty())
-                        .describedAs("Actual: " + allItemsRes.result().size)
-                        .isTrue()
+                context.verify {
+                    assertThat(allItemsRes.succeeded()).isTrue()
+                    assertThat(allItemsRes.result().isNotEmpty())
+                            .describedAs("Actual: " + allItemsRes.result().size)
+                            .isTrue()
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -557,7 +617,10 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         createXItems(testInfo, 100, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
+
             val idObject = JsonObject()
                     .put("hash", "testString")
             val fp = FilterParameter.builder("someStringThree")
@@ -567,12 +630,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             fpList["someLong"] = listOf(fp)
 
             repo.readAll(idObject, fpList, Handler { allItemsRes ->
-                assertThat((allItemsRes.succeeded())).isTrue()
-                assertThat(allItemsRes.result().isEmpty())
-                        .describedAs("Actual: " + allItemsRes.result().size)
-                        .isTrue()
+                context.verify {
+                    assertThat((allItemsRes.succeeded())).isTrue()
+                    assertThat(allItemsRes.result().isEmpty())
+                            .describedAs("Actual: " + allItemsRes.result().size)
+                            .isTrue()
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -580,7 +645,10 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     @Test
     fun readAllWithIdentifiersAndPageTokenAndQueryPackAndProjections(testInfo: TestInfo, context: VertxTestContext) {
         createXItems(testInfo, 100, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
+
             val idObject = JsonObject()
                     .put("hash", "testString")
 
@@ -591,7 +659,10 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     @Test
     fun readAllWithPageTokenAndQueryPackAndProjections(testInfo: TestInfo, context: VertxTestContext) {
         createXItems(testInfo, 100, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
+
             pageAllResults(100, 0, null, null, null, testInfo, context)
         })
     }
@@ -599,7 +670,10 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     @Test
     fun readAllWithIdentifiersAndPageTokenAndQueryPackAndProjectionsAndGSI(testInfo: TestInfo, context: VertxTestContext) {
         createXItems(testInfo, 100, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
+
             val idObject = JsonObject()
                     .put("hash", "testStringThree")
 
@@ -620,9 +694,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 val newCount = currentCount + allItemsRes.result().count
 
                 if (finalPageToken?.next!!.equals("END_OF_LIST", ignoreCase = true)) {
-                    assertThat(newCount).isEqualTo(totalCount)
+                    context.verify {
+                        assertThat(newCount).isEqualTo(totalCount)
 
-                    context.completeNow()
+                        context.completeNow()
+                    }
                 } else {
                     pageAllResults(totalCount, newCount, idObject, finalPageToken.next, GSI, testInfo, context)
                 }
@@ -667,9 +743,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             repo.aggregation(idObject, queryPack, arrayOf(), Handler { res ->
                 val count = JsonObject(res.result()).getInteger("count")
 
-                assertThat(count).describedAs("Count is: " + count!!).isEqualTo(100)
+                context.verify {
+                    assertThat(count).describedAs("Count is: " + count!!).isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -699,8 +777,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 etagOne.set(res.result().hashCode())
 
                 repo.aggregation(idObject, queryPack, arrayOf(), Handler { secondRes ->
-                    assertThat(secondRes.result().hashCode()).isEqualTo(etagOne.get())
-                    context.completeNow()
+                    context.verify {
+                        assertThat(secondRes.result().hashCode()).isEqualTo(etagOne.get())
+
+                        context.completeNow()
+                    }
                 })
             })
         })
@@ -725,9 +806,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 val results = JsonObject(res.result())
                 val count = results.getInteger("count")
 
-                assertThat(count).describedAs("Count is: " + count!!).isEqualTo(100)
+                context.verify {
+                    assertThat(count).describedAs("Count is: " + count!!).isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -745,12 +828,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         createXItems(testInfo, 100, Handler {
             repo.readAllWithoutPagination("testString", Handler { allItems ->
-                assertThat((allItems.succeeded())).isTrue()
-                assertThat(allItems.result().size)
-                        .describedAs("Size incorrect: " + allItems.result().size)
-                        .isEqualTo(100)
+                context.verify {
+                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -768,12 +853,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination("testString", queryPack, Handler { allItems ->
-                assertThat((allItems.succeeded())).isTrue()
-                assertThat(allItems.result().size)
-                        .describedAs("Size incorrect: " + allItems.result().size)
-                        .isEqualTo(100)
+                context.verify {
+                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -791,12 +878,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination("testString", queryPack, arrayOf(), Handler { allItems ->
-                assertThat((allItems.succeeded())).isTrue()
-                assertThat(allItems.result().size)
-                        .describedAs("Size incorrect: " + allItems.result().size)
-                        .isEqualTo(100)
+                context.verify {
+                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -815,12 +904,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination("testStringThree", queryPack, arrayOf(), "TEST_GSI", Handler { allItems ->
-                assertThat((allItems.succeeded())).isTrue()
-                assertThat(allItems.result().size)
-                        .describedAs("Size incorrect: " + allItems.result().size)
-                        .isEqualTo(100)
+                context.verify {
+                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -838,12 +929,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination(queryPack, arrayOf(), Handler { allItems ->
-                assertThat((allItems.succeeded())).isTrue()
-                assertThat(allItems.result().size)
-                        .describedAs("Size incorrect: " + allItems.result().size)
-                        .isEqualTo(100)
+                context.verify {
+                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -862,12 +955,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination(queryPack, arrayOf(), "TEST_GSI", Handler { allItems ->
-                assertThat((allItems.succeeded())).isTrue()
-                assertThat(allItems.result().size)
-                        .describedAs("Size incorrect: " + allItems.result().size)
-                        .isEqualTo(100)
+                context.verify {
+                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -878,12 +973,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         createXItems(testInfo, 100, Handler {
             repo.readAllPaginated(Handler { allItems ->
-                assertThat((allItems.succeeded())).isTrue()
-                assertThat(allItems.result().size)
-                        .describedAs("Size incorrect: " + allItems.result().size)
-                        .isEqualTo(100)
+                context.verify {
+                    assertThat((allItems.succeeded())).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -893,11 +990,13 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
-            assertThat((createRes.succeeded())).isTrue()
-            assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
-            assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
+            context.verify {
+                assertThat((createRes.succeeded())).isTrue()
+                assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
 
-            context.completeNow()
+                context.completeNow()
+            }
         })
     }
 
@@ -907,7 +1006,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
         createXItems(testInfo, 20, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
@@ -917,7 +1018,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("range", testModel.range)
 
                 service.remoteRead(id, Handler { firstRead ->
-                    assertThat(firstRead.succeeded()).isTrue()
+                    context.verify {
+                        assertThat(firstRead.succeeded()).isTrue()
+                    }
 
                     future.tryComplete()
                 })
@@ -940,17 +1043,22 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         createXItems(testInfo, 100, Handler { res ->
-            assertThat(res.succeeded()).isTrue()
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
+
             val idObject = JsonObject()
                     .put("hash", "testString")
 
             service.remoteIndex(idObject, Handler { allItemsRes ->
-                assertThat(allItemsRes.succeeded()).isTrue()
-                assertThat(allItemsRes.result().size == 100)
-                        .describedAs("Actual count: " + allItemsRes.result().size)
-                        .isTrue()
+                context.verify {
+                    assertThat(allItemsRes.succeeded()).isTrue()
+                    assertThat(allItemsRes.result().size == 100)
+                            .describedAs("Actual count: " + allItemsRes.result().size)
+                            .isTrue()
 
-                context.completeNow()
+                    context.completeNow()
+                }
             })
         })
     }
@@ -960,19 +1068,24 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
-            assertThat((createRes.succeeded())).isTrue()
-            assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
-            assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
+            context.verify {
+                assertThat((createRes.succeeded())).isTrue()
+                assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
+            }
 
             val testDate = Date()
             val result = createRes.result()
 
             service.remoteUpdate(result, Handler { updateRes ->
                 if (updateRes.failed()) context.failNow(updateRes.cause())
-                assertThat(updateRes.succeeded()).isTrue()
-                assertThat(testDate.toString()).isEqualTo(updateRes.result().getSomeDateTwo()!!.toString())
 
-                context.completeNow()
+                context.verify {
+                    assertThat(updateRes.succeeded()).isTrue()
+                    assertThat(testDate.toString()).isEqualTo(updateRes.result().getSomeDateTwo()!!.toString())
+
+                    context.completeNow()
+                }
             })
         })
     }
@@ -982,20 +1095,27 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
-            assertThat((createRes.succeeded())).isTrue()
-            assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
-            assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
+            context.verify {
+                assertThat((createRes.succeeded())).isTrue()
+                assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
+            }
+
             val id = JsonObject()
                     .put("hash", createRes.result().hash)
                     .put("range", createRes.result().range)
 
             service.remoteDelete(id, Handler { deleteRes ->
-                assertThat(deleteRes.succeeded()).isTrue()
+                context.verify {
+                    assertThat(deleteRes.succeeded()).isTrue()
+                }
 
                 service.remoteRead(id, Handler { res ->
-                    assertThat(res.succeeded()).isFalse()
+                    context.verify {
+                        assertThat(res.succeeded()).isFalse()
 
-                    context.completeNow()
+                        context.completeNow()
+                    }
                 })
             })
         })
@@ -1005,9 +1125,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     fun getModelName(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertThat(repo.modelName).isEqualTo("TestModel")
+        context.verify {
+            assertThat(repo.modelName).isEqualTo("TestModel")
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -1015,10 +1137,12 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val test = DynamoDBRepository.createS3Link(repo.dynamoDbMapper, "someName", "/someBogusPath")
 
-        assertThat(test).isNotNull
-        assertThat(test.key).describedAs("Path is not equal!").isEqualTo("/someBogusPath")
+        context.verify {
+            assertThat(test).isNotNull
+            assertThat(test.key).describedAs("Path is not equal!").isEqualTo("/someBogusPath")
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -1027,11 +1151,13 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val test = DynamoDBRepository.createS3Link(repo.dynamoDbMapper, "someName", "/someBogusPath")
         val signedUrl = DynamoDBRepository.createSignedUrl(repo.dynamoDbMapper, test)
 
-        assertThat(signedUrl).isNotNull()
-        assertThat(signedUrl.startsWith("https://s3")).describedAs("Url is not secure: $signedUrl").isTrue()
-        assertThat(signedUrl.contains("X-Amz-Algorithm")).describedAs("Url is not secure: $signedUrl").isTrue()
+        context.verify {
+            assertThat(signedUrl).isNotNull()
+            assertThat(signedUrl.startsWith("https://s3")).describedAs("Url is not secure: $signedUrl").isTrue()
+            assertThat(signedUrl.contains("X-Amz-Algorithm")).describedAs("Url is not secure: $signedUrl").isTrue()
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -1041,11 +1167,13 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val test = DynamoDBRepository.createS3Link(repo.dynamoDbMapper, "someName", "/someBogusPath")
         val signedUrl = DynamoDBRepository.createSignedUrl(repo.dynamoDbMapper, 7, test)
 
-        assertThat(signedUrl).isNotNull()
-        assertThat(signedUrl.startsWith("https://s3")).describedAs("Url is not secure: $signedUrl").isTrue()
-        assertThat(signedUrl.contains("X-Amz-Algorithm")).describedAs("Url is not secure: $signedUrl").isTrue()
+        context.verify {
+            assertThat(signedUrl).isNotNull()
+            assertThat(signedUrl.startsWith("https://s3")).describedAs("Url is not secure: $signedUrl").isTrue()
+            assertThat(signedUrl.contains("X-Amz-Algorithm")).describedAs("Url is not secure: $signedUrl").isTrue()
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -1064,18 +1192,22 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     fun hasRangeKey(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertThat(repo.hasRangeKey()).isTrue()
+        context.verify {
+            assertThat(repo.hasRangeKey()).isTrue()
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
     fun getDynamoDbMapper(testInfo: TestInfo, context: VertxTestContext) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertThat(repo.dynamoDbMapper).isNotNull
+        context.verify {
+            assertThat(repo.dynamoDbMapper).isNotNull
 
-        context.completeNow()
+            context.completeNow()
+        }
     }
 
     @Test
@@ -1084,12 +1216,17 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         val config: JsonObject = contextObjects["${testInfo.testMethod.get().name}-config"] as JsonObject
 
         if (config.getString("redis_host") != null) {
-            assertThat(repo.redisClient).isNotNull
+            context.verify {
+                assertThat(repo.redisClient).isNotNull
+            }
+
             repo.redisClient!!.info { context.completeNow() }
         } else {
-            assertThat(repo.redisClient).isNull()
+            context.verify {
+                assertThat(repo.redisClient).isNull()
 
-            context.completeNow()
+                context.completeNow()
+            }
         }
     }
 
