@@ -16,7 +16,9 @@ import io.vertx.junit5.VertxTestContext
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import redis.embedded.RedisServer
+import java.net.ServerSocket
 import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.collections.HashMap
 
 @ExtendWith(VertxExtension::class)
@@ -38,31 +40,33 @@ abstract class DynamoDBTestClass : ConfigSupport {
     protected val contextObjects: MutableMap<String, Any> = HashMap()
 
     companion object {
-        private lateinit var dynamoDBUtils: DynamoDBUtils
+        private val sockets = ConcurrentLinkedQueue<ServerSocket>()
+        private var localPort: Int = 0
+        private val dynamoDBUtils = DynamoDBUtils()
 
         @BeforeAll
         @JvmStatic
-        fun setupClass() {
-            dynamoDBUtils = DynamoDBUtils()
+        fun beforeAll() {
+            localPort = ServerSocket(0).use { it.localPort }
+            dynamoDBUtils.startDynamoDB(localPort)
         }
 
         @AfterAll
         @JvmStatic
-        fun teardownClass() {
-            dynamoDBUtils.stopAll()
+        fun afterAll() {
+            dynamoDBUtils.stopDynamoDB(localPort)
         }
     }
 
     @BeforeEach
     fun setup(vertx: Vertx, testInfo: TestInfo, context: VertxTestContext) {
-        val freePort = findFreePort()
-        val redisPort = findFreePort()
-        val httpPort = findFreePort()
-        dynamoDBUtils.startDynamoDB(freePort)
-        contextObjects["${testInfo.testMethod.get().name}-port"] = freePort
+        val redisPort = ServerSocket(0).use { it.localPort }
+        val httpPort = ServerSocket(0).use { it.localPort }
+
+        contextObjects["${testInfo.testMethod.get().name}-port"] = localPort
         contextObjects["${testInfo.testMethod.get().name}-redis-port"] = redisPort
         contextObjects["${testInfo.testMethod.get().name}-http-port"] = httpPort
-        contextObjects["${testInfo.testMethod.get().name}-endpoint"] = "http://localhost:$freePort"
+        contextObjects["${testInfo.testMethod.get().name}-endpoint"] = "http://localhost:$localPort"
 
         val redisServer = RedisServer(redisPort)
         redisServer.start()
@@ -74,6 +78,8 @@ abstract class DynamoDBTestClass : ConfigSupport {
         val endpoint = contextObjects["${testInfo.testMethod.get().name}-endpoint"]
         val config = JsonObject()
                 .put("dynamo_endpoint", endpoint)
+                .put("dynamo_db_iam_id", UUID.randomUUID().toString())
+                .put("dynamo_db_iam_key", UUID.randomUUID().toString())
                 .put("redis_host", "localhost")
                 .put("redis_port", redisPort)
         val classCollection = mapOf(Pair("testModels", TestModel::class.java))
@@ -90,11 +96,9 @@ abstract class DynamoDBTestClass : ConfigSupport {
 
     @AfterEach
     fun teardown(testInfo: TestInfo, context: VertxTestContext) {
-        val freePort = contextObjects["${testInfo.testMethod.get().name}-port"] as Int
-        dynamoDBUtils.stopDynamoDB(freePort)
-
         val redis: RedisServer = contextObjects["${testInfo.testMethod.get().name}-redis"] as RedisServer
         redis.stop()
+
         context.completeNow()
     }
 }

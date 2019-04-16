@@ -230,20 +230,12 @@ subprojects {
 
     testlogger {
         theme = ThemeType.STANDARD_PARALLEL
-        showPassed = false
-        showSkipped = false
-        showStandardStreams = true
-        showPassedStandardStreams = false
-        showSkippedStandardStreams = false
     }
 
     kapt {
+        correctErrorTypes = true
         useBuildCache = true
         includeCompileClasspath = false
-
-        javacOptions {
-            option("-Xlint", "none")
-        }
     }
 
     val dokka by tasks.getting(DokkaTask::class) {
@@ -267,7 +259,7 @@ subprojects {
     tasks.withType<KotlinCompile> {
         kotlinOptions {
             jvmTarget = project.extra["jvmTargetValue"] as String
-            kotlinOptions.suppressWarnings = true
+            suppressWarnings = true
         }
     }
 
@@ -380,6 +372,8 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
 
     tasks {
         val dynamoDbDeps by registering(Copy::class) {
+            dependsOn(dynamodb)
+
             from(dynamodb)
             into("$projectDir/build/tmp/dynamodb-libs")
         }

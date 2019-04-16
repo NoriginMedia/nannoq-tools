@@ -34,6 +34,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.parallel.Execution
@@ -51,32 +52,36 @@ class ServiceManagerTest {
     @Test
     @Throws(Exception::class)
     fun publishApi(vertx: Vertx, testContext: VertxTestContext) {
-        ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"))
-        ServiceManager.getInstance(vertx).consumeApi("SOME_API", testContext.completing())
+        ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"), Handler {
+            testContext.verify {
+                assertThat(it.succeeded()).isTrue()
+                assertThat(it.result()).isNotNull
+            }
+
+            ServiceManager.getInstance(vertx).consumeApi("SOME_API", testContext.completing())
+        })
     }
 
     @Test
     @Throws(Exception::class)
     fun unPublishApi(vertx: Vertx, testContext: VertxTestContext) {
-        val checkpoint = testContext.checkpoint(3)
+        val checkpoint = testContext.checkpoint(2)
 
         ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"), Handler { res ->
+            testContext.verify {
+                assertThat(res.succeeded()).isTrue()
+                assertThat(res.result()).isNotNull
+            }
+
             ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler {
                 if (it.succeeded()) {
                     checkpoint.flag()
-                } else {
-                    testContext.failNow(it.cause())
-                }
-            })
-            ServiceManager.getInstance(vertx).unPublishApi(res.result(), Handler {
-                if (it.succeeded()) {
-                    checkpoint.flag()
 
-                    ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { result ->
-                        if (result.failed()) {
+                    ServiceManager.getInstance(vertx).unPublishApi(res.result(), Handler { result ->
+                        if (result.succeeded()) {
                             checkpoint.flag()
                         } else {
-                            testContext.failNow(RuntimeException("This api shouldnt be available"))
+                            testContext.failNow(result.cause())
                         }
                     })
                 } else {
@@ -91,14 +96,18 @@ class ServiceManagerTest {
     @Test
     @Throws(Exception::class)
     fun consumeApi(vertx: Vertx, testContext: VertxTestContext) {
+        val checkpoint = testContext.checkpoint(100)
+
         ServiceManager.getInstance(vertx).publishApi(getAPIManager(vertx).createExternalApiRecord("SOME_API", "/api"))
 
         IntStream.range(0, 100).parallel().forEach {
             ServiceManager.getInstance(vertx).consumeApi("SOME_API", Handler { apiRes ->
-                when {
-                    apiRes.failed() -> testContext.failNow(apiRes.cause())
-                    else -> testContext.completeNow()
+                testContext.verify {
+                    assertThat(apiRes.succeeded()).isTrue()
+                    assertThat(apiRes.result()).isNotNull
                 }
+
+                checkpoint.flag()
             })
         }
     }
@@ -108,21 +117,29 @@ class ServiceManagerTest {
     fun publishService(vertx: Vertx, testContext: VertxTestContext) {
         val checkpoint = testContext.checkpoint(2)
 
-        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, HeartBeatServiceImpl())
-        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, "SOME_ADDRESS", HeartBeatServiceImpl())
-        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler {
-            if (it.succeeded()) {
-                checkpoint.flag()
-            } else {
-                testContext.failNow(it.cause())
+        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, HeartBeatServiceImpl(), Handler {
+            testContext.verify {
+                assertThat(it.succeeded()).isTrue()
+                assertThat(it.result()).isNotNull
             }
+
+            ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler {
+                if (it.succeeded()) {
+                    checkpoint.flag()
+                } else {
+                    testContext.failNow(it.cause())
+                }
+            })
         })
-        ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", Handler {
-            if (it.succeeded()) {
-                checkpoint.flag()
-            } else {
-                testContext.failNow(it.cause())
-            }
+
+        ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, "SOME_ADDRESS", HeartBeatServiceImpl(), Handler {
+            ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, "SOME_ADDRESS", Handler {
+                if (it.succeeded()) {
+                    checkpoint.flag()
+                } else {
+                    testContext.failNow(it.cause())
+                }
+            })
         })
     }
 
@@ -130,9 +147,28 @@ class ServiceManagerTest {
     @Throws(Exception::class)
     fun unPublishService(vertx: Vertx, testContext: VertxTestContext) {
         ServiceManager.getInstance(vertx).publishService(HeartbeatService::class.java, HeartBeatServiceImpl(), Handler { record ->
+            testContext.verify {
+                assertThat(record.succeeded()).isTrue()
+                assertThat(record.result()).isNotNull
+            }
+
             ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler {
-                ServiceManager.getInstance(vertx).unPublishService(HeartbeatService::class.java, record.result(), Handler {
-                    ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler { testContext.completeNow() })
+                testContext.verify {
+                    assertThat(it.succeeded()).isTrue()
+                }
+
+                ServiceManager.getInstance(vertx).unPublishService(HeartbeatService::class.java, record.result(), Handler { result ->
+                    testContext.verify {
+                        assertThat(result.succeeded()).isTrue()
+                    }
+
+                    ServiceManager.getInstance(vertx).consumeService(HeartbeatService::class.java, Handler { innerResult ->
+                        testContext.verify {
+                            assertThat(innerResult.succeeded()).isFalse()
+
+                            testContext.completeNow()
+                        }
+                    })
                 })
             })
         })

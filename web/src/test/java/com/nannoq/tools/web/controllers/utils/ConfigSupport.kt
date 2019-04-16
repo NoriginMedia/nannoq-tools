@@ -26,7 +26,6 @@ package com.nannoq.tools.web.controllers.utils
 
 import io.vertx.core.json.JsonObject
 import java.io.File
-import java.net.ServerSocket
 
 /**
  * @author Anders Mikkelsen
@@ -37,9 +36,5 @@ interface ConfigSupport {
         val configFile = File(this::class.java.classLoader.getResource("app-conf.json").toURI())
 
         return JsonObject(configFile.readText())
-    }
-
-    fun findFreePort() = ServerSocket(0).use {
-        it.localPort
     }
 }

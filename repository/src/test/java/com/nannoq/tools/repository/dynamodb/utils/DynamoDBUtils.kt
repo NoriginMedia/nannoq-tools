@@ -8,32 +8,26 @@ class DynamoDBUtils {
         val dbMap = HashMap<Int, DynamoDBProxyServer>()
     }
 
-    @Synchronized
     fun startDynamoDB(port: Int = 8000): DynamoDBProxyServer {
-        val args = arrayOf("-inMemory", "-port", "$port", "-sharedDb")
+        val args = arrayOf("-inMemory", "-port", "$port")
         val server = ServerRunner.createServerFromCommandLineArgs(args)
 
         if (dbMap.containsKey(port)) throw IllegalArgumentException("Port $port is taken!")
 
         server.start()
 
+        Thread.sleep(2000)
+
         dbMap[port] = server
 
         return server
     }
 
-    @Synchronized
     fun stopDynamoDB(port: Int = 8000) {
         if (dbMap.containsKey(port)) {
             dbMap.remove(port)?.stop()
         } else {
             throw IllegalArgumentException("No DB @ $port!")
         }
-    }
-
-    @Synchronized
-    fun stopAll() {
-        dbMap.forEach { it.value.stop() }
-        dbMap.clear()
     }
 }

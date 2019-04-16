@@ -301,16 +301,22 @@ class ServiceManager {
                 .setAddress(serviceName)
                 .unregister(registeredServices[service.registration])
 
-        serviceDiscovery!!.unpublish(service.registration, resultHandler)
+        serviceDiscovery!!.unpublish(service.registration) {
+            if (it.succeeded()) {
+                registeredServices.remove(service.registration)
 
-        registeredServices.remove(service.registration)
+                val objects = fetchedServices[service.name]
 
-        val objects = fetchedServices[service.name]
+                if (objects != null && objects.size > 0) {
+                    val iterator = objects.iterator()
+                    iterator.next()
+                    iterator.remove()
+                }
 
-        if (objects != null && objects.size > 0) {
-            val iterator = objects.iterator()
-            iterator.next()
-            iterator.remove()
+                resultHandler.handle(Future.succeededFuture())
+            } else {
+                resultHandler.handle(ServiceException.fail(500, "Unable to unpublish Service..."))
+            }
         }
 
         return this

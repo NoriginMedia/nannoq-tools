@@ -12,9 +12,14 @@ import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.api.extension.ExtendWith
+import java.net.ServerSocket
 import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
 
 @ExtendWith(VertxExtension::class)
 abstract class DynamoDBTestClass : ConfigSupport {
@@ -39,32 +44,36 @@ abstract class DynamoDBTestClass : ConfigSupport {
     protected val contextObjects: MutableMap<String, Any> = HashMap()
 
     companion object {
-        private lateinit var dynamoDBUtils: DynamoDBUtils
+        private val sockets = ConcurrentLinkedQueue<ServerSocket>()
+        private var localPort: Int = 0
+        private val dynamoDBUtils = DynamoDBUtils()
 
         @BeforeAll
         @JvmStatic
-        fun setupClass() {
-            dynamoDBUtils = DynamoDBUtils()
+        fun beforeAll() {
+            localPort = ServerSocket(0).use { it.localPort }
+            dynamoDBUtils.startDynamoDB(localPort)
         }
 
         @AfterAll
         @JvmStatic
-        fun teardownClass() {
-            dynamoDBUtils.stopAll()
+        fun afterAll() {
+            dynamoDBUtils.stopDynamoDB(localPort)
         }
     }
 
     @BeforeEach
     fun setup(testInfo: TestInfo, vertx: Vertx, context: VertxTestContext) {
-        val freePort = findFreePort()
-        dynamoDBUtils.startDynamoDB(freePort)
-        contextObjects["${testInfo.testMethod.get().name}-port"] = freePort
-        contextObjects["${testInfo.testMethod.get().name}-endpoint"] = "http://localhost:$freePort"
+        contextObjects["${testInfo.testMethod.get().name}-port"] = localPort
+        contextObjects["${testInfo.testMethod.get().name}-endpoint"] = "http://localhost:$localPort"
 
         Json.mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
         val endpoint = contextObjects["${testInfo.testMethod.get().name}-endpoint"]
-        val config = JsonObject().put("dynamo_endpoint", endpoint)
+        val config = JsonObject()
+                .put("dynamo_endpoint", endpoint)
+                .put("dynamo_db_iam_id", UUID.randomUUID().toString())
+                .put("dynamo_db_iam_key", UUID.randomUUID().toString())
         val classCollection = mapOf(Pair("testModels", TestModel::class.java))
         val finalConfig = getTestConfig().mergeIn(config)
 
@@ -75,12 +84,5 @@ abstract class DynamoDBTestClass : ConfigSupport {
             if (it.failed()) context.failNow(it.cause())
             context.completeNow()
         })
-    }
-
-    @AfterEach
-    fun teardown(testInfo: TestInfo, context: VertxTestContext) {
-        val freePort = contextObjects["${testInfo.testMethod.get().name}-port"] as Int
-        dynamoDBUtils.stopDynamoDB(freePort)
-        context.completeNow()
     }
 }
