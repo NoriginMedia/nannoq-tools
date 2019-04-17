@@ -28,14 +28,6 @@ dependencies {
     compile(project(":web"))
     compile(project(":cluster"))
 
-    // Log4j2
-    compile(group = "org.apache.logging.log4j", name = "log4j-api", version = extra["log4j_version"] as String)
-    compile(group = "org.apache.logging.log4j", name = "log4j-core", version = extra["log4j_version"] as String)
-    compile(group = "com.lmax", name = "disruptor", version = extra["com_lmax_version"] as String)
-
-    // Jackson
-    compile("com.fasterxml.jackson.core:jackson-annotations:${extra["jackson_annotations_version"] as String}")
-
     // Sanitation
     compile("org.jsoup:jsoup:${extra["jsoup_version"] as String}")
 
