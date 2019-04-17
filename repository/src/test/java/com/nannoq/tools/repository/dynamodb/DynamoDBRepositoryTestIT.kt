@@ -1076,6 +1076,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             val testDate = Date()
             val result = createRes.result()
+            result.setSomeDateTwo(testDate)
 
             service.remoteUpdate(result, Handler { updateRes ->
                 if (updateRes.failed()) context.failNow(updateRes.cause())
