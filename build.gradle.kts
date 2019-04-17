@@ -32,9 +32,9 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.ServerSocket
 
-val groupValue : String = "com.nannoq"
-val versionValue : String by project
-val jvmTargetValue : String by project
+val groupValue: String = "com.nannoq"
+val versionValue: String = properties["version"] as String
+val jvmTargetValue: String by project
 val kotlin_version: String by project
 val dokka_version: String by project
 val vertx_version: String by project
@@ -66,6 +66,8 @@ val dynamodb_local_version: String by project
 val apache_commons_io_version: String by project
 val jcache_version: String by project
 val gradle_test_logger_version: String by project
+val gradle_versions_version: String by project
+val gradle_gitflow_version: String by project
 
 repositories {
     mavenCentral()
@@ -81,6 +83,7 @@ buildscript {
     dependencies {
         classpath(kotlin("gradle-plugin", extra["kotlin_version"] as String))
         classpath("org.jetbrains.dokka:dokka-gradle-plugin:${extra["dokka_version"] as String}")
+        classpath("io.github.robwin:jgitflow-gradle-plugin:${extra["gradle_gitflow_version"] as String}")
     }
 }
 
@@ -92,12 +95,17 @@ plugins {
     id("org.jetbrains.dokka") version(extra["dokka_version"] as String)
     id("idea")
     id("com.adarshr.test-logger") version(extra["gradle_test_logger_version"] as String)
+    id("com.github.ben-manes.versions") version(extra["gradle_versions_version"] as String)
     kotlin("jvm") version(extra["kotlin_version"] as String)
     kotlin("kapt") version(extra["kotlin_version"] as String)
 
     @Suppress("RemoveRedundantBackticks")
     `maven-publish`
     signing
+}
+
+apply {
+    plugin("io.github.robwin.jgitflow")
 }
 
 dependencies {
@@ -117,6 +125,7 @@ allprojects {
     version = versionValue
 
     extra {
+        versionValue
         kotlin_version
         dokka_version
         vertx_version
@@ -160,6 +169,7 @@ subprojects {
         plugin<IdeaPlugin>()
         plugin<MavenPublishPlugin>()
         plugin<TestLoggerPlugin>()
+        plugin("com.github.ben-manes.versions")
         plugin("java")
         plugin("org.jetbrains.kotlin.kapt")
     }
@@ -292,7 +302,7 @@ subprojects {
         repositories {
             mavenLocal()
 
-            if ((project.extra["versionValue"] as String).contains("-SNAPSHOT") &&
+            if ((properties["version"] as String).contains("-SNAPSHOT") &&
                     project.hasProperty("central")) {
                 maven(url = "https://oss.sonatype.org/content/repositories/snapshots/") {
                     credentials {
