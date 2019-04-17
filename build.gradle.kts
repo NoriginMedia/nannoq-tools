@@ -29,8 +29,10 @@ import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+val buildUtils = BuildUtils()
+val branchName = buildUtils.gitBranch()
 val groupValue: String = "com.nannoq"
-val versionValue: String = properties["version"] as String
+val versionValue: String = buildUtils.calculateVersion(properties["version"] as String, branchName)
 
 repositories {
     mavenCentral()
@@ -65,10 +67,6 @@ plugins {
     @Suppress("RemoveRedundantBackticks")
     `maven-publish`
     signing
-}
-
-apply {
-    plugin("io.github.robwin.jgitflow")
 }
 
 dependencies {
@@ -206,6 +204,10 @@ subprojects {
         }
     }
 
+    tasks.withType<JavaCompile>().configureEach {
+        options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn")
+    }
+
     tasks {
         "test"(Test::class) {
             @Suppress("UnstableApiUsage")
@@ -235,15 +237,14 @@ subprojects {
         repositories {
             mavenLocal()
 
-            if ((properties["version"] as String).contains("-SNAPSHOT") &&
-                    project.hasProperty("central")) {
+            if (branchName == "develop" && project.hasProperty("central")) {
                 maven(url = "https://oss.sonatype.org/content/repositories/snapshots/") {
                     credentials {
                         username = System.getenv("OSSRH_USER")
                         password = System.getenv("OSSRH_PASS")
                     }
                 }
-            } else if (project.hasProperty("central")) {
+            } else if (branchName == "master" && project.hasProperty("central")) {
                 maven(url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
                     credentials {
                         username = System.getenv("OSSRH_USER")
