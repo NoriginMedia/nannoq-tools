@@ -24,21 +24,21 @@
 
 dependencies {
     // Nannoq Tools
-    compile(project(":repository"))
-    compile(project(":web"))
-    compile(project(":cluster"))
+    api(project(":repository"))
+    api(project(":web"))
+    api(project(":cluster"))
 
     // Sanitation
-    compile("org.jsoup:jsoup:${extra["jsoup_version"] as String}")
+    implementation(Libs.jsoup)
 
     // Auth
-    compile("io.jsonwebtoken:jjwt:${extra["jjwt_version"] as String}")
-    compile("com.google.api-client:google-api-client:${extra["google_api_client_version"] as String}")
-    compile("org.facebook4j:facebook4j-core:${extra["facebook4j_version"] as String}")
-    compile("com.sachinhandiekar:jInstagram:${extra["jInstagram_version"] as String}")
+    implementation(Libs.jjwt)
+    implementation(Libs.google_api_client)
+    implementation(Libs.facebook4j)
+    implementation(Libs.jInstagram)
 
     // Test
-    testCompile("com.github.kstyrc:embedded-redis:${extra["embedded_redis_version"] as String}")
+    testImplementation(Libs.embedded_redis)
 }
 
 publishing {

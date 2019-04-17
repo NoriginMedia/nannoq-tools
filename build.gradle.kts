@@ -24,50 +24,13 @@
 
 import com.adarshr.gradle.testlogger.TestLoggerPlugin
 import com.adarshr.gradle.testlogger.theme.ThemeType
-import groovy.json.JsonBuilder
-import groovy.json.JsonSlurper
 import org.jetbrains.dokka.gradle.DokkaPlugin
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.net.ServerSocket
 
 val groupValue: String = "com.nannoq"
 val versionValue: String = properties["version"] as String
-val jvmTargetValue: String by project
-val kotlin_version: String by project
-val dokka_version: String by project
-val vertx_version: String by project
-val vertx_redis_version: String by project
-val log4j_version: String by project
-val com_lmax_version: String by project
-val junit_version: String by project
-val assertj_version: String by project
-val rest_assured_version: String by project
-val logger_factory_version: String by project
-val jackson_annotations_version: String by project
-val commons_validator_version: String by project
-val google_findbugs_version: String by project
-val jsoup_version: String by project
-val embedded_redis_version: String by project
-val jjwt_version: String by project
-val google_api_client_version: String by project
-val facebook4j_version: String by project
-val jInstagram_version: String by project
-val nexus_staging_version: String by project
-val google_guava_jdk5_version: String by project
-val smack_version: String by project
-val s3mock_version: String by project
-val sqlLite_version: String by project
-val awssdk_encryption_version: String by project
-val metadata_extractor_version: String by project
-val tika_version: String by project
-val dynamodb_local_version: String by project
-val apache_commons_io_version: String by project
-val jcache_version: String by project
-val gradle_test_logger_version: String by project
-val gradle_versions_version: String by project
-val gradle_gitflow_version: String by project
 
 repositories {
     mavenCentral()
@@ -81,9 +44,9 @@ buildscript {
     }
 
     dependencies {
-        classpath(kotlin("gradle-plugin", extra["kotlin_version"] as String))
-        classpath("org.jetbrains.dokka:dokka-gradle-plugin:${extra["dokka_version"] as String}")
-        classpath("io.github.robwin:jgitflow-gradle-plugin:${extra["gradle_gitflow_version"] as String}")
+        classpath(kotlin("gradle-plugin", Versions.kotlin_version))
+        classpath("org.jetbrains.dokka:dokka-gradle-plugin:${Versions.dokka_version}")
+        classpath("io.github.robwin:jgitflow-gradle-plugin:${Versions.gradle_gitflow_version}")
     }
 }
 
@@ -91,13 +54,13 @@ plugins {
     base
 
     id("java")
-    id("io.codearte.nexus-staging") version(extra["nexus_staging_version"] as String)
-    id("org.jetbrains.dokka") version(extra["dokka_version"] as String)
+    id("io.codearte.nexus-staging") version(Versions.nexus_staging_version)
+    id("org.jetbrains.dokka") version(Versions.dokka_version)
     id("idea")
-    id("com.adarshr.test-logger") version(extra["gradle_test_logger_version"] as String)
-    id("com.github.ben-manes.versions") version(extra["gradle_versions_version"] as String)
-    kotlin("jvm") version(extra["kotlin_version"] as String)
-    kotlin("kapt") version(extra["kotlin_version"] as String)
+    id("com.adarshr.test-logger") version(Versions.gradle_test_logger_version)
+    id("com.github.ben-manes.versions") version(Versions.gradle_versions_version)
+    kotlin("jvm") version(Versions.kotlin_version)
+    kotlin("kapt") version(Versions.kotlin_version)
 
     @Suppress("RemoveRedundantBackticks")
     `maven-publish`
@@ -123,40 +86,6 @@ nexusStaging {
 allprojects {
     group = groupValue
     version = versionValue
-
-    extra {
-        versionValue
-        kotlin_version
-        dokka_version
-        vertx_version
-        vertx_redis_version
-        log4j_version
-        com_lmax_version
-        junit_version
-        assertj_version
-        rest_assured_version
-        logger_factory_version
-        jackson_annotations_version
-        commons_validator_version
-        google_findbugs_version
-        jsoup_version
-        embedded_redis_version
-        jjwt_version
-        google_api_client_version
-        facebook4j_version
-        jInstagram_version
-        google_guava_jdk5_version
-        smack_version
-        s3mock_version
-        sqlLite_version
-        awssdk_encryption_version
-        metadata_extractor_version
-        tika_version
-        dynamodb_local_version
-        apache_commons_io_version
-        jcache_version
-        gradle_test_logger_version
-    }
 }
 
 subprojects {
@@ -184,58 +113,62 @@ subprojects {
 
     dependencies {
         // Kotlin
-        implementation(kotlin("stdlib", extra["kotlin_version"] as String))
-        implementation(kotlin("stdlib-jdk8", extra["kotlin_version"] as String))
-        compile("org.jetbrains.kotlin:kotlin-reflect")
+        implementation(kotlin("stdlib", Versions.kotlin_version))
+        implementation(kotlin("stdlib-jdk8", Versions.kotlin_version))
+        implementation("org.jetbrains.kotlin:kotlin-reflect")
 
         // Vert.x
-        compile("io.vertx:vertx-core:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-web:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-hazelcast:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-codegen:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-lang-js:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-lang-ruby:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-lang-kotlin:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-service-proxy:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-sockjs-service-proxy:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-circuit-breaker:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-redis-client:${extra["vertx_redis_version"] as String}")
-        compile("io.vertx:vertx-mail-client:${extra["vertx_version"] as String}")
-        compile("io.vertx:vertx-lang-kotlin-coroutines:${extra["vertx_version"] as String}")
+        implementation(Libs.vertx_core)
+        implementation(Libs.vertx_web)
+        implementation(Libs.vertx_hazelcast)
+        implementation(Libs.vertx_codegen)
+        implementation(Libs.vertx_lang_js)
+        implementation(Libs.vertx_lang_ruby)
+        implementation(Libs.vertx_lang_kotlin)
+        implementation(Libs.vertx_service_proxy)
+        implementation(Libs.vertx_sockjs_service_proxy)
+        implementation(Libs.vertx_circuit_breaker)
+        implementation(Libs.vertx_redis_client)
+        implementation(Libs.vertx_mail_client)
+        implementation(Libs.vertx_lang_kotlin_coroutines)
 
         // Kapt
-        kapt("io.vertx:vertx-codegen:${extra["vertx_version"] as String}:processor")
-        kapt("io.vertx:vertx-service-proxy:${extra["vertx_version"] as String}:processor")
+        kapt("${Libs.vertx_codegen}:processor")
+        kapt("${Libs.vertx_service_proxy}:processor")
 
         // Log4j2
-        compile(group = "org.apache.logging.log4j", name = "log4j-api", version = extra["log4j_version"] as String)
-        compile(group = "org.apache.logging.log4j", name = "log4j-core", version = extra["log4j_version"] as String)
-        compile(group = "com.lmax", name = "disruptor", version = extra["com_lmax_version"] as String)
+        implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = Versions.log4j_version)
+        implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = Versions.log4j_version)
+        implementation(group = "com.lmax", name = "disruptor", version = Versions.com_lmax_version)
 
         // Jackson
-        compile("com.fasterxml.jackson.core:jackson-annotations:${extra["jackson_annotations_version"] as String}")
+        implementation(Libs.jackson_annotations)
 
         // Commons
-        compile("org.apache.commons:commons-lang3:${extra["apache_commons_lang_version"] as String}")
-        compile("commons-io:commons-io:${extra["apache_commons_io_version"] as String}")
-        compile("commons-validator:commons-validator:${extra["commons_validator_version"] as String}")
-        compile("com.google.code.findbugs:annotations:${extra["google_findbugs_version"] as String}")
-        compile("com.google.guava:guava-jdk5:${extra["google_guava_jdk5_version"] as String}")
+        implementation(Libs.commons_lang3)
+        implementation(Libs.commons_io)
+        implementation(Libs.commons_validator)
+        implementation(Libs.findbugs_annotations)
+        implementation(Libs.guava_jdk5)
 
         // Test
-        testCompile("org.jetbrains.kotlin:kotlin-test")
-        testCompile("org.jetbrains.kotlin:kotlin-test-junit")
-        testCompile("io.vertx:vertx-config:${extra["vertx_version"] as String}")
-        testCompile("io.vertx:vertx-junit5:${extra["vertx_version"] as String}")
-        testCompile("org.assertj:assertj-core:${extra["assertj_version"] as String}")
-        testCompile("io.rest-assured:rest-assured:${extra["rest_assured_version"] as String}")
-        testCompile("io.rest-assured:json-path:${extra["rest_assured_version"] as String}")
-        testCompile("io.rest-assured:json-schema-validator:${extra["rest_assured_version"] as String}")
-        testRuntime("org.junit.jupiter:junit-jupiter-engine:${extra["junit_version"] as String}")
+        testImplementation("org.jetbrains.kotlin:kotlin-test")
+        testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
+        testImplementation(Libs.vertx_config)
+        testImplementation(Libs.vertx_junit5)
+        testImplementation(Libs.assertj_core)
+        testImplementation(Libs.rest_assured)
+        testImplementation(Libs.rest_assured_json_path)
+        testImplementation(Libs.rest_assured_json_schema_validator)
+        testImplementation(Libs.commons_io)
+        testImplementation(Libs.commons_validator)
+        testImplementation(Libs.findbugs_annotations)
+        testImplementation(Libs.guava_jdk5)
+        testRuntime(Libs.junit_jupiter_engine)
 
         // Kapt Test
-        kaptTest("io.vertx:vertx-codegen:${extra["vertx_version"] as String}:processor")
-        kaptTest("io.vertx:vertx-service-proxy:${extra["vertx_version"] as String}:processor")
+        kaptTest("${Libs.vertx_codegen}:processor")
+        kaptTest("${Libs.vertx_service_proxy}:processor")
     }
 
     testlogger {
@@ -268,16 +201,16 @@ subprojects {
 
     tasks.withType<KotlinCompile> {
         kotlinOptions {
-            jvmTarget = project.extra["jvmTargetValue"] as String
+            jvmTarget = Versions.jvmTargetValue
             suppressWarnings = true
         }
     }
 
     tasks {
         "test"(Test::class) {
+            @Suppress("UnstableApiUsage")
             useJUnitPlatform()
-            systemProperties = mapOf(Pair(
-                    "vertx.logger-delegate-factory-class-name", project.extra["logger_factory_version"] as String))
+            systemProperties = mapOf(Pair("vertx.logger-delegate-factory-class-name", Versions.logger_factory_version))
         }
 
         "publish" {
@@ -334,27 +267,6 @@ subprojects {
             }
         }
     }
-
-    fun findFreePort() = ServerSocket(0).use {
-        it.localPort
-    }
-
-    fun writeCustomConfToConf(vertxPort: Int): String {
-        val config = JsonSlurper().parseText(File("$projectDir/src/test/resources/app-conf.json").readText())
-        val outPutConfig = file("$buildDir/tmp/app-conf-test.json")
-        outPutConfig.createNewFile()
-
-        val builder = JsonBuilder(config)
-        val openJson = builder.toPrettyString().removeSuffix("}")
-        val newConfig = JsonBuilder(JsonSlurper().parseText("$openJson, \"gateway\":{\"bridgePort\":$vertxPort}}")).toPrettyString()
-
-        outPutConfig.bufferedWriter().use { out ->
-            out.write(newConfig)
-            out.flush()
-        }
-
-        return outPutConfig.absolutePath
-    }
 }
 
 configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
@@ -362,22 +274,22 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
 
     dependencies {
         // Cache
-        compile("javax.cache:cache-api:${extra["jcache_version"] as String}")
+        implementation(Libs.jcache)
         
         // Redis
-        testCompile("com.github.kstyrc:embedded-redis:${extra["embedded_redis_version"] as String}")
+        testImplementation(Libs.embedded_redis)
 
         // DynamoDB Test
-        testCompile("com.amazonaws:DynamoDBLocal:${extra["dynamodb_local_version"] as String}")
-        testCompile("com.almworks.sqlite4java:sqlite4java:${extra["sqlLite_version"] as String}")
-        testCompile("com.almworks.sqlite4java:sqlite4java-win32-x86:${extra["sqlLite_version"] as String}")
-        testCompile("com.almworks.sqlite4java:sqlite4java-win32-x64:${extra["sqlLite_version"] as String}")
-        testCompile("com.almworks.sqlite4java:libsqlite4java-osx:${extra["sqlLite_version"] as String}")
-        testCompile("com.almworks.sqlite4java:libsqlite4java-linux-i386:${extra["sqlLite_version"] as String}")
-        testCompile("com.almworks.sqlite4java:libsqlite4java-linux-amd64:${extra["sqlLite_version"] as String}")
-        testImplementation("com.amazonaws:DynamoDBLocal:${extra["dynamodb_local_version"] as String}")
+        testImplementation(Libs.dynamodb_local)
+        testImplementation(Libs.sqlite4)
+        testImplementation(Libs.sqlite4_win32_x86)
+        testImplementation(Libs.sqlite4_win32_x64)
+        testImplementation(Libs.sqlite4_osx)
+        testImplementation(Libs.sqlite4_linux_i386)
+        testImplementation(Libs.sqlite4_linux_amd64)
+        testImplementation(Libs.dynamodb_local)
         dynamodb(fileTree("lib") { include(listOf("*.dylib", "*.so", "*.dll")) })
-        dynamodb("com.amazonaws:DynamoDBLocal:${extra["dynamodb_local_version"] as String}")
+        dynamodb(Libs.dynamodb_local)
     }
 
     tasks {
@@ -392,7 +304,7 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
             dependsOn(dynamoDbDeps)
 
             systemProperties = mapOf(
-                    Pair("vertx.logger-delegate-factory-class-name", project.extra["logger_factory_version"] as String),
+                    Pair("vertx.logger-delegate-factory-class-name", Versions.logger_factory_version),
                     Pair("java.library.path", file("$projectDir/build/tmp/dynamodb-libs").absolutePath))
         }
     }

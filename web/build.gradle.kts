@@ -24,7 +24,7 @@
 
 dependencies {
     // Nannoq Tools
-    compile(project(":repository"))
+    api(project(":repository"))
 }
 
 publishing {

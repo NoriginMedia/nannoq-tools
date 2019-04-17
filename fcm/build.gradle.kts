@@ -24,17 +24,17 @@
 
 dependencies {
     // Nannoq Tools
-    compile(project(":repository"))
-    compile(project(":cluster"))
+    api(project(":repository"))
+    api(project(":cluster"))
 
     // XMPP
-    compile("org.igniterealtime.smack:smack:${extra["smack_version"] as String}")
+    implementation(Libs.smack)
 
     // Sanitation
-    compile("org.jsoup:jsoup:${extra["jsoup_version"] as String}")
+    implementation(Libs.jsoup)
 
     // Test
-    testCompile("com.github.kstyrc:embedded-redis:${extra["embedded_redis_version"] as String}")
+    testImplementation(Libs.embedded_redis)
 }
 
 publishing {

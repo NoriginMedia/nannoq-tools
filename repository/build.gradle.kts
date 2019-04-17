@@ -24,36 +24,36 @@
 
 dependencies {
     // Nannoq Tools
-    compile(project(":cluster"))
-    compile(project(":version"))
+    api(project(":cluster"))
+    api(project(":version"))
 
     // AWS
-    compile("com.amazonaws:aws-java-sdk-core:${extra["awssdk_version"] as String}")
-    compile("com.amazonaws:aws-java-sdk-sts:${extra["awssdk_version"] as String}")
-    compile("com.amazonaws:aws-java-sdk-dynamodb:${extra["awssdk_version"] as String}")
-    compile("com.amazonaws:aws-java-sdk-cloudfront:${extra["awssdk_version"] as String}")
-    compile("com.amazonaws:aws-dynamodb-encryption-java:${extra["awssdk_encryption_version"] as String}")
+    implementation(Libs.aws_core)
+    implementation(Libs.aws_sts)
+    implementation(Libs.aws_dynamodb)
+    implementation(Libs.aws_cloudfront)
+    implementation(Libs.aws_encryption)
 
     // Image And File Detection
-    compile("com.twelvemonkeys.imageio:imageio-core:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-jpeg:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-tiff:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-psd:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-metadata:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-pnm:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-icns:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-pdf:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-pcx:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-sgi:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-iff:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-tga:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-pict:${extra["imagei_version"] as String}")
-    compile("com.twelvemonkeys.imageio:imageio-batik:${extra["imagei_version"] as String}")
-    compile("com.drewnoakes:metadata-extractor:${extra["metadata_extractor_version"] as String}")
-    compile("org.apache.tika:tika-core:${extra["tika_version"] as String}")
+    implementation(Libs.imageio_core)
+    implementation(Libs.imageio_jpeg)
+    implementation(Libs.imageio_tiff)
+    implementation(Libs.imageio_psd)
+    implementation(Libs.imageio_metadata)
+    implementation(Libs.imageio_pnm)
+    implementation(Libs.imageio_icns)
+    implementation(Libs.imageio_pdf)
+    implementation(Libs.imageio_pcx)
+    implementation(Libs.imageio_sgi)
+    implementation(Libs.imageio_iff)
+    implementation(Libs.imageio_tga)
+    implementation(Libs.imageio_pict)
+    implementation(Libs.imageio_batik)
+    implementation(Libs.metadata_extractor)
+    implementation(Libs.tika_core)
 
     // S3 Test
-    testCompile("io.findify:s3mock_2.12:${extra["s3mock_version"] as String}")
+    testImplementation(Libs.s3mock)
 }
 
 publishing {

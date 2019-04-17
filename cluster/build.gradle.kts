@@ -24,7 +24,7 @@
 
 dependencies {
     // Vertx
-    compile("io.vertx:vertx-service-discovery:${extra["vertx_version"] as String}")
+    implementation(Libs.vertx_service_discovery)
 }
 
 publishing {
