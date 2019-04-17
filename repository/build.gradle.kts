@@ -22,10 +22,6 @@
  * SOFTWARE.
  */
 
-repositories {
-    maven(url = "http://dynamodb-local.s3-website-us-west-2.amazonaws.com/release")
-}
-
 dependencies {
     // Nannoq Tools
     compile(project(":cluster"))
