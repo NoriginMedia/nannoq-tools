@@ -177,9 +177,16 @@ subprojects {
         correctErrorTypes = true
         useBuildCache = true
         includeCompileClasspath = false
+
+        javacOptions {
+            option("-Xdoclint:none")
+            option("-Xlint:none")
+            option("-nowarn")
+        }
     }
 
     val dokka by tasks.getting(DokkaTask::class) {
+        logging.level = LogLevel.QUIET
         outputFormat = "html"
         outputDirectory = "$buildDir/docs"
         jdkVersion = 8
@@ -205,7 +212,7 @@ subprojects {
     }
 
     tasks.withType<JavaCompile>().configureEach {
-        options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn")
+        options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn", "-Xlint:unchecked")
     }
 
     tasks {
@@ -301,9 +308,11 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
             into("$projectDir/build/tmp/dynamodb-libs")
         }
 
-        "test"(Test::class) {
+        val compileTestKotlin by existing(KotlinCompile::class) {
             dependsOn(dynamoDbDeps)
+        }
 
+        "test"(Test::class) {
             systemProperties = mapOf(
                     Pair("vertx.logger-delegate-factory-class-name", Versions.logger_factory_version),
                     Pair("java.library.path", file("$projectDir/build/tmp/dynamodb-libs").absolutePath))
