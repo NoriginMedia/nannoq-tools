@@ -28,6 +28,7 @@ import org.jetbrains.dokka.gradle.DokkaPlugin
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jlleitschuh.gradle.ktlint.KtlintFormatTask
 
 val buildUtils = BuildUtils()
 val branchName = buildUtils.gitBranch()
@@ -81,6 +82,12 @@ nexusStaging {
     packageGroup = groupValue
     username = System.getenv("OSSRH_USER")
     password = System.getenv("OSSRH_PASS")
+}
+
+tasks {
+    wrapper {
+        distributionType = Wrapper.DistributionType.ALL
+    }
 }
 
 allprojects {
@@ -208,20 +215,23 @@ subprojects {
         from(kotlin.sourceSets["main"].kotlin)
     }
 
-    tasks.withType<KotlinCompile> {
-        kotlinOptions {
-            jvmTarget = Versions.jvmTargetValue
-            suppressWarnings = true
-        }
-    }
-
-    tasks.withType<JavaCompile>().configureEach {
-        options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn")
-    }
-
-    val jacocoTestReport by tasks.existing(JacocoReport::class)
-
     tasks {
+        val jacocoTestReport by existing(JacocoReport::class)
+        val ktlintKotlinScriptFormat by existing(KtlintFormatTask::class)
+
+        withType<KotlinCompile> {
+            dependsOn(ktlintKotlinScriptFormat)
+
+            kotlinOptions {
+                jvmTarget = Versions.jvmTargetValue
+                suppressWarnings = true
+            }
+        }
+
+        withType<JavaCompile>().configureEach {
+            options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn")
+        }
+
         "test"(Test::class) {
             @Suppress("UnstableApiUsage")
             useJUnitPlatform()
@@ -241,10 +251,12 @@ subprojects {
     }
 
     signing {
+        @Suppress("UnstableApiUsage")
         useGpgCmd()
         sign(sourcesJar)
         sign(packageJavadoc)
 
+        @Suppress("UnstableApiUsage")
         sign(publishing.publications)
     }
 
@@ -316,6 +328,7 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
             into("$projectDir/build/tmp/dynamodb-libs")
         }
 
+        @Suppress("UNUSED_VARIABLE")
         val compileTestKotlin by existing(KotlinCompile::class) {
             dependsOn(dynamoDbDeps)
         }
