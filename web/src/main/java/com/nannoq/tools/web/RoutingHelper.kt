@@ -38,11 +38,14 @@ import io.vertx.ext.web.handler.ResponseContentTypeHandler
 import io.vertx.ext.web.handler.ResponseTimeHandler
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
-import java.util.*
+import java.util.AbstractMap.SimpleImmutableEntry
+import java.util.Arrays
 import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 import java.util.function.Supplier
-import java.util.stream.Collectors.*
+import java.util.stream.Collectors.groupingBy
+import java.util.stream.Collectors.mapping
+import java.util.stream.Collectors.toList
 
 /**
  * This class contains helper methods for routing requests.
@@ -68,14 +71,20 @@ object RoutingHelper {
     private val responseContentTypeHandler = ResponseContentTypeHandler.create()
     private val responseTimeHandler = ResponseTimeHandler.create()
 
-    fun setStatusCode(code: Int, routingContext: RoutingContext,
-                      initialProcessTime: Long) {
+    fun setStatusCode(
+        code: Int,
+        routingContext: RoutingContext,
+        initialProcessTime: Long
+    ) {
         setDatabaseProcessTime(routingContext, initialProcessTime)
         routingContext.response().statusCode = code
     }
 
-    fun setStatusCodeAndAbort(code: Int, routingContext: RoutingContext,
-                              initialProcessTime: Long) {
+    fun setStatusCodeAndAbort(
+        code: Int,
+        routingContext: RoutingContext,
+        initialProcessTime: Long
+    ) {
         setDatabaseProcessTime(routingContext, initialProcessTime)
         routingContext.fail(code)
     }
@@ -85,8 +94,11 @@ object RoutingHelper {
         routingContext.next()
     }
 
-    fun setStatusCodeAndContinue(code: Int, routingContext: RoutingContext,
-                                 initialProcessTime: Long) {
+    fun setStatusCodeAndContinue(
+        code: Int,
+        routingContext: RoutingContext,
+        initialProcessTime: Long
+    ) {
         setDatabaseProcessTime(routingContext, initialProcessTime)
         routingContext.response().statusCode = code
         routingContext.next()
@@ -98,28 +110,40 @@ object RoutingHelper {
                 TimeUnit.NANOSECONDS.toMillis(processTimeInNano).toString())
     }
 
-    fun routeWithAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
-                      routeSetter: Consumer<Supplier<Route>>) {
+    fun routeWithAuth(
+        routeProducer: Supplier<Route>,
+        authHandler: Handler<RoutingContext>,
+        routeSetter: Consumer<Supplier<Route>>
+    ) {
         routeWithAuth(routeProducer, authHandler, null, routeSetter)
     }
 
-    private fun routeWithAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
-                              finallyHandler: Handler<RoutingContext>?,
-                              routeSetter: Consumer<Supplier<Route>>) {
+    private fun routeWithAuth(
+        routeProducer: Supplier<Route>,
+        authHandler: Handler<RoutingContext>,
+        finallyHandler: Handler<RoutingContext>?,
+        routeSetter: Consumer<Supplier<Route>>
+    ) {
         prependStandards(routeProducer)
         routeProducer.get().handler(authHandler)
         routeSetter.accept(routeProducer)
         appendStandards(routeProducer, finallyHandler)
     }
 
-    fun routeWithBodyHandlerAndAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
-                                    routeSetter: Consumer<Supplier<Route>>) {
+    fun routeWithBodyHandlerAndAuth(
+        routeProducer: Supplier<Route>,
+        authHandler: Handler<RoutingContext>,
+        routeSetter: Consumer<Supplier<Route>>
+    ) {
         routeWithBodyHandlerAndAuth(routeProducer, authHandler, null, routeSetter)
     }
 
-    private fun routeWithBodyHandlerAndAuth(routeProducer: Supplier<Route>, authHandler: Handler<RoutingContext>,
-                                            finallyHandler: Handler<RoutingContext>?,
-                                            routeSetter: Consumer<Supplier<Route>>) {
+    private fun routeWithBodyHandlerAndAuth(
+        routeProducer: Supplier<Route>,
+        authHandler: Handler<RoutingContext>,
+        finallyHandler: Handler<RoutingContext>?,
+        routeSetter: Consumer<Supplier<Route>>
+    ) {
         prependStandards(routeProducer)
         routeProducer.get().handler(bodyHandler)
         routeProducer.get().handler(authHandler)
@@ -140,13 +164,17 @@ object RoutingHelper {
         routeProducer.get().handler(responseLogger)
     }
 
-    fun routeWithLogger(routeProducer: Supplier<Route>,
-                        routeSetter: Consumer<Supplier<Route>>) {
+    fun routeWithLogger(
+        routeProducer: Supplier<Route>,
+        routeSetter: Consumer<Supplier<Route>>
+    ) {
         routeWithLogger(routeProducer, null, routeSetter)
     }
 
-    fun routeWithBodyAndLogger(routeProducer: Supplier<Route>,
-                               routeSetter: Consumer<Supplier<Route>>) {
+    fun routeWithBodyAndLogger(
+        routeProducer: Supplier<Route>,
+        routeSetter: Consumer<Supplier<Route>>
+    ) {
         routeProducer.get().handler(responseTimeHandler)
         routeProducer.get().handler(timeOutHandler)
         routeProducer.get().handler(responseContentTypeHandler)
@@ -157,9 +185,11 @@ object RoutingHelper {
         routeProducer.get().handler(responseLogger)
     }
 
-    fun routeWithLogger(routeProducer: Supplier<Route>,
-                        finallyHandler: Handler<RoutingContext>?,
-                        routeSetter: Consumer<Supplier<Route>>) {
+    fun routeWithLogger(
+        routeProducer: Supplier<Route>,
+        finallyHandler: Handler<RoutingContext>?,
+        routeSetter: Consumer<Supplier<Route>>
+    ) {
         routeProducer.get().handler(responseTimeHandler)
         routeProducer.get().handler(timeOutHandler)
         routeProducer.get().handler(responseContentTypeHandler)
@@ -225,11 +255,11 @@ object RoutingHelper {
                         mapping({ it.value }, toList())))
     }
 
-    private fun splitQueryParameter(it: String): AbstractMap.SimpleImmutableEntry<String, String> {
+    private fun splitQueryParameter(it: String): SimpleImmutableEntry<String, String> {
         val idx = it.indexOf("=")
         val key = if (idx > 0) it.substring(0, idx) else it
         val value = if (idx > 0 && it.length > idx + 1) it.substring(idx + 1) else null
 
-        return AbstractMap.SimpleImmutableEntry<String, String>(key, value)
+        return SimpleImmutableEntry<String, String>(key, value)
     }
 }

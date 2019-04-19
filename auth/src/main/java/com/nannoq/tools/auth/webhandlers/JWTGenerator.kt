@@ -71,10 +71,13 @@ import java.util.function.Consumer
  * @version 13/11/17
  */
 @Suppress("unused")
-open class JWTGenerator(protected val vertx: Vertx, private val appConfig: JsonObject,
-                        private val authenticator: AuthenticationService,
-                        private val authPackageHandler: AuthPackageHandler,
-                        private val domainIdentifier: String?) : Handler<RoutingContext> {
+open class JWTGenerator(
+    protected val vertx: Vertx,
+    private val appConfig: JsonObject,
+    private val authenticator: AuthenticationService,
+    private val authPackageHandler: AuthPackageHandler,
+    private val domainIdentifier: String?
+) : Handler<RoutingContext> {
     private val logger = LoggerFactory.getLogger(JWTGenerator::class.java.simpleName)
 
     private val CMS_ROOT: String
@@ -290,7 +293,6 @@ open class JWTGenerator(protected val vertx: Vertx, private val appConfig: JsonO
                                 routingContext.response().statusCode = 500
                                 routingContext.next()
                             }
-
                         }
                     }
                 }
@@ -440,7 +442,7 @@ open class JWTGenerator(protected val vertx: Vertx, private val appConfig: JsonO
             getUserState(routingContext).compose({ state ->
                 getLocation(routingContext, state).compose({ location ->
                     setState(state, location).compose({
-                        constructAuthUrl(routingContext, state, location, provider).compose( Handler {
+                        constructAuthUrl(routingContext, state, location, provider).compose(Handler {
                             success.accept(it)
                         }, authFailRedirect<Any>(routingContext))
                     }, authFailRedirect<Any>(routingContext))
@@ -449,8 +451,12 @@ open class JWTGenerator(protected val vertx: Vertx, private val appConfig: JsonO
         }, denyRequest<Any>(routingContext))
     }
 
-    private fun constructAuthUrl(routingContext: RoutingContext, state: String,
-                                 location: String, provider: String): Future<String> {
+    private fun constructAuthUrl(
+        routingContext: RoutingContext,
+        state: String,
+        location: String,
+        provider: String
+    ): Future<String> {
         val locationFuture = Future.future<String>()
 
         when (provider.toUpperCase()) {
@@ -486,7 +492,7 @@ open class JWTGenerator(protected val vertx: Vertx, private val appConfig: JsonO
                 val url = it.result()
 
                 when {
-                    url != null && !url.isEmpty() -> locationFuture.complete(it.result())
+                    url != null && url.isNotEmpty() -> locationFuture.complete(it.result())
                     else -> locationFuture.fail(InternalError("$location#code=500&error=Unknown"))
                 }
             }
@@ -500,8 +506,12 @@ open class JWTGenerator(protected val vertx: Vertx, private val appConfig: JsonO
         return locationFuture
     }
 
-    private fun getInstagramUrl(state: String, userRef: String, location: String,
-                                resultHandler: Handler<AsyncResult<String>>) {
+    private fun getInstagramUrl(
+        state: String,
+        userRef: String,
+        location: String,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         val finalState = state + "_forUser"
 
         RedisUtils.performJedisWithRetry(redisClient) { internalRedis ->
@@ -573,9 +583,8 @@ open class JWTGenerator(protected val vertx: Vertx, private val appConfig: JsonO
 
     private fun getProvider(routingContext: RoutingContext): Future<String> {
         val providerFuture = Future.future<String>()
-        val provider = routingContext.request().getParam("provider")
 
-        when (provider) {
+        when (val provider = routingContext.request().getParam("provider")) {
             null -> providerFuture.fail(IllegalArgumentException())
             else -> providerFuture.complete(provider)
         }

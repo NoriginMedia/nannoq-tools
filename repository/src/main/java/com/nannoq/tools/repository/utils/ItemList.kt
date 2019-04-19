@@ -45,8 +45,14 @@ class ItemList<E : Model> {
 
     constructor()
 
-    constructor(etagBase: String, pageTokens: PageTokens, count: Int, totalCount: Int,
-                items: List<E>?, projections: Array<String>) {
+    constructor(
+        etagBase: String,
+        pageTokens: PageTokens,
+        count: Int,
+        totalCount: Int,
+        items: List<E>?,
+        projections: Array<String>
+    ) {
         this.paging = pageTokens
         this.items = items
         val etagCode = longArrayOf(etagBase.hashCode().toLong())

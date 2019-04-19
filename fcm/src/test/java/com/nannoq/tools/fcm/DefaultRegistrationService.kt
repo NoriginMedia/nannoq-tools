@@ -14,22 +14,22 @@ import io.vertx.core.json.JsonObject
  */
 class DefaultRegistrationService : RegistrationService {
     override fun setServer(server: FcmServer): RegistrationService {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        TODO("not implemented") // To change body of created functions use File | Settings | File Templates.
     }
 
     override fun setSender(sender: MessageSender): RegistrationService {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        TODO("not implemented") // To change body of created functions use File | Settings | File Templates.
     }
 
     override fun registerDevice(appPackageName: String, fcmId: String, data: JsonObject): RegistrationService {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        TODO("not implemented") // To change body of created functions use File | Settings | File Templates.
     }
 
     override fun update(appPackageName: String, fcmId: String, data: JsonObject): RegistrationService {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        TODO("not implemented") // To change body of created functions use File | Settings | File Templates.
     }
 
     override fun handleDeviceRemoval(messageId: String, registrationId: String, resultHandler: Handler<AsyncResult<FcmDevice>>): RegistrationService {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        TODO("not implemented") // To change body of created functions use File | Settings | File Templates.
     }
 }

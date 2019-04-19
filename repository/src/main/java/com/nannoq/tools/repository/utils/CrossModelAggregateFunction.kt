@@ -28,7 +28,7 @@ package com.nannoq.tools.repository.utils
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.nannoq.tools.repository.models.ETagable
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Objects
 import java.util.stream.Collectors.toList
 
 /**

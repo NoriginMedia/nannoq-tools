@@ -26,9 +26,16 @@
 package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.utils.AggregateFunction
-import com.nannoq.tools.repository.utils.AggregateFunctions.*
+import com.nannoq.tools.repository.utils.AggregateFunctions.AVG
+import com.nannoq.tools.repository.utils.AggregateFunctions.COUNT
+import com.nannoq.tools.repository.utils.AggregateFunctions.MAX
+import com.nannoq.tools.repository.utils.AggregateFunctions.MIN
+import com.nannoq.tools.repository.utils.AggregateFunctions.SUM
 import com.nannoq.tools.repository.utils.GroupingConfiguration
-import org.junit.Assert.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 

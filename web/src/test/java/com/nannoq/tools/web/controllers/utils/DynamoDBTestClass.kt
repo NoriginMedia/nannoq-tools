@@ -13,13 +13,17 @@ import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.api.extension.ExtendWith
 import redis.embedded.RedisServer
 import java.net.ServerSocket
-import java.util.*
+import java.util.Date
+import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.collections.HashMap
 
 @ExtendWith(VertxExtension::class)
 abstract class DynamoDBTestClass : ConfigSupport {
@@ -36,7 +40,7 @@ abstract class DynamoDBTestClass : ConfigSupport {
                 .setSomeDate(testDate)
                 .setSomeDateTwo(Date())
     }
-    
+
     protected val contextObjects: MutableMap<String, Any> = HashMap()
 
     companion object {

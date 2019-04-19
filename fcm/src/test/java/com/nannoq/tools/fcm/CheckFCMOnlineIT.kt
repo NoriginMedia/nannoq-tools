@@ -42,7 +42,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode
 import redis.embedded.RedisServer
 import java.io.File
 import java.io.FileReader
-import java.util.*
+import java.util.Properties
 
 /**
  * @author Anders Mikkelsen

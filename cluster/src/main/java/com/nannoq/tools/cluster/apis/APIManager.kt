@@ -28,13 +28,17 @@ package com.nannoq.tools.cluster.apis
 import com.nannoq.tools.cluster.CircuitBreakerUtils
 import io.vertx.circuitbreaker.CircuitBreaker
 import io.vertx.circuitbreaker.CircuitBreakerOptions
-import io.vertx.core.*
+import io.vertx.core.AbstractVerticle
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.eventbus.MessageConsumer
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.servicediscovery.Record
 import io.vertx.servicediscovery.types.HttpEndpoint
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -44,9 +48,10 @@ import java.util.concurrent.ConcurrentHashMap
  * @version 17.11.2017
  */
 class APIManager @JvmOverloads constructor(
-        private val vertx: Vertx,
-        appConfig: JsonObject,
-        private val apiHostProducer: APIHostProducer? = null) {
+    private val vertx: Vertx,
+    appConfig: JsonObject,
+    private val apiHostProducer: APIHostProducer? = null
+) {
     private val circuitBreakerMap: MutableMap<String, CircuitBreaker>
     private val circuitBreakerMessageConsumerMap: Map<String, MessageConsumer<JsonObject>>
 
@@ -117,9 +122,12 @@ class APIManager @JvmOverloads constructor(
         return circuitBreaker
     }
 
-    fun <T> performRequestWithCircuitBreaker(path: String, resultHandler: Handler<AsyncResult<T>>,
-                                             handler: Handler<Future<T>>,
-                                             fallback: (Throwable) -> Unit) {
+    fun <T> performRequestWithCircuitBreaker(
+        path: String,
+        resultHandler: Handler<AsyncResult<T>>,
+        handler: Handler<Future<T>>,
+        fallback: (Throwable) -> Unit
+    ) {
         CircuitBreakerUtils.performRequestWithCircuitBreaker(
                 prepareCircuitBreaker(path), resultHandler, handler, fallback)
     }
@@ -142,9 +150,11 @@ class APIManager @JvmOverloads constructor(
         private const val GENERIC_HTTP_REQUEST_CIRCUITBREAKER = "com.apis.generic.circuitbreaker"
         private const val API_CIRCUIT_BREAKER_BASE = "com.apis.circuitbreaker."
 
-        fun <T> performRequestWithCircuitBreaker(resultHandler: Handler<AsyncResult<T>>,
-                                                 handler: Handler<Future<T>>,
-                                                 fallback: (Throwable) -> Unit) {
+        fun <T> performRequestWithCircuitBreaker(
+            resultHandler: Handler<AsyncResult<T>>,
+            handler: Handler<Future<T>>,
+            fallback: (Throwable) -> Unit
+        ) {
             CircuitBreakerUtils.performRequestWithCircuitBreaker(
                     CircuitBreaker.create(GENERIC_HTTP_REQUEST_CIRCUITBREAKER, Vertx.currentContext().owner(),
                             CircuitBreakerOptions()

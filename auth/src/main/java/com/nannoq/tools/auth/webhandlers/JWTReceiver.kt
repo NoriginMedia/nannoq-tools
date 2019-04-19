@@ -42,7 +42,7 @@ import io.vertx.core.json.Json
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.RoutingContext
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
+import java.util.Base64
 import java.util.function.Consumer
 
 /**
@@ -115,8 +115,11 @@ class JWTReceiver @JvmOverloads constructor(private val verifier: VerificationSe
     }
 
     @Throws(IllegalAccessException::class)
-    private fun checkAuthorization(authorization: Authorization, claims: Jws<Claims>,
-                                   completer: Handler<AsyncResult<Boolean>>) {
+    private fun checkAuthorization(
+        authorization: Authorization,
+        claims: Jws<Claims>,
+        completer: Handler<AsyncResult<Boolean>>
+    ) {
         verifier.verifyAuthorization(claims, authorization, completer)
     }
 

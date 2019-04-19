@@ -43,7 +43,12 @@ import com.nannoq.tools.auth.utils.AuthFutures.authFail
 import com.nannoq.tools.auth.utils.PermissionPack
 import com.nannoq.tools.repository.models.ModelUtils
 import com.nannoq.tools.repository.repository.redis.RedisUtils
-import io.jsonwebtoken.*
+import io.jsonwebtoken.Claims
+import io.jsonwebtoken.CompressionCodecs.DEFLATE
+import io.jsonwebtoken.Jws
+import io.jsonwebtoken.JwtException
+import io.jsonwebtoken.Jwts
+import io.jsonwebtoken.SignatureAlgorithm
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
@@ -62,7 +67,10 @@ import org.apache.commons.codec.digest.DigestUtils
 import org.apache.logging.log4j.core.config.plugins.convert.HexConverter.parseHexBinary
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
-import java.util.*
+import java.util.AbstractMap.SimpleEntry
+import java.util.Calendar
+import java.util.Date
+import java.util.UUID
 import java.util.function.Function
 import java.util.stream.Collectors.toConcurrentMap
 import javax.crypto.Mac
@@ -78,9 +86,12 @@ import javax.crypto.spec.SecretKeySpec
  * @version 13/11/17
  */
 class AuthenticationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorithmException::class)
-constructor(vertx: Vertx, appConfig: JsonObject,
-            private val setPermissionOnClaims: Function<PermissionPack, MutableMap<String, Any>>,
-            KEY_BASE: String) : AuthenticationService {
+constructor(
+    vertx: Vertx,
+    appConfig: JsonObject,
+    private val setPermissionOnClaims: Function<PermissionPack, MutableMap<String, Any>>,
+    KEY_BASE: String
+) : AuthenticationService {
     private val CALLBACK_URL: String
     private val EMAIL_HASH_KEY_BASE: String
 
@@ -169,8 +180,11 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     }
 
     @Fluent
-    override fun createJwtFromProvider(token: String, authProvider: String,
-                                       resultHandler: Handler<AsyncResult<AuthPackage>>): AuthenticationService {
+    override fun createJwtFromProvider(
+        token: String,
+        authProvider: String,
+        resultHandler: Handler<AsyncResult<AuthPackage>>
+    ): AuthenticationService {
         val unableToParseException = fail<AuthPackage>(500, "Unable to parse Token: ")
 
         when (authProvider.toUpperCase()) {
@@ -236,8 +250,10 @@ constructor(vertx: Vertx, appConfig: JsonObject,
         doTokenCreation(userProfile, resultHandler, claimsMap, email)
     }
 
-    private fun buildAuthPackage(result: GoogleIdToken.Payload,
-                                 resultHandler: Handler<AsyncResult<AuthPackage>>) {
+    private fun buildAuthPackage(
+        result: GoogleIdToken.Payload,
+        resultHandler: Handler<AsyncResult<AuthPackage>>
+    ) {
         val claims = mutableMapOf<String, Any>()
         claims[JWT_CLAIMS_USER_EMAIL] = result.email
         claims[JWT_CLAIMS_NAME] = result["name"] ?: "N/A"
@@ -261,8 +277,12 @@ constructor(vertx: Vertx, appConfig: JsonObject,
         doTokenCreation(userProfile, resultHandler, claims, email)
     }
 
-    private fun doTokenCreation(userProfile: UserProfile, resultHandler: Handler<AsyncResult<AuthPackage>>,
-                                claimsMap: MutableMap<String, Any>, email: String) {
+    private fun doTokenCreation(
+        userProfile: UserProfile,
+        resultHandler: Handler<AsyncResult<AuthPackage>>,
+        claimsMap: MutableMap<String, Any>,
+        email: String
+    ) {
         createTokenContainer(email, claimsMap, Handler {
             when {
                 it.result() != null -> resultHandler.handle(succeededFuture(AuthPackage(it.result(), userProfile)))
@@ -286,8 +306,11 @@ constructor(vertx: Vertx, appConfig: JsonObject,
         return claims
     }
 
-    private fun createTokenContainer(email: String, claims: MutableMap<String, Any>,
-                                     resultHandler: Handler<AsyncResult<TokenContainer>>) {
+    private fun createTokenContainer(
+        email: String,
+        claims: MutableMap<String, Any>,
+        resultHandler: Handler<AsyncResult<TokenContainer>>
+    ) {
         var newClaims = claims
         try {
             val id = ModelUtils.hashString(email + EMAIL_HASH_KEY_BASE)
@@ -324,13 +347,18 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
             resultHandler.handle(fail(500, "" + e))
         }
-
     }
 
-    private fun createTokenContainer(id: String, jwtId: String, email: String,
-                                     newRefreshToken: String, claims: Map<String, Any>,
-                                     jwt: String, expireToken: String,
-                                     resultHandler: Handler<AsyncResult<TokenContainer>>) {
+    private fun createTokenContainer(
+        id: String,
+        jwtId: String,
+        email: String,
+        newRefreshToken: String,
+        claims: Map<String, Any>,
+        jwt: String,
+        expireToken: String,
+        resultHandler: Handler<AsyncResult<TokenContainer>>
+    ) {
         val mapId = id + VALID_JWT_REGISTRY_KEY
 
         RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
@@ -364,12 +392,13 @@ constructor(vertx: Vertx, appConfig: JsonObject,
 
     @Throws(IllegalArgumentException::class)
     private fun createJwt(
-            id: String,
-            jwtId: String,
-            claims: Map<String, Any>,
-            now: Date,
-            notBefore: Date,
-            then: Date): String {
+        id: String,
+        jwtId: String,
+        claims: Map<String, Any>,
+        now: Date,
+        notBefore: Date,
+        then: Date
+    ): String {
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuer(ISSUER)
@@ -380,18 +409,19 @@ constructor(vertx: Vertx, appConfig: JsonObject,
                 .setIssuedAt(now)
                 .setId(jwtId)
                 .signWith(SignatureAlgorithm.HS512, SIGNING_KEY)
-                .compressWith(CompressionCodecs.DEFLATE)
+                .compressWith(DEFLATE)
                 .compact()
     }
 
     @Throws(IllegalArgumentException::class)
     private fun createJwt(
-            id: String,
-            jwtId: String,
-            claims: Jws<Claims>,
-            now: Date,
-            notBefore: Date,
-            then: Date): String {
+        id: String,
+        jwtId: String,
+        claims: Jws<Claims>,
+        now: Date,
+        notBefore: Date,
+        then: Date
+    ): String {
         return Jwts.builder()
                 .setClaims(claims.body)
                 .setIssuer(ISSUER)
@@ -402,22 +432,25 @@ constructor(vertx: Vertx, appConfig: JsonObject,
                 .setIssuedAt(now)
                 .setId(jwtId)
                 .signWith(SignatureAlgorithm.HS512, SIGNING_KEY)
-                .compressWith(CompressionCodecs.DEFLATE)
+                .compressWith(DEFLATE)
                 .compact()
     }
 
     private fun generatePermissions(
-            userId: String,
-            claims: MutableMap<String, Any>,
-            authOrigin: String): MutableMap<String, Any> {
+        userId: String,
+        claims: MutableMap<String, Any>,
+        authOrigin: String
+    ): MutableMap<String, Any> {
         claims.putIfAbsent(domainIdentifier, userId)
 
         return setPermissionOnClaims.apply(PermissionPack(userId, claims, authOrigin))
     }
 
     @Fluent
-    override fun refresh(refreshToken: String,
-                         resultHandler: Handler<AsyncResult<TokenContainer>>): AuthenticationService {
+    override fun refresh(
+        refreshToken: String,
+        resultHandler: Handler<AsyncResult<TokenContainer>>
+    ): AuthenticationService {
         getTokenCache(refreshToken).compose({
             getClaims(it).compose({ map ->
                 val oldId = map["id"].toString()
@@ -433,8 +466,12 @@ constructor(vertx: Vertx, appConfig: JsonObject,
         return this
     }
 
-    private fun deleteOld(claims: MutableMap<String, Any>, refreshToken: String, oldId: String,
-                          tokenContainer: TokenContainer): Future<TokenContainer> {
+    private fun deleteOld(
+        claims: MutableMap<String, Any>,
+        refreshToken: String,
+        oldId: String,
+        tokenContainer: TokenContainer
+    ): Future<TokenContainer> {
         val tokenContainerFuture = future<TokenContainer>()
         val email = claims[JWT_CLAIMS_USER_EMAIL].toString()
         val userId = try {
@@ -525,8 +562,11 @@ constructor(vertx: Vertx, appConfig: JsonObject,
     }
 
     @Fluent
-    override fun switchToAssociatedDomain(domainId: String, verifyResult: Jws<Claims>,
-                                          resultHandler: Handler<AsyncResult<TokenContainer>>): AuthenticationService {
+    override fun switchToAssociatedDomain(
+        domainId: String,
+        verifyResult: Jws<Claims>,
+        resultHandler: Handler<AsyncResult<TokenContainer>>
+    ): AuthenticationService {
         verifyResult.body[domainIdentifier] = domainId
 
         createTokenContainer(verifyResult, resultHandler)
@@ -557,8 +597,8 @@ constructor(vertx: Vertx, appConfig: JsonObject,
             val refreshTokenWithExpireKey = newRefreshToken + REFRESH_TOKEN_SPLITTER + calendar.time.time
 
             val mappedClaims = claims.body.entries.stream()
-                    .map<AbstractMap.SimpleEntry<String, Any>> { e -> AbstractMap.SimpleEntry(e.key, e.value) }
-                    .collect(toConcurrentMap<AbstractMap.SimpleEntry<String, Any>, String, Any>({ it.key }) { it.value })
+                    .map<SimpleEntry<String, Any>> { e -> SimpleEntry(e.key, e.value) }
+                    .collect(toConcurrentMap<SimpleEntry<String, Any>, String, Any>({ it.key }) { it.value })
 
             createTokenContainer(id, jwtId, email, newRefreshToken, mappedClaims,
                     jwt, refreshTokenWithExpireKey, resultHandler)

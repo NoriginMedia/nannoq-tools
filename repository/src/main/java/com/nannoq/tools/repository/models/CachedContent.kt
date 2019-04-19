@@ -52,13 +52,24 @@ import java.io.File
 interface CachedContent {
     var contentLocation: S3Link
 
-    fun storeContent(vertx: Vertx, urlToContent: String, bucketName: String, bucketPath: String,
-                     resultHandler: Handler<AsyncResult<Boolean>>) {
+    fun storeContent(
+        vertx: Vertx,
+        urlToContent: String,
+        bucketName: String,
+        bucketPath: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         storeContent(vertx, 0, urlToContent, bucketName, bucketPath, resultHandler)
     }
 
-    fun storeContent(vertx: Vertx, attempt: Int, urlToContent: String, bucketName: String, bucketPath: String,
-                     resultHandler: Handler<AsyncResult<Boolean>>) {
+    fun storeContent(
+        vertx: Vertx,
+        attempt: Int,
+        urlToContent: String,
+        bucketName: String,
+        bucketPath: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         val startTime = System.currentTimeMillis()
         val opts = HttpClientOptions()
                 .setConnectTimeout(10000)
@@ -103,8 +114,15 @@ interface CachedContent {
         })
     }
 
-    fun doRequest(vertx: Vertx, httpClient: HttpClient, attempt: Int, urlToContent: String, bucketName: String,
-                  bucketPath: String, resultHandler: Handler<AsyncResult<Boolean>>) {
+    fun doRequest(
+        vertx: Vertx,
+        httpClient: HttpClient,
+        attempt: Int,
+        urlToContent: String,
+        bucketName: String,
+        bucketPath: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         val dynamoDBMapper = DynamoDBRepository.s3DynamoDbMapper
         contentLocation = DynamoDBRepository.createS3Link(dynamoDBMapper, bucketName, bucketPath)
         val finished = booleanArrayOf(false)
@@ -209,7 +227,6 @@ interface CachedContent {
         } catch (e: Exception) {
             logger.fatal("Critical error in content storage!", e)
         }
-
     }
 
     companion object {

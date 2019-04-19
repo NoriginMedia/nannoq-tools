@@ -76,6 +76,4 @@ class MockVersionListObject {
         result = 31 * result + (subListObjects?.hashCode() ?: 0)
         return result
     }
-
-
 }

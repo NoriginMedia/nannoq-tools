@@ -1,15 +1,26 @@
 package com.nannoq.tools.repository.dynamodb.gen.models
 
-import com.amazonaws.services.dynamodbv2.datamodeling.*
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBHashKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBIndexHashKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBIndexRangeKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBRangeKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBTable
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBVersionAttribute
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.nannoq.tools.repository.dynamodb.DynamoDBRepository.Companion.PAGINATION_INDEX
 import com.nannoq.tools.repository.dynamodb.gen.models.TestModelConverter.fromJson
-import com.nannoq.tools.repository.models.*
+import com.nannoq.tools.repository.models.Cacheable
+import com.nannoq.tools.repository.models.DynamoDBModel
+import com.nannoq.tools.repository.models.ETagable
+import com.nannoq.tools.repository.models.Model
+import com.nannoq.tools.repository.models.ValidationError
 import io.vertx.codegen.annotations.DataObject
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Collections
+import java.util.Date
+import java.util.Objects
 
 @DynamoDBTable(tableName = "testModels")
 @DataObject(generateConverter = true)

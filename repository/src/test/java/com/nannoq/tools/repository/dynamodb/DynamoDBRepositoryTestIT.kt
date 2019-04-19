@@ -32,8 +32,12 @@ import com.nannoq.tools.repository.dynamodb.gen.models.TestModel
 import com.nannoq.tools.repository.dynamodb.utils.DynamoDBTestClass
 import com.nannoq.tools.repository.repository.results.CreateResult
 import com.nannoq.tools.repository.repository.results.ItemListResult
-import com.nannoq.tools.repository.utils.*
+import com.nannoq.tools.repository.utils.AggregateFunction
+import com.nannoq.tools.repository.utils.AggregateFunctions
 import com.nannoq.tools.repository.utils.AggregateFunctions.MAX
+import com.nannoq.tools.repository.utils.FilterParameter
+import com.nannoq.tools.repository.utils.GroupingConfiguration
+import com.nannoq.tools.repository.utils.QueryPack
 import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -54,7 +58,9 @@ import org.junit.jupiter.api.parallel.ExecutionMode
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.util.*
+import java.util.Date
+import java.util.Random
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ThreadLocalRandom
@@ -73,8 +79,11 @@ import java.util.stream.IntStream
 @ExtendWith(VertxExtension::class)
 class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     @Suppress("UNCHECKED_CAST")
-    private fun createXItems(testInfo: TestInfo, count: Int,
-                             resultHandler: Handler<AsyncResult<List<CreateResult<TestModel>>>>) {
+    private fun createXItems(
+        testInfo: TestInfo,
+        count: Int,
+        resultHandler: Handler<AsyncResult<List<CreateResult<TestModel>>>>
+    ) {
         val items = ArrayList<TestModel>()
         val futures = CopyOnWriteArrayList<Future<*>>()
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
@@ -681,9 +690,15 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         })
     }
 
-    private fun pageAllResults(totalCount: Int, currentCount: Int,
-                               idObject: JsonObject?, pageToken: String?, GSI: String?,
-                               testInfo: TestInfo, context: VertxTestContext) {
+    private fun pageAllResults(
+        totalCount: Int,
+        currentCount: Int,
+        idObject: JsonObject?,
+        pageToken: String?,
+        GSI: String?,
+        testInfo: TestInfo,
+        context: VertxTestContext
+    ) {
         val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val queryPack = QueryPack.builder(TestModel::class.java)
                 .withPageToken(pageToken ?: "NoToken")

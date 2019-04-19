@@ -80,8 +80,13 @@ class ResponseLogHandler : Handler<RoutingContext> {
         const val BODY_CONTENT_TAG = "bodyContent"
         const val DEBUG_INFORMATION_OBJECT = "debugInfo"
 
-        fun buildLogs(routingContext: RoutingContext, statusCode: Int,
-                      uniqueToken: String, body: Any?, debug: Any?): StringBuffer {
+        fun buildLogs(
+            routingContext: RoutingContext,
+            statusCode: Int,
+            uniqueToken: String,
+            body: Any?,
+            debug: Any?
+        ): StringBuffer {
             val stringBuilder = routingContext.get<StringBuffer>(REQUEST_LOG_TAG)
             val sb = stringBuilder ?: StringBuffer()
 

@@ -27,12 +27,16 @@ package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.dynamodb.DynamoDBRepository.Companion.PAGINATION_INDEX
 import com.nannoq.tools.repository.dynamodb.gen.models.TestModel
-import com.nannoq.tools.repository.utils.*
+import com.nannoq.tools.repository.utils.AggregateFunction
 import com.nannoq.tools.repository.utils.AggregateFunctions.MAX
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import com.nannoq.tools.repository.utils.FilterParameter
+import com.nannoq.tools.repository.utils.GroupingConfiguration
+import com.nannoq.tools.repository.utils.OrderByParameter
+import com.nannoq.tools.repository.utils.QueryPack
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
-import java.util.*
+import java.util.Collections
 import java.util.concurrent.ConcurrentLinkedDeque
 
 class QueryPackTest {

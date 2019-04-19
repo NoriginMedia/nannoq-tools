@@ -29,7 +29,9 @@ import com.nannoq.tools.repository.models.ModelUtils
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.RoutingContext
-import java.util.*
+import java.util.Arrays
+import java.util.Objects
+import java.util.Queue
 
 /**
  * This class defines the querypack. A querypack includes the orderByQueue, the map of filterparameters to be performed,

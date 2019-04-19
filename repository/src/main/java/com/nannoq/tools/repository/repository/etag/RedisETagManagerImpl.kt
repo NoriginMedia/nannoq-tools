@@ -35,7 +35,7 @@ import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
-import java.util.*
+import java.util.Arrays
 
 /**
  * The RedisETagManagerImpl contains the logic for setting, removing, and replace etags.
@@ -82,8 +82,12 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         }
     }
 
-    override fun replaceAggregationEtag(etagItemListHashKey: String, etagKey: String, newEtag: String,
-                                        resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun replaceAggregationEtag(
+        etagItemListHashKey: String,
+        etagKey: String,
+        newEtag: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         performJedisWithRetry(REDIS_CLIENT) {
             it.hset(etagItemListHashKey, etagKey, newEtag) { result ->
                 when {
@@ -94,8 +98,10 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         }
     }
 
-    override fun setSingleRecordEtag(etagMap: Map<String, String>,
-                                     resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun setSingleRecordEtag(
+        etagMap: Map<String, String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
             etagMap.keys.forEach { key ->
                 it.set(key, etagMap[key]) {
@@ -125,8 +131,12 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         }
     }
 
-    override fun setItemListEtags(etagItemListHashKey: String, etagKey: String, itemList: ItemList<E>,
-                                  itemListEtagFuture: Future<Boolean>) {
+    override fun setItemListEtags(
+        etagItemListHashKey: String,
+        etagKey: String,
+        itemList: ItemList<E>,
+        itemListEtagFuture: Future<Boolean>
+    ) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
             it.hset(etagItemListHashKey, etagKey, itemList.meta?.etag) {
                 itemListEtagFuture.complete(java.lang.Boolean.TRUE)
@@ -134,8 +144,12 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         }
     }
 
-    override fun checkItemEtag(etagKeyBase: String, key: String, requestEtag: String,
-                               resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun checkItemEtag(
+        etagKeyBase: String,
+        key: String,
+        requestEtag: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagKeyBase, key) { result ->
                 when {
@@ -147,8 +161,12 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         }
     }
 
-    override fun checkItemListEtag(etagItemListHashKey: String, etagKey: String, etag: String,
-                                   resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun checkItemListEtag(
+        etagItemListHashKey: String,
+        etagKey: String,
+        etag: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagItemListHashKey, etagKey) { result ->
                 if (logger.isDebugEnabled) {
@@ -164,8 +182,12 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         }
     }
 
-    override fun checkAggregationEtag(etagItemListHashKey: String, etagKey: String, etag: String,
-                                      resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun checkAggregationEtag(
+        etagItemListHashKey: String,
+        etagKey: String,
+        etag: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagItemListHashKey, etagKey) { result ->
                 when {
@@ -175,7 +197,6 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
                 }
             }
         }
-
     }
 
     companion object {

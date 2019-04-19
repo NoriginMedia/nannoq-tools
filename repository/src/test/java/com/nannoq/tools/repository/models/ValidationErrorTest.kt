@@ -25,10 +25,12 @@
 
 package com.nannoq.tools.repository.models
 
-import org.junit.Assert.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.util.*
+import java.util.Date
 
 class ValidationErrorTest {
     private var validationError: ValidationError? = null

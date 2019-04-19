@@ -48,7 +48,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
 import io.vertx.serviceproxy.ServiceException.fail
-import java.util.*
+import java.util.Base64
 
 /**
  * This class is used for doing most auth options from a client perspective. It has evnetbus and http logic, with retry
@@ -172,7 +172,7 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                 resultHandler.handle(Future.failedFuture("Token cannot be null!"))
             }
             else -> {
-                val backup : (Throwable) -> Unit = {
+                val backup: (Throwable) -> Unit = {
                     httpAuthBackUp(token, provider, Handler {
                         logger.debug("Launching http backup...")
 
@@ -195,9 +195,12 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
         return this
     }
 
-    private fun attemptAuthConversionOnEventBus(authFuture: Future<AuthPackage>,
-                                                authenticationService: AuthenticationService,
-                                                token: String?, provider: String) {
+    private fun attemptAuthConversionOnEventBus(
+        authFuture: Future<AuthPackage>,
+        authenticationService: AuthenticationService,
+        token: String?,
+        provider: String
+    ) {
         authenticationService.createJwtFromProvider(token!!, provider) {
             when {
                 authFuture.isComplete -> logger.error("Ignoring result, authFuture already completed: " + it.cause())
@@ -224,8 +227,11 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
         }
     }
 
-    private fun httpAuthBackUp(token: String?, provider: String,
-                               resultHandler: Handler<AsyncResult<AuthPackage>>) {
+    private fun httpAuthBackUp(
+        token: String?,
+        provider: String,
+        resultHandler: Handler<AsyncResult<AuthPackage>>
+    ) {
         logger.debug("Running HTTP Auth Backup...")
 
         ServiceManager.getInstance().consumeApi(AUTH_API_BASE, Handler {
@@ -279,8 +285,11 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
     }
 
     @Fluent
-    fun authenticateAndAuthorize(jwt: String?, authorization: Authorization,
-                                 resultHandler: Handler<AsyncResult<VerifyResult>>): AuthUtils {
+    fun authenticateAndAuthorize(
+        jwt: String?,
+        authorization: Authorization,
+        resultHandler: Handler<AsyncResult<VerifyResult>>
+    ): AuthUtils {
         logger.debug("Auth request ready: " + authorization.toJson().encodePrettily())
 
         when (jwt) {
@@ -290,7 +299,7 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                 resultHandler.handle(Future.failedFuture("JWT cannot be null!"))
             }
             else -> {
-                val backup : (Throwable) -> Unit = {
+                val backup: (Throwable) -> Unit = {
                     httpVerifyBackUp(jwt, authorization, Handler {
                         logger.debug("Received HTTP Verify Result: " + it.succeeded())
 
@@ -321,8 +330,12 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
         return this
     }
 
-    private fun attemptAuthOnEventBus(authFuture: Future<VerifyResult>, verificationService: VerificationService,
-                                      jwt: String?, authorization: Authorization) {
+    private fun attemptAuthOnEventBus(
+        authFuture: Future<VerifyResult>,
+        verificationService: VerificationService,
+        jwt: String?,
+        authorization: Authorization
+    ) {
         logger.debug("Running Auth on Eventbus, attempt: " + authVerifyCircuitBreaker.failureCount())
 
         verificationService.verifyJWT(jwt!!, authorization) {
@@ -372,8 +385,11 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
         }
     }
 
-    private fun httpVerifyBackUp(jwt: String?, authorization: Authorization,
-                                 resultHandler: Handler<AsyncResult<VerifyResult>>) {
+    private fun httpVerifyBackUp(
+        jwt: String?,
+        authorization: Authorization,
+        resultHandler: Handler<AsyncResult<VerifyResult>>
+    ) {
         logger.debug("Running HTTP Verify Backup...")
 
         ServiceManager.getInstance().consumeApi(AUTH_API_BASE, Handler {

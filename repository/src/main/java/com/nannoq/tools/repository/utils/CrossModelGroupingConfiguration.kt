@@ -27,7 +27,7 @@ package com.nannoq.tools.repository.utils
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Date
 
 /**
  * This class defines grouping configuration for cross-model queries.

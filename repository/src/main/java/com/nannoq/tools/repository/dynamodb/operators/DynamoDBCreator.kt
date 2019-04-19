@@ -39,13 +39,17 @@ import com.nannoq.tools.repository.models.ETagable
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.repository.cache.CacheManager
 import com.nannoq.tools.repository.repository.etag.ETagManager
-import io.vertx.core.*
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
+import java.util.Arrays
 
-import java.util.*
 import java.util.function.Function
 
 import java.util.stream.Collectors.toList
@@ -56,10 +60,15 @@ import java.util.stream.Collectors.toList
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, private val db: DynamoDBRepository<E>,
-                         private val HASH_IDENTIFIER: String, private val IDENTIFIER: String?,
-                         private val cacheManager: CacheManager<E>,
-                         private val eTagManager: ETagManager<E>?)
+class DynamoDBCreator<E>(
+    private val TYPE: Class<E>,
+    private val vertx: Vertx,
+    private val db: DynamoDBRepository<E>,
+    private val HASH_IDENTIFIER: String,
+    private val IDENTIFIER: String?,
+    private val cacheManager: CacheManager<E>,
+    private val eTagManager: ETagManager<E>?
+)
         where E : DynamoDBModel, E : Model, E : ETagable, E : Cacheable {
     private val DYNAMO_DB_MAPPER: DynamoDBMapper = db.dynamoDbMapper
 
@@ -176,8 +185,13 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
         }
     }
 
-    private fun optimisticLockingSave(newerVersion: E?, updateLogic: Function<E, E>?,
-                                      prevCounter: Int?, writeFuture: Future<E>, record: E) {
+    private fun optimisticLockingSave(
+        newerVersion: E?,
+        updateLogic: Function<E, E>?,
+        prevCounter: Int?,
+        writeFuture: Future<E>,
+        record: E
+    ) {
         @Suppress("NAME_SHADOWING")
         var newerVersion = newerVersion
         var counter = 0
@@ -279,7 +293,6 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
 
             optimisticLockingSave(newestRecord, updateLogic, ++counter, writeFuture, record)
         }
-
     }
 
     private fun destroyEtagsAfterCachePurge(writeFuture: Future<E>, record: E, purgeFuture: Future<Boolean>) {
@@ -319,7 +332,7 @@ class DynamoDBCreator<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                 .put(HASH_IDENTIFIER, db.buildExpectedAttributeValue(element.hash!!, exists))
         val rangeValue = element.range
 
-        if (IDENTIFIER != "" && rangeValue != null) {
+        if (IDENTIFIER != null && IDENTIFIER != "" && rangeValue != null) {
             expectationbuilder.put(IDENTIFIER, db.buildExpectedAttributeValue(rangeValue, exists))
         }
 

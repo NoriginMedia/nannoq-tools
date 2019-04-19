@@ -18,7 +18,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.api.extension.ExtendWith
 import java.net.ServerSocket
-import java.util.*
+import java.util.Date
+import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
 @ExtendWith(VertxExtension::class)

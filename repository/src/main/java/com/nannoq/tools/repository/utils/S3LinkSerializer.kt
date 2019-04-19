@@ -41,8 +41,11 @@ import java.io.IOException
 class S3LinkSerializer : StdSerializer<S3Link>(S3Link::class.java) {
 
     @Throws(IOException::class)
-    override fun serialize(s3Link: S3Link, jsonGenerator: JsonGenerator,
-                           serializerProvider: SerializerProvider) {
+    override fun serialize(
+        s3Link: S3Link,
+        jsonGenerator: JsonGenerator,
+        serializerProvider: SerializerProvider
+    ) {
         jsonGenerator.writeStartObject()
         jsonGenerator.writeObjectFieldStart("s3")
         jsonGenerator.writeStringField("bucket", s3Link.bucketName)

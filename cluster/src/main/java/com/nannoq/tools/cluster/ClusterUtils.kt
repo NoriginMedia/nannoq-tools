@@ -92,16 +92,23 @@ object ClusterUtils {
         return eventBusOptions
     }
 
-    fun createModifiedClusterConfigByPortScanning(subnetBase: String, thirdElementScanRange: Int,
-                                                  clusterConfigFileName: String) {
+    fun createModifiedClusterConfigByPortScanning(
+        subnetBase: String,
+        thirdElementScanRange: Int,
+        clusterConfigFileName: String
+    ) {
         val contents = readClusterConfig(clusterConfigFileName)
                 ?: throw IllegalArgumentException("Could not load cluster config!")
 
         setClusterMembersForSubnet(subnetBase, thirdElementScanRange, contents, true)
     }
 
-    fun createModifiedClusterConfigByPortScanning(subnetBase: String, thirdElementScanRange: Int,
-                                                  clusterConfigFileName: String, dev: Boolean) {
+    fun createModifiedClusterConfigByPortScanning(
+        subnetBase: String,
+        thirdElementScanRange: Int,
+        clusterConfigFileName: String,
+        dev: Boolean
+    ) {
         val contents = readClusterConfig(clusterConfigFileName)
                 ?: throw IllegalArgumentException("Could not load cluster config!")
 
@@ -246,6 +253,5 @@ object ClusterUtils {
         } catch (e: InterruptedException) {
             logger.error("Error in finding other services!", e)
         }
-
     }
 }

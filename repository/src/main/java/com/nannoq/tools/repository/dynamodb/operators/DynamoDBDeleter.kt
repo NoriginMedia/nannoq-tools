@@ -40,12 +40,16 @@ import com.nannoq.tools.repository.models.ETagable
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.repository.cache.CacheManager
 import com.nannoq.tools.repository.repository.etag.ETagManager
-import io.vertx.core.*
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
+import java.util.Arrays
 import java.util.Collections.singletonMap
 import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
@@ -56,10 +60,15 @@ import java.util.stream.IntStream
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, private val db: DynamoDBRepository<E>,
-                         private val HASH_IDENTIFIER: String, private val IDENTIFIER: String?,
-                         private val cacheManager: CacheManager<E>,
-                         private val eTagManager: ETagManager<E>?)
+class DynamoDBDeleter<E>(
+    private val TYPE: Class<E>,
+    private val vertx: Vertx,
+    private val db: DynamoDBRepository<E>,
+    private val HASH_IDENTIFIER: String,
+    private val IDENTIFIER: String?,
+    private val cacheManager: CacheManager<E>,
+    private val eTagManager: ETagManager<E>?
+)
         where E : Cacheable, E : ETagable, E : DynamoDBModel, E : Model {
     private val DYNAMO_DB_MAPPER: DynamoDBMapper = db.dynamoDbMapper
 
@@ -238,14 +247,13 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
 
             optimisticLockingDelete(newestRecord, ++counter, deleteFuture)
         }
-
     }
 
     private fun buildExistingDeleteExpression(element: E): DynamoDBDeleteExpression {
         val expectationbuilder = ImmutableMap.Builder<String, ExpectedAttributeValue>()
                 .put(HASH_IDENTIFIER, db.buildExpectedAttributeValue(element.hash!!, true))
 
-        if (IDENTIFIER != "") {
+        if (IDENTIFIER != null && IDENTIFIER != "") {
             expectationbuilder.put(IDENTIFIER, db.buildExpectedAttributeValue(element.range!!, true))
         }
 

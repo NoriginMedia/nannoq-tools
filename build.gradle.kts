@@ -61,6 +61,7 @@ plugins {
     id("idea")
     id("com.adarshr.test-logger") version(Versions.gradle_test_logger_version)
     id("com.github.ben-manes.versions") version(Versions.gradle_versions_version)
+    id("org.jlleitschuh.gradle.ktlint") version(Versions.gradle_ktlint_version)
     kotlin("jvm") version(Versions.kotlin_version)
     kotlin("kapt") version(Versions.kotlin_version)
 
@@ -96,6 +97,7 @@ subprojects {
         plugin<IdeaPlugin>()
         plugin<MavenPublishPlugin>()
         plugin<TestLoggerPlugin>()
+        plugin("org.jlleitschuh.gradle.ktlint")
         plugin("com.github.ben-manes.versions")
         plugin("java")
         plugin("org.jetbrains.kotlin.kapt")
@@ -212,7 +214,7 @@ subprojects {
     }
 
     tasks.withType<JavaCompile>().configureEach {
-        options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn", "-Xlint:unchecked")
+        options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn")
     }
 
     tasks {
@@ -283,7 +285,7 @@ configure(subprojects.filter { it.name == "repository" || it.name == "web" }) {
     dependencies {
         // Cache
         implementation(Libs.jcache)
-        
+
         // Redis
         testImplementation(Libs.embedded_redis)
 

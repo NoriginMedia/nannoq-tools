@@ -81,7 +81,6 @@ interface DataMessageHandler : Handler<CcsMessage> {
 
     fun cleanData(input: String?): String? {
         return if (input != null) Jsoup.clean(input, Whitelist.basic()) else null
-
     }
 
     fun setDeviceAlive(data: JsonObject) {

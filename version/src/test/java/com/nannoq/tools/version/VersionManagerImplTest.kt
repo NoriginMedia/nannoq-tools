@@ -41,7 +41,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.Instant
-import java.util.*
+import java.util.Date
 import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
 import kotlin.test.assertEquals
@@ -54,9 +54,9 @@ class VersionManagerImplTest {
 
     private val listObjectSupplier = {
         val mockVersionListObject = MockVersionListObject()
-        
+
         mockVersionListObject.stringOne = "testList"
-        
+
         mockVersionListObject
     }
 

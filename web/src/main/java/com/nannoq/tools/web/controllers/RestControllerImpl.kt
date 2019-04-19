@@ -34,9 +34,13 @@ import com.nannoq.tools.repository.repository.etag.ETagManager
 import com.nannoq.tools.repository.repository.etag.InMemoryETagManagerImpl
 import com.nannoq.tools.repository.repository.etag.RedisETagManagerImpl
 import com.nannoq.tools.repository.repository.redis.RedisUtils.getRedisClient
-import com.nannoq.tools.repository.utils.*
+import com.nannoq.tools.repository.utils.AggregateFunction
+import com.nannoq.tools.repository.utils.AggregateFunctions
 import com.nannoq.tools.repository.utils.AggregateFunctions.MAX
 import com.nannoq.tools.repository.utils.AggregateFunctions.MIN
+import com.nannoq.tools.repository.utils.FilterParameter
+import com.nannoq.tools.repository.utils.OrderByParameter
+import com.nannoq.tools.repository.utils.QueryPack
 import com.nannoq.tools.web.RoutingHelper.denyQuery
 import com.nannoq.tools.web.RoutingHelper.setStatusCodeAndAbort
 import com.nannoq.tools.web.RoutingHelper.splitQuery
@@ -46,12 +50,17 @@ import com.nannoq.tools.web.responsehandlers.ResponseLogHandler.Companion.BODY_C
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpHeaders
-import io.vertx.core.json.*
+import io.vertx.core.json.DecodeException
+import io.vertx.core.json.EncodeException
+import io.vertx.core.json.Json
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.RoutingContext
 import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.util.*
+import java.util.Arrays
+import java.util.Queue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.function.Function
@@ -65,9 +74,14 @@ import java.util.stream.Collectors.toList
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appConfig: JsonObject, private val REPOSITORY: Repository<E>,
-                                 private val idSupplier: Function<RoutingContext, JsonObject>,
-                                 eTagManager: ETagManager<E>?) : RestController<E> where E : ETagable, E : Model {
+open class RestControllerImpl<E>(
+    vertx: Vertx,
+    private val TYPE: Class<E>,
+    appConfig: JsonObject,
+    private val REPOSITORY: Repository<E>,
+    private val idSupplier: Function<RoutingContext, JsonObject>,
+    eTagManager: ETagManager<E>?
+) : RestController<E> where E : ETagable, E : Model {
     private val COLLECTION: String
     private val eTagManager: ETagManager<E>?
     private val fields: Array<Field>
@@ -80,18 +94,35 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
 
     constructor(vertx: Vertx, type: Class<E>, appConfig: JsonObject, repository: Repository<E>) : this(vertx, type, appConfig, repository, defaultSupplier, null)
 
-    constructor(type: Class<E>, appConfig: JsonObject, repository: Repository<E>,
-                eTagManager: ETagManager<E>?) : this(Vertx.currentContext().owner(), type, appConfig, repository, defaultSupplier, eTagManager)
+    constructor(
+        type: Class<E>,
+        appConfig: JsonObject,
+        repository: Repository<E>,
+        eTagManager: ETagManager<E>?
+    ) : this(Vertx.currentContext().owner(), type, appConfig, repository, defaultSupplier, eTagManager)
 
-    constructor(vertx: Vertx, type: Class<E>, appConfig: JsonObject, repository: Repository<E>,
-                eTagManager: ETagManager<E>?) : this(vertx, type, appConfig, repository, defaultSupplier, eTagManager)
+    constructor(
+        vertx: Vertx,
+        type: Class<E>,
+        appConfig: JsonObject,
+        repository: Repository<E>,
+        eTagManager: ETagManager<E>?
+    ) : this(vertx, type, appConfig, repository, defaultSupplier, eTagManager)
 
-    constructor(type: Class<E>, appConfig: JsonObject, repository: Repository<E>,
-                idSupplier: Function<RoutingContext, JsonObject>) : this(Vertx.currentContext().owner(), type, appConfig, repository, idSupplier, null)
+    constructor(
+        type: Class<E>,
+        appConfig: JsonObject,
+        repository: Repository<E>,
+        idSupplier: Function<RoutingContext, JsonObject>
+    ) : this(Vertx.currentContext().owner(), type, appConfig, repository, idSupplier, null)
 
-    constructor(type: Class<E>, appConfig: JsonObject, repository: Repository<E>,
-                idSupplier: Function<RoutingContext, JsonObject>,
-                eTagManager: ETagManager<E>?) : this(Vertx.currentContext().owner(), type, appConfig, repository, idSupplier, eTagManager)
+    constructor(
+        type: Class<E>,
+        appConfig: JsonObject,
+        repository: Repository<E>,
+        idSupplier: Function<RoutingContext, JsonObject>,
+        eTagManager: ETagManager<E>?
+    ) : this(Vertx.currentContext().owner(), type, appConfig, repository, idSupplier, eTagManager)
 
     init {
         this.COLLECTION = buildCollectionName(TYPE.name)
@@ -152,7 +183,6 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
                         addLogMessageToRequestLog(routingContext, "Unable to parse projections: ", e)
                         projections = null
                     }
-
                 }
 
                 if (logger.isDebugEnabled) {
@@ -274,7 +304,6 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
                 routingContext.fail(400)
                 return
             }
-
         }
 
         queryMap.remove(PAGING_TOKEN_KEY)
@@ -299,7 +328,6 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
                 routingContext.fail(400)
                 return
             }
-
         }
 
         errors = REPOSITORY.buildParameters(
@@ -333,7 +361,6 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
                     logger.error("Unable to parse projections: $e", e)
                     projections = null
                 }
-
             }
 
             if (logger.isDebugEnabled) {
@@ -352,20 +379,33 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
         }
     }
 
-    override fun createIdObjectForIndex(routingContext: RoutingContext, aggregateFunction: AggregateFunction?,
-                                        orderByQueue: Queue<OrderByParameter>, params: Map<String, MutableList<FilterParameter>>,
-                                        projections: Array<String>, indexName: String, limit: Int?) {
+    override fun createIdObjectForIndex(
+        routingContext: RoutingContext,
+        aggregateFunction: AggregateFunction?,
+        orderByQueue: Queue<OrderByParameter>,
+        params: Map<String, MutableList<FilterParameter>>,
+        projections: Array<String>,
+        indexName: String,
+        limit: Int?
+    ) {
         val id = getAndVerifyId(routingContext)
 
         performIndex(routingContext, id, aggregateFunction, orderByQueue, params, projections, indexName, limit)
     }
 
-    override fun performIndex(routingContext: RoutingContext, identifiers: JsonObject, aggregateFunction: AggregateFunction?,
-                              orderByQueue: Queue<OrderByParameter>, params: Map<String, MutableList<FilterParameter>>,
-                              projections: Array<String>, indexName: String, limit: Int?) {
+    override fun performIndex(
+        routingContext: RoutingContext,
+        identifiers: JsonObject,
+        aggregateFunction: AggregateFunction?,
+        orderByQueue: Queue<OrderByParameter>,
+        params: Map<String, MutableList<FilterParameter>>,
+        projections: Array<String>,
+        indexName: String,
+        limit: Int?
+    ) {
         val initialProcessNanoTime = routingContext.get<Long>(CONTROLLER_START_TIME)
         val request = routingContext.request()
-        val pageToken : String? = request.getParam(PAGING_TOKEN_KEY)
+        val pageToken: String? = request.getParam(PAGING_TOKEN_KEY)
         val etag = request.getHeader(HttpHeaders.IF_NONE_MATCH)
 
         if (request.rawMethod().equals("GET", ignoreCase = true)) {
@@ -377,7 +417,6 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
                     identifiers
                             .put("range", ids)
                             .put("multiple", true)
-
                 } catch (e: DecodeException) {
                     addLogMessageToRequestLog(routingContext, "Unable to parse projections!", e)
 
@@ -392,7 +431,6 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
                     routingContext.fail(400)
                     return
                 }
-
             }
         }
 
@@ -467,8 +505,13 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
         }
     }
 
-    override fun proceedWithPagedIndex(id: JsonObject, pageToken: String?, queryPack: QueryPack,
-                                       projections: Array<String>, routingContext: RoutingContext) {
+    override fun proceedWithPagedIndex(
+        id: JsonObject,
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        routingContext: RoutingContext
+    ) {
         REPOSITORY.readAll(id, pageToken, queryPack, projections, Handler {
             when {
                 it.failed() -> {
@@ -510,8 +553,13 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
         })
     }
 
-    override fun proceedWithAggregationIndex(routingContext: RoutingContext, etag: String?, id: JsonObject,
-                                             queryPack: QueryPack, projections: Array<String>) {
+    override fun proceedWithAggregationIndex(
+        routingContext: RoutingContext,
+        etag: String?,
+        id: JsonObject,
+        queryPack: QueryPack,
+        projections: Array<String>
+    ) {
         if (logger.isDebugEnabled) {
             addLogMessageToRequestLog(routingContext, "Started aggregation request")
         }
@@ -544,8 +592,12 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
         }
     }
 
-    private fun doAggregation(routingContext: RoutingContext, id: JsonObject,
-                              queryPack: QueryPack, projections: Array<String>) {
+    private fun doAggregation(
+        routingContext: RoutingContext,
+        id: JsonObject,
+        queryPack: QueryPack,
+        projections: Array<String>
+    ) {
         REPOSITORY.aggregation(id, queryPack, projections, Handler {
             when {
                 it.failed() -> {
@@ -642,7 +694,6 @@ open class RestControllerImpl<E>(vertx: Vertx, private val TYPE: Class<E>, appCo
             addLogMessageToRequestLog(routingContext, "Could not create item!", ie)
             setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
         }
-
     }
 
     override fun performCreate(newRecord: E, routingContext: RoutingContext) {

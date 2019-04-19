@@ -17,6 +17,8 @@ import io.vertx.core.json.JsonObject
 @VertxGen
 interface TestModelInternalService : InternalRepositoryService<TestModel> {
     @Fluent
-    override fun remoteIndex(identifier: JsonObject,
-                             resultHandler: Handler<AsyncResult<List<TestModel>>>): TestModelInternalService
+    override fun remoteIndex(
+        identifier: JsonObject,
+        resultHandler: Handler<AsyncResult<List<TestModel>>>
+    ): TestModelInternalService
 }

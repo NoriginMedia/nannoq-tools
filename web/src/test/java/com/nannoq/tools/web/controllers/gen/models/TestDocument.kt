@@ -7,7 +7,7 @@ import com.nannoq.tools.repository.models.ETagable
 import com.nannoq.tools.web.controllers.gen.models.TestDocumentConverter.fromJson
 import io.vertx.codegen.annotations.DataObject
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Objects
 
 @DynamoDBDocument
 @DataObject(generateConverter = true)

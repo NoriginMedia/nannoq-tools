@@ -26,7 +26,7 @@ package com.nannoq.tools.version.mocks
 
 import java.math.BigDecimal
 import java.math.BigInteger
-import java.util.*
+import java.util.Date
 
 class MockVersionObject {
 

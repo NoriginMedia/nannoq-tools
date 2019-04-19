@@ -48,12 +48,21 @@ import java.util.function.Consumer
  * @author Anders Mikkelsen
  * @version 31.03.2016
  */
-class DeviceGroupManager internal constructor(private val server: FcmServer, private val sender: MessageSender, private val redisClient: RedisClient,
-                                              private val GCM_SENDER_ID: String, private val GCM_API_KEY: String) {
+class DeviceGroupManager internal constructor(
+    private val server: FcmServer,
+    private val sender: MessageSender,
+    private val redisClient: RedisClient,
+    private val GCM_SENDER_ID: String,
+    private val GCM_API_KEY: String
+) {
     private val logger = LoggerFactory.getLogger(DeviceGroupManager::class.java.simpleName)
 
-    fun addDeviceToDeviceGroupForUser(device: FcmDevice, appPackageName: String,
-                                      channelKeyName: String, fcmId: String) {
+    fun addDeviceToDeviceGroupForUser(
+        device: FcmDevice,
+        appPackageName: String,
+        channelKeyName: String,
+        fcmId: String
+    ) {
         addDeviceToDeviceGroup(device, channelKeyName, Handler {
             when {
                 it.failed() -> logger.error("Could not add device to device group...")
@@ -159,9 +168,14 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
         }
     }
 
-    private fun doDeviceGroupResult(notificationKey: String?, channelMap: MutableMap<String, String>, device: FcmDevice,
-                                    notificationKeyName: String, channelKeyName: String,
-                                    resultHandler: Handler<AsyncResult<Boolean>>) {
+    private fun doDeviceGroupResult(
+        notificationKey: String?,
+        channelMap: MutableMap<String, String>,
+        device: FcmDevice,
+        notificationKeyName: String,
+        channelKeyName: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         logger.info("New key for device group is: " + notificationKey!!)
 
         @Suppress("SENSELESS_COMPARISON")
@@ -233,9 +247,14 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
         }
     }
 
-    private fun setNewKey(device: FcmDevice, channelKeyName: String, channelMap: MutableMap<String, String>,
-                          notificationKeyName: String, newNotificationKey: String?,
-                          resultHandler: Handler<AsyncResult<Boolean>>) {
+    private fun setNewKey(
+        device: FcmDevice,
+        channelKeyName: String,
+        channelMap: MutableMap<String, String>,
+        notificationKeyName: String,
+        newNotificationKey: String?,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         if (newNotificationKey != null) channelMap[notificationKeyName] = newNotificationKey
 
         val mapAsJson = JsonObject(Json.encode(channelMap))
@@ -250,8 +269,12 @@ class DeviceGroupManager internal constructor(private val server: FcmServer, pri
         }
     }
 
-    private fun addToGroup(fcmId: String, keyName: String, key: String?,
-                           resultHandler: Handler<AsyncResult<Boolean>>) {
+    private fun addToGroup(
+        fcmId: String,
+        keyName: String,
+        key: String?,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         val addJson = Json.encode(MessageSender.createAddDeviceGroupJson(fcmId, keyName, key))
         val url = GCM_DEVICE_GROUP_HTTP_ENDPOINT_COMPLETE
 

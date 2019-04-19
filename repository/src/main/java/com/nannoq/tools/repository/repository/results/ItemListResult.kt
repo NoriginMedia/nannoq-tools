@@ -52,8 +52,15 @@ class ItemListResult<K : Model> {
     var operationProcessingTime: Long = 0
     var postOperationProcessingTime: Long = 0
 
-    constructor(etagBase: String, count: Int, totalCount: Int, items: List<K>, pageTokens: PageTokens,
-                projections: Array<String>, cacheHit: Boolean) {
+    constructor(
+        etagBase: String,
+        count: Int,
+        totalCount: Int,
+        items: List<K>,
+        pageTokens: PageTokens,
+        projections: Array<String>,
+        cacheHit: Boolean
+    ) {
         this.etagBase = etagBase
         this.count = count
         this.totalCount = totalCount

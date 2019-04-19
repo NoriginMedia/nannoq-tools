@@ -29,7 +29,11 @@ import com.nannoq.tools.repository.models.ETagable
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.models.Model.Companion.buildValidationErrorObject
 import com.nannoq.tools.repository.models.ModelUtils
-import com.nannoq.tools.repository.utils.*
+import com.nannoq.tools.repository.utils.AggregateFunction
+import com.nannoq.tools.repository.utils.FilterParameter
+import com.nannoq.tools.repository.utils.ItemList
+import com.nannoq.tools.repository.utils.OrderByParameter
+import com.nannoq.tools.repository.utils.QueryPack
 import com.nannoq.tools.web.RoutingHelper.denyQuery
 import com.nannoq.tools.web.RoutingHelper.setStatusCodeAndAbort
 import com.nannoq.tools.web.RoutingHelper.setStatusCodeAndContinue
@@ -43,7 +47,8 @@ import io.vertx.ext.web.RoutingContext
 import org.apache.commons.lang3.ArrayUtils
 import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.util.*
+import java.util.Date
+import java.util.Queue
 import java.util.function.Function
 
 @Suppress("unused")
@@ -63,7 +68,6 @@ interface RestController<E> where E : ETagable, E : Model {
 
             routingContext.fail(e)
         }
-
     }
 
     fun preShow(routingContext: RoutingContext) {
@@ -116,7 +120,6 @@ interface RestController<E> where E : ETagable, E : Model {
 
             routingContext.fail(e)
         }
-
     }
 
     fun index(routingContext: RoutingContext, customQuery: String) {
@@ -127,7 +130,6 @@ interface RestController<E> where E : ETagable, E : Model {
 
             routingContext.fail(e)
         }
-
     }
 
     fun preIndex(routingContext: RoutingContext, customQuery: String?) {
@@ -142,31 +144,66 @@ interface RestController<E> where E : ETagable, E : Model {
 
     fun processQuery(routingContext: RoutingContext, queryMap: MutableMap<String, List<String>>)
 
-    fun postProcessQuery(routingContext: RoutingContext, aggregateFunction: AggregateFunction?,
-                         orderByQueue: Queue<OrderByParameter>, params: Map<String, MutableList<FilterParameter>>,
-                         projections: Array<String>, indexName: String, limit: Int?) {
+    fun postProcessQuery(
+        routingContext: RoutingContext,
+        aggregateFunction: AggregateFunction?,
+        orderByQueue: Queue<OrderByParameter>,
+        params: Map<String, MutableList<FilterParameter>>,
+        projections: Array<String>,
+        indexName: String,
+        limit: Int?
+    ) {
         postPrepareQuery(routingContext, aggregateFunction, orderByQueue, params, projections, indexName, limit)
     }
 
-    fun postPrepareQuery(routingContext: RoutingContext, aggregateFunction: AggregateFunction?,
-                         orderByQueue: Queue<OrderByParameter>, params: Map<String, MutableList<FilterParameter>>,
-                         projections: Array<String>, indexName: String, limit: Int?) {
+    fun postPrepareQuery(
+        routingContext: RoutingContext,
+        aggregateFunction: AggregateFunction?,
+        orderByQueue: Queue<OrderByParameter>,
+        params: Map<String, MutableList<FilterParameter>>,
+        projections: Array<String>,
+        indexName: String,
+        limit: Int?
+    ) {
         createIdObjectForIndex(routingContext, aggregateFunction, orderByQueue, params, projections, indexName, limit)
     }
 
-    fun createIdObjectForIndex(routingContext: RoutingContext, aggregateFunction: AggregateFunction?,
-                               orderByQueue: Queue<OrderByParameter>, params: Map<String, MutableList<FilterParameter>>,
-                               projections: Array<String>, indexName: String, limit: Int?)
+    fun createIdObjectForIndex(
+        routingContext: RoutingContext,
+        aggregateFunction: AggregateFunction?,
+        orderByQueue: Queue<OrderByParameter>,
+        params: Map<String, MutableList<FilterParameter>>,
+        projections: Array<String>,
+        indexName: String,
+        limit: Int?
+    )
 
-    fun performIndex(routingContext: RoutingContext, identifiers: JsonObject, aggregateFunction: AggregateFunction?,
-                     orderByQueue: Queue<OrderByParameter>, params: Map<String, MutableList<FilterParameter>>,
-                     projections: Array<String>, indexName: String, limit: Int?)
+    fun performIndex(
+        routingContext: RoutingContext,
+        identifiers: JsonObject,
+        aggregateFunction: AggregateFunction?,
+        orderByQueue: Queue<OrderByParameter>,
+        params: Map<String, MutableList<FilterParameter>>,
+        projections: Array<String>,
+        indexName: String,
+        limit: Int?
+    )
 
-    fun proceedWithPagedIndex(id: JsonObject, pageToken: String?,
-                              queryPack: QueryPack, projections: Array<String>, routingContext: RoutingContext)
+    fun proceedWithPagedIndex(
+        id: JsonObject,
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        routingContext: RoutingContext
+    )
 
-    fun proceedWithAggregationIndex(routingContext: RoutingContext, etag: String?, id: JsonObject,
-                                    queryPack: QueryPack, projections: Array<String>)
+    fun proceedWithAggregationIndex(
+        routingContext: RoutingContext,
+        etag: String?,
+        id: JsonObject,
+        queryPack: QueryPack,
+        projections: Array<String>
+    )
 
     fun postIndex(routingContext: RoutingContext, items: ItemList<E>, projections: Array<String>?) {
         val initialNanoTime = routingContext.get<Long>(REQUEST_PROCESS_TIME_TAG)
@@ -223,7 +260,6 @@ interface RestController<E> where E : ETagable, E : Model {
 
             routingContext.fail(e)
         }
-
     }
 
     fun preCreate(routingContext: RoutingContext) {
@@ -315,7 +351,6 @@ interface RestController<E> where E : ETagable, E : Model {
 
             routingContext.fail(e)
         }
-
     }
 
     fun preUpdate(routingContext: RoutingContext) {
@@ -407,7 +442,6 @@ interface RestController<E> where E : ETagable, E : Model {
 
             routingContext.fail(e)
         }
-
     }
 
     fun preDestroy(routingContext: RoutingContext) {
@@ -447,7 +481,6 @@ interface RestController<E> where E : ETagable, E : Model {
         return if (klazz.superclass != null && klazz.superclass != Any::class.java) {
             ArrayUtils.addAll(fields, *getAllFieldsOnType(klazz.superclass))
         } else fields
-
     }
 
     fun getAllMethodsOnType(klazz: Class<*>): Array<Method> {
@@ -456,6 +489,5 @@ interface RestController<E> where E : ETagable, E : Model {
         return if (klazz.superclass != null && klazz.superclass != Any::class.java) {
             ArrayUtils.addAll(methods, *getAllMethodsOnType(klazz.superclass))
         } else methods
-
     }
 }

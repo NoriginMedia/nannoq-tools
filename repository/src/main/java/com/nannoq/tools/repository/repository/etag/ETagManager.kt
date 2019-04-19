@@ -38,8 +38,12 @@ import io.vertx.core.Handler
 interface ETagManager<E> where E : Model, E : ETagable {
     fun removeProjectionsEtags(hash: Int, resultHandler: Handler<AsyncResult<Boolean>>)
     fun destroyEtags(hash: Int, resultHandler: Handler<AsyncResult<Boolean>>)
-    fun replaceAggregationEtag(etagItemListHashKey: String, etagKey: String, newEtag: String,
-                               resultHandler: Handler<AsyncResult<Boolean>>)
+    fun replaceAggregationEtag(
+        etagItemListHashKey: String,
+        etagKey: String,
+        newEtag: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    )
 
     fun setSingleRecordEtag(etagMap: Map<String, String>, resultHandler: Handler<AsyncResult<Boolean>>)
     fun setProjectionEtags(projections: Array<String>, hash: Int, item: E)

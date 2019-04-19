@@ -28,7 +28,7 @@ package com.nannoq.tools.repository.models.utils
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.models.ValidationError
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Date
 
 class FilterParameterTestClass : Model {
     private val viewCount: Long? = null

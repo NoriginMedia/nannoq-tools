@@ -27,7 +27,11 @@ package com.nannoq.tools.repository.dynamodb.operators
 
 import com.amazonaws.AmazonClientException
 import com.amazonaws.AmazonServiceException
-import com.amazonaws.services.dynamodbv2.datamodeling.*
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBScanExpression
+import com.amazonaws.services.dynamodbv2.datamodeling.KeyPair
+import com.amazonaws.services.dynamodbv2.datamodeling.PaginatedParallelScanList
 import com.amazonaws.services.dynamodbv2.model.AttributeValue
 import com.nannoq.tools.repository.dynamodb.DynamoDBRepository
 import com.nannoq.tools.repository.dynamodb.DynamoDBRepository.Companion.PAGINATION_INDEX
@@ -52,7 +56,8 @@ import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
+import java.util.Arrays
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Function
@@ -65,10 +70,19 @@ import java.util.stream.Collectors.toList
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, private val db: DynamoDBRepository<E>, private val COLLECTION: String,
-                        private val HASH_IDENTIFIER: String, private val IDENTIFIER: String?, private val PAGINATION_IDENTIFIER: String?,
-                        private val GSI_KEY_MAP: Map<String, JsonObject>,
-                        private val dbParams: DynamoDBParameters<E>, private val cacheManager: CacheManager<E>, private val etagManager: ETagManager<E>?)
+class DynamoDBReader<E>(
+    private val TYPE: Class<E>,
+    private val vertx: Vertx,
+    private val db: DynamoDBRepository<E>,
+    private val COLLECTION: String,
+    private val HASH_IDENTIFIER: String,
+    private val IDENTIFIER: String?,
+    private val PAGINATION_IDENTIFIER: String?,
+    private val GSI_KEY_MAP: Map<String, JsonObject>,
+    private val dbParams: DynamoDBParameters<E>,
+    private val cacheManager: CacheManager<E>,
+    private val etagManager: ETagManager<E>?
+)
         where E : ETagable, E : Cacheable, E : DynamoDBModel, E : Model {
     private val mapper: DynamoDBMapper = db.dynamoDbMapper
     private val coreNum = Runtime.getRuntime().availableProcessors() * 2
@@ -132,8 +146,12 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         })
     }
 
-    fun read(identifiers: JsonObject, consistent: Boolean, projections: Array<String>?,
-             resultHandler: Handler<AsyncResult<ItemResult<E>>>) {
+    fun read(
+        identifiers: JsonObject,
+        consistent: Boolean,
+        projections: Array<String>?,
+        resultHandler: Handler<AsyncResult<ItemResult<E>>>
+    ) {
         val startTime = AtomicLong()
         startTime.set(System.nanoTime())
         val preOperationTime = AtomicLong()
@@ -190,8 +208,12 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         })
     }
 
-    private fun doReadResult(postOperationTime: AtomicLong, startTime: AtomicLong, readResult: AsyncResult<E>,
-                             resultHandler: Handler<AsyncResult<ItemResult<E>>>) {
+    private fun doReadResult(
+        postOperationTime: AtomicLong,
+        startTime: AtomicLong,
+        readResult: AsyncResult<E>,
+        resultHandler: Handler<AsyncResult<ItemResult<E>>>
+    ) {
         when {
             readResult.cause().javaClass == NoSuchElementException::class.java -> {
                 postOperationTime.set(System.nanoTime() - startTime.get())
@@ -208,8 +230,14 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
     }
 
-    private fun fetchItem(startTime: AtomicLong, preOperationTime: AtomicLong, operationTime: AtomicLong,
-                          hash: String, range: String?, consistent: Boolean): E? {
+    private fun fetchItem(
+        startTime: AtomicLong,
+        preOperationTime: AtomicLong,
+        operationTime: AtomicLong,
+        hash: String,
+        range: String?,
+        consistent: Boolean
+    ): E? {
         return try {
             when {
                 db.hasRangeKey() -> when (range) {
@@ -231,8 +259,13 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
     }
 
-    private fun fetchHashAndRangeItem(hash: String, range: String,
-                                      startTime: AtomicLong, preOperationTime: AtomicLong, operationTime: AtomicLong): E {
+    private fun fetchHashAndRangeItem(
+        hash: String,
+        range: String,
+        startTime: AtomicLong,
+        preOperationTime: AtomicLong,
+        operationTime: AtomicLong
+    ): E {
         val timeBefore = System.currentTimeMillis()
 
         preOperationTime.set(System.nanoTime() - startTime.get())
@@ -247,8 +280,13 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
     }
 
     @Throws(IllegalAccessException::class, InstantiationException::class)
-    private fun fetchHashItem(hash: String, startTime: AtomicLong, preOperationTime: AtomicLong, operationTime: AtomicLong,
-                              consistent: Boolean): E? {
+    private fun fetchHashItem(
+        hash: String,
+        startTime: AtomicLong,
+        preOperationTime: AtomicLong,
+        operationTime: AtomicLong,
+        consistent: Boolean
+    ): E? {
         val query = DynamoDBQueryExpression<E>()
         val keyObject = TYPE.newInstance()
         keyObject.hash = hash
@@ -267,12 +305,15 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
 
         return if (!items.isEmpty()) items[0] else null
-
     }
 
-    private fun returnTimedResult(readResult: AsyncResult<E>,
-                                  preOperationTime: AtomicLong, operationTime: AtomicLong, postOperationTime: AtomicLong,
-                                  resultHandler: Handler<AsyncResult<ItemResult<E>>>) {
+    private fun returnTimedResult(
+        readResult: AsyncResult<E>,
+        preOperationTime: AtomicLong,
+        operationTime: AtomicLong,
+        postOperationTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemResult<E>>>
+    ) {
         val eItemResult = ItemResult(readResult.result(), false)
         eItemResult.preOperationProcessingTime = preOperationTime.get()
         eItemResult.operationProcessingTime = operationTime.get()
@@ -368,8 +409,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         })
     }
 
-    fun readAll(identifiers: JsonObject, filterParameterMap: Map<String, List<FilterParameter>>,
-                resultHandler: Handler<AsyncResult<List<E>>>) {
+    fun readAll(
+        identifiers: JsonObject,
+        filterParameterMap: Map<String, List<FilterParameter>>,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         vertx.executeBlocking<List<E>>({
             try {
                 val identifier = identifiers.getString("hash")
@@ -424,18 +468,33 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         })
     }
 
-    fun readAll(identifiers: JsonObject, pageToken: String?, queryPack: QueryPack, projections: Array<String>,
-                resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    fun readAll(
+        identifiers: JsonObject,
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         readAll(identifiers, pageToken, queryPack, projections, null, resultHandler)
     }
 
-    fun readAll(pageToken: String?, queryPack: QueryPack, projections: Array<String>,
-                resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    fun readAll(
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         readAll(JsonObject(), pageToken, queryPack, projections, null, resultHandler)
     }
 
-    fun readAll(identifiers: JsonObject, pageToken: String?, queryPack: QueryPack, projections: Array<String>,
-                GSI: String?, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    fun readAll(
+        identifiers: JsonObject,
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         val startTime = AtomicLong()
         startTime.set(System.nanoTime())
 
@@ -501,11 +560,19 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         })
     }
 
-    private fun returnDatabaseContent(queryPack: QueryPack, identifiers: JsonObject, pageToken: String?,
-                                      hash: String?, etagKey: String,
-                                      cacheId: String, filteringExpression: DynamoDBQueryExpression<E>?,
-                                      projections: Array<String>, GSI: String?,
-                                      startTime: AtomicLong, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun returnDatabaseContent(
+        queryPack: QueryPack,
+        identifiers: JsonObject,
+        pageToken: String?,
+        hash: String?,
+        etagKey: String,
+        cacheId: String,
+        filteringExpression: DynamoDBQueryExpression<E>?,
+        projections: Array<String>,
+        GSI: String?,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         vertx.executeBlocking<ItemListResult<E>>({ future ->
             val multiple = identifiers.getBoolean(MULTIPLE_KEY)
             val unFilteredIndex = filteringExpression == null
@@ -617,10 +684,20 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
     }
 
     @Throws(InstantiationException::class, IllegalAccessException::class)
-    private fun runStandardQuery(baseEtagKey: String?, multiple: Boolean?, identifiers: JsonObject, hash: String?,
-                                 filteringExpression: DynamoDBQueryExpression<E>?, GSI: String?, projections: Array<String>,
-                                 pageToken: String?, unFilteredIndex: Boolean, alternateIndex: String?,
-                                 startTime: AtomicLong, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun runStandardQuery(
+        baseEtagKey: String?,
+        multiple: Boolean?,
+        identifiers: JsonObject,
+        hash: String?,
+        filteringExpression: DynamoDBQueryExpression<E>?,
+        GSI: String?,
+        projections: Array<String>,
+        pageToken: String?,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         when {
             multiple != null && multiple ->
                 standardMultipleQuery(baseEtagKey, identifiers, hash, filteringExpression, pageToken, GSI, unFilteredIndex,
@@ -630,11 +707,19 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
     }
 
-    private fun standardMultipleQuery(baseEtagKey: String?, identifiers: JsonObject, hash: String?,
-                                      filteringExpression: DynamoDBQueryExpression<E>?,
-                                      pageToken: String?, GSI: String?, unFilteredIndex: Boolean, alternateIndex: String?,
-                                      projections: Array<String>, startTime: AtomicLong,
-                                      resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun standardMultipleQuery(
+        baseEtagKey: String?,
+        identifiers: JsonObject,
+        hash: String?,
+        filteringExpression: DynamoDBQueryExpression<E>?,
+        pageToken: String?,
+        GSI: String?,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?,
+        projections: Array<String>,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         val preOperationTime = AtomicLong()
         val operationTime = AtomicLong()
         val postOperationTime = AtomicLong()
@@ -727,11 +812,20 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 preOperationTime, operationTime, postOperationTime)
     }
 
-    private fun returnTimedItemListResult(baseEtagKey: String?, resultHandler: Handler<AsyncResult<ItemListResult<E>>>,
-                                          count: Int, totalCount: Int,
-                                          previousPageToken: String?, pageToken: String?, nextPageToken: String,
-                                          itemList: List<E>, projections: Array<String>, preOperationTime: AtomicLong,
-                                          operationTime: AtomicLong, postOperationTime: AtomicLong) {
+    private fun returnTimedItemListResult(
+        baseEtagKey: String?,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>,
+        count: Int,
+        totalCount: Int,
+        previousPageToken: String?,
+        pageToken: String?,
+        nextPageToken: String,
+        itemList: List<E>,
+        projections: Array<String>,
+        preOperationTime: AtomicLong,
+        operationTime: AtomicLong,
+        postOperationTime: AtomicLong
+    ) {
         postOperationTime.set(System.nanoTime() - operationTime.get())
         val pageTokens = PageTokens(self = pageToken, next = nextPageToken, previous = previousPageToken)
         val eItemListResult = ItemListResult(baseEtagKey!!, count, totalCount, itemList, pageTokens, projections, false)
@@ -743,9 +837,19 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
     }
 
     @Throws(IllegalAccessException::class, InstantiationException::class)
-    private fun standardQuery(baseEtagKey: String?, identifiers: JsonObject, hash: String?, filteringExpression: DynamoDBQueryExpression<E>?,
-                              pageToken: String?, GSI: String?, unFilteredIndex: Boolean, alternateIndex: String?,
-                              projections: Array<String>, startTime: AtomicLong, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun standardQuery(
+        baseEtagKey: String?,
+        identifiers: JsonObject,
+        hash: String?,
+        filteringExpression: DynamoDBQueryExpression<E>?,
+        pageToken: String?,
+        GSI: String?,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?,
+        projections: Array<String>,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         val preOperationTime = AtomicLong()
         val operationTime = AtomicLong()
         val postOperationTime = AtomicLong()
@@ -849,7 +953,6 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                             (("${extractSelfToken(pageToken)}:" +
                                     setPageToken(lastEvaluatedKey, GSI, true, alternateIndex))
                                     .toByteArray()))
-
             }
         }
 
@@ -858,10 +961,18 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 preOperationTime, operationTime, postOperationTime)
     }
 
-    private fun runIllegalRangedKeyQueryAsScan(baseEtagKey: String?, hash: String?, queryPack: QueryPack,
-                                               GSI: String?, projections: Array<String>, pageToken: String?,
-                                               unFilteredIndex: Boolean, alternateIndex: String?,
-                                               startTime: AtomicLong, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun runIllegalRangedKeyQueryAsScan(
+        baseEtagKey: String?,
+        hash: String?,
+        queryPack: QueryPack,
+        GSI: String?,
+        projections: Array<String>,
+        pageToken: String?,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         val preOperationTime = AtomicLong()
         val operationTime = AtomicLong()
         val postOperationTime = AtomicLong()
@@ -955,11 +1066,21 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 preOperationTime, operationTime, postOperationTime)
     }
 
-    private fun runRootQuery(baseEtagKey: String?, multiple: Boolean?, identifiers: JsonObject, hash: String?,
-                             queryPack: QueryPack, filteringExpression: DynamoDBQueryExpression<E>?,
-                             GSI: String?, projections: Array<String>, pageToken: String?, unFilteredIndex: Boolean,
-                             alternateIndex: String?, startTime: AtomicLong,
-                             resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun runRootQuery(
+        baseEtagKey: String?,
+        multiple: Boolean?,
+        identifiers: JsonObject,
+        hash: String?,
+        queryPack: QueryPack,
+        filteringExpression: DynamoDBQueryExpression<E>?,
+        GSI: String?,
+        projections: Array<String>,
+        pageToken: String?,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         when {
             multiple != null && multiple ->
                 rootMultipleQuery(baseEtagKey, identifiers, hash, filteringExpression, GSI, pageToken, projections,
@@ -970,10 +1091,19 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
     }
 
-    private fun rootMultipleQuery(baseEtagKey: String?, identifiers: JsonObject, hash: String?, filteringExpression: DynamoDBQueryExpression<E>?,
-                                  GSI: String?, pageToken: String?, projections: Array<String>, unFilteredIndex: Boolean,
-                                  alternateIndex: String?, startTime: AtomicLong,
-                                  resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun rootMultipleQuery(
+        baseEtagKey: String?,
+        identifiers: JsonObject,
+        hash: String?,
+        filteringExpression: DynamoDBQueryExpression<E>?,
+        GSI: String?,
+        pageToken: String?,
+        projections: Array<String>,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         val preOperationTime = AtomicLong()
         val operationTime = AtomicLong()
         val postOperationTime = AtomicLong()
@@ -1054,9 +1184,17 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
                 preOperationTime, operationTime, postOperationTime)
     }
 
-    private fun rootRootQuery(baseEtagKey: String?, queryPack: QueryPack, GSI: String?, pageToken: String?, projections: Array<String>,
-                              unFilteredIndex: Boolean, alternateIndex: String?, startTime: AtomicLong,
-                              resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    private fun rootRootQuery(
+        baseEtagKey: String?,
+        queryPack: QueryPack,
+        GSI: String?,
+        pageToken: String?,
+        projections: Array<String>,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?,
+        startTime: AtomicLong,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         val preOperationTime = AtomicLong()
         val operationTime = AtomicLong()
         val postOperationTime = AtomicLong()
@@ -1150,8 +1288,15 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         }
     }
 
-    private fun setScanPageToken(pageToken: String?, pageCount: Int, desiredCount: Int, itemList: List<E>,
-                                 GSI: String?, alternateIndex: String?, unFilteredIndex: Boolean): String {
+    private fun setScanPageToken(
+        pageToken: String?,
+        pageCount: Int,
+        desiredCount: Int,
+        itemList: List<E>,
+        GSI: String?,
+        alternateIndex: String?,
+        unFilteredIndex: Boolean
+    ): String {
         when {
             pageCount > desiredCount -> {
                 val lastItem = itemList[if (itemList.isEmpty()) 0 else itemList.size - 1]
@@ -1209,8 +1354,12 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         return IDENTIFIER == null || IDENTIFIER == ""
     }
 
-    private fun setPageToken(lastEvaluatedKey: Map<String, AttributeValue>, GSI: String?,
-                             unFilteredIndex: Boolean, alternateIndex: String?): String {
+    private fun setPageToken(
+        lastEvaluatedKey: Map<String, AttributeValue>,
+        GSI: String?,
+        unFilteredIndex: Boolean,
+        alternateIndex: String?
+    ): String {
         return dbParams.createNewPageToken(HASH_IDENTIFIER, IDENTIFIER!!, PAGINATION_IDENTIFIER,
                 lastEvaluatedKey, GSI, GSI_KEY_MAP, if (unFilteredIndex) null else alternateIndex)
     }
@@ -1255,8 +1404,10 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         return keyMap
     }
 
-    fun readAllWithoutPagination(identifier: String,
-                                 resultHandler: Handler<AsyncResult<List<E>>>) {
+    fun readAllWithoutPagination(
+        identifier: String,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         vertx.executeBlocking<List<E>>({
             try {
                 val queryExpression = DynamoDBQueryExpression<E>()
@@ -1311,18 +1462,28 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         })
     }
 
-    fun readAllWithoutPagination(identifier: String, queryPack: QueryPack,
-                                 resultHandler: Handler<AsyncResult<List<E>>>) {
+    fun readAllWithoutPagination(
+        identifier: String,
+        queryPack: QueryPack,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         readAllWithoutPagination(identifier, queryPack, null, resultHandler)
     }
 
-    fun readAllWithoutPagination(queryPack: QueryPack, projections: Array<String>,
-                                 resultHandler: Handler<AsyncResult<List<E>>>) {
+    fun readAllWithoutPagination(
+        queryPack: QueryPack,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         readAllWithoutPagination(queryPack, projections, null, resultHandler)
     }
 
-    fun readAllWithoutPagination(queryPack: QueryPack?, projections: Array<String>?,
-                                 GSI: String?, resultHandler: Handler<AsyncResult<List<E>>>) {
+    fun readAllWithoutPagination(
+        queryPack: QueryPack?,
+        projections: Array<String>?,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         var params: Map<String, List<FilterParameter>>? = null
         if (queryPack != null) params = queryPack.params
         val finalParams = params
@@ -1387,13 +1548,22 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
         })
     }
 
-    private fun readAllWithoutPagination(identifier: String, queryPack: QueryPack, projections: Array<String>?,
-                                         resultHandler: Handler<AsyncResult<List<E>>>) {
+    private fun readAllWithoutPagination(
+        identifier: String,
+        queryPack: QueryPack,
+        projections: Array<String>?,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         readAllWithoutPagination(identifier, queryPack, projections, null, resultHandler)
     }
 
-    fun readAllWithoutPagination(identifier: String, queryPack: QueryPack, projections: Array<String>?,
-                                 GSI: String?, resultHandler: Handler<AsyncResult<List<E>>>) {
+    fun readAllWithoutPagination(
+        identifier: String,
+        queryPack: QueryPack,
+        projections: Array<String>?,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         vertx.executeBlocking<List<E>>({
             try {
                 if (logger.isDebugEnabled) {
@@ -1490,8 +1660,11 @@ class DynamoDBReader<E>(private val TYPE: Class<E>, private val vertx: Vertx, pr
     }
 
     @Throws(IllegalAccessException::class, InstantiationException::class)
-    private fun setFilterExpressionKeyCondition(filterExpression: DynamoDBQueryExpression<E>,
-                                                GSI: String?, identifier: String) {
+    private fun setFilterExpressionKeyCondition(
+        filterExpression: DynamoDBQueryExpression<E>,
+        GSI: String?,
+        identifier: String
+    ) {
         val keyItem = TYPE.newInstance()
         val gsiField = GSI_KEY_MAP[GSI]?.getString("hash")
 

@@ -28,7 +28,11 @@ package com.nannoq.tools.repository.repository
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.models.ModelUtils
 import com.nannoq.tools.repository.repository.etag.ETagManager
-import com.nannoq.tools.repository.repository.results.*
+import com.nannoq.tools.repository.repository.results.CreateResult
+import com.nannoq.tools.repository.repository.results.DeleteResult
+import com.nannoq.tools.repository.repository.results.ItemListResult
+import com.nannoq.tools.repository.repository.results.ItemResult
+import com.nannoq.tools.repository.repository.results.UpdateResult
 import com.nannoq.tools.repository.utils.FilterParameter
 import com.nannoq.tools.repository.utils.OrderByParameter
 import com.nannoq.tools.repository.utils.QueryPack
@@ -44,9 +48,11 @@ import io.vertx.serviceproxy.ServiceException
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.security.NoSuchAlgorithmException
-import java.util.*
 import java.util.AbstractMap.SimpleEntry
 import java.util.AbstractMap.SimpleImmutableEntry
+import java.util.Collections
+import java.util.Date
+import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.function.Function
 import java.util.stream.Collectors.toList
@@ -175,9 +181,9 @@ interface Repository<E : Model> {
     }
 
     fun batchUpdate(records: List<E>, resultHandler: Handler<AsyncResult<List<UpdateResult<E>>>>) {
-        val collect : Map<E, Function<E, E>> = records
+        val collect: Map<E, Function<E, E>> = records
                 .map { r -> SimpleImmutableEntry<E, Function<E, E>>(r, Function { rec -> rec }) }
-                .fold(HashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
+                .fold(HashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator }
 
         batchUpdate(collect, resultHandler)
     }
@@ -196,7 +202,7 @@ interface Repository<E : Model> {
     fun batchUpdate(records: List<E>): Future<List<UpdateResult<E>>> {
         val future = Future.future<List<UpdateResult<E>>>()
 
-        batchUpdate(records, future.completer())
+        batchUpdate(records, future)
 
         return future
     }
@@ -247,8 +253,10 @@ interface Repository<E : Model> {
         return deleteFuture
     }
 
-    fun batchDelete(identifiers: List<JsonObject>,
-                    resultHandler: Handler<AsyncResult<List<DeleteResult<E>>>>) {
+    fun batchDelete(
+        identifiers: List<JsonObject>,
+        resultHandler: Handler<AsyncResult<List<DeleteResult<E>>>>
+    ) {
         when {
             identifiers.isEmpty() -> resultHandler.handle(ServiceException.fail(400,
                     "Identifiers for batchDelete cannot be empty!"))
@@ -303,18 +311,26 @@ interface Repository<E : Model> {
         batchRead(ArrayList(identifiers), resultHandler)
     }
 
-    fun batchRead(identifiers: Set<JsonObject>, projections: Array<String>,
-                  resultHandler: Handler<AsyncResult<List<ItemResult<E>>>>) {
+    fun batchRead(
+        identifiers: Set<JsonObject>,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<List<ItemResult<E>>>>
+    ) {
         batchRead(ArrayList(identifiers), resultHandler)
     }
 
-    fun batchRead(identifiers: List<JsonObject>,
-                  resultHandler: Handler<AsyncResult<List<ItemResult<E>>>>) {
+    fun batchRead(
+        identifiers: List<JsonObject>,
+        resultHandler: Handler<AsyncResult<List<ItemResult<E>>>>
+    ) {
         batchRead(ArrayList(identifiers), null, resultHandler)
     }
 
-    fun batchRead(identifiers: List<JsonObject>, projections: Array<String>?,
-                  resultHandler: Handler<AsyncResult<List<ItemResult<E>>>>) {
+    fun batchRead(
+        identifiers: List<JsonObject>,
+        projections: Array<String>?,
+        resultHandler: Handler<AsyncResult<List<ItemResult<E>>>>
+    ) {
         val futureList = ArrayList<Future<*>>()
         val queuedFutures = ConcurrentLinkedQueue<Future<ItemResult<E>>>()
 
@@ -324,8 +340,8 @@ interface Repository<E : Model> {
             queuedFutures.add(future)
 
             when {
-                projections != null -> read(it, projections, future.completer())
-                else -> read(it, future.completer())
+                projections != null -> read(it, projections, future)
+                else -> read(it, future)
             }
         }
 
@@ -347,7 +363,7 @@ interface Repository<E : Model> {
     fun batchRead(identifiers: List<JsonObject>, projections: Array<String> = arrayOf()): Future<List<ItemResult<E>>> {
         val future = Future.future<List<ItemResult<E>>>()
 
-        batchRead(identifiers, projections, future.completer())
+        batchRead(identifiers, projections, future)
 
         return future
     }
@@ -416,8 +432,11 @@ interface Repository<E : Model> {
         return readFuture
     }
 
-    fun readAll(identifiers: JsonObject, filterParameterMap: Map<String, List<FilterParameter>>,
-                resultHandler: Handler<AsyncResult<List<E>>>)
+    fun readAll(
+        identifiers: JsonObject,
+        filterParameterMap: Map<String, List<FilterParameter>>,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    )
 
     fun readAll(identifiers: JsonObject, filterParamterMap: Map<String, List<FilterParameter>>): Future<List<E>> {
         val readFuture = Future.future<List<E>>()
@@ -432,24 +451,36 @@ interface Repository<E : Model> {
         return readFuture
     }
 
-    fun readAll(identifiers: JsonObject, queryPack: QueryPack,
-                resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
+    fun readAll(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    ) {
         readAll(identifiers, queryPack.pageToken, queryPack, queryPack.projections, resultHandler)
     }
 
     fun readAll(identifiers: JsonObject, queryPack: QueryPack): Future<ItemListResult<E>> {
         val future = Future.future<ItemListResult<E>>()
 
-        readAll(identifiers, queryPack.pageToken, queryPack, queryPack.projections, future.completer())
+        readAll(identifiers, queryPack.pageToken, queryPack, queryPack.projections, future)
 
         return future
     }
 
-    fun readAll(identifiers: JsonObject?, pageToken: String?, queryPack: QueryPack?, projections: Array<String>?,
-                resultHandler: Handler<AsyncResult<ItemListResult<E>>>)
+    fun readAll(
+        identifiers: JsonObject?,
+        pageToken: String?,
+        queryPack: QueryPack?,
+        projections: Array<String>?,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    )
 
-    fun readAll(identifiers: JsonObject, pageToken: String?,
-                queryPack: QueryPack, projections: Array<String>): Future<ItemListResult<E>> {
+    fun readAll(
+        identifiers: JsonObject,
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>
+    ): Future<ItemListResult<E>> {
         val readFuture = Future.future<ItemListResult<E>>()
 
         readAll(identifiers, pageToken, queryPack, projections, Handler {
@@ -462,11 +493,18 @@ interface Repository<E : Model> {
         return readFuture
     }
 
-    fun readAll(pageToken: String?, queryPack: QueryPack, projections: Array<String>,
-                resultHandler: Handler<AsyncResult<ItemListResult<E>>>)
+    fun readAll(
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<ItemListResult<E>>>
+    )
 
-    fun readAll(pageToken: String?,
-                queryPack: QueryPack, projections: Array<String>): Future<ItemListResult<E>> {
+    fun readAll(
+        pageToken: String?,
+        queryPack: QueryPack,
+        projections: Array<String>
+    ): Future<ItemListResult<E>> {
         val readFuture = Future.future<ItemListResult<E>>()
 
         readAll(pageToken, queryPack, projections, Handler {
@@ -486,13 +524,17 @@ interface Repository<E : Model> {
     fun aggregation(identifiers: JsonObject, queryPack: QueryPack): Future<String> {
         val readFuture = Future.future<String>()
 
-        aggregation(identifiers, queryPack, readFuture.completer())
+        aggregation(identifiers, queryPack, readFuture)
 
         return readFuture
     }
 
-    fun aggregation(identifiers: JsonObject, queryPack: QueryPack, projections: Array<String>?,
-                    resultHandler: Handler<AsyncResult<String>>)
+    fun aggregation(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        projections: Array<String>?,
+        resultHandler: Handler<AsyncResult<String>>
+    )
 
     fun aggregation(identifiers: JsonObject, queryPack: QueryPack, projections: Array<String>): Future<String> {
         val readFuture = Future.future<String>()
@@ -507,15 +549,24 @@ interface Repository<E : Model> {
         return readFuture
     }
 
-    fun buildParameters(queryMap: Map<String, List<String>>,
-                        fields: Array<Field>, methods: Array<Method>,
-                        errors: JsonObject,
-                        params: Map<String, List<FilterParameter>>, limit: IntArray,
-                        orderByQueue: Queue<OrderByParameter>,
-                        indexName: Array<String>): JsonObject
+    fun buildParameters(
+        queryMap: Map<String, List<String>>,
+        fields: Array<Field>,
+        methods: Array<Method>,
+        errors: JsonObject,
+        params: Map<String, List<FilterParameter>>,
+        limit: IntArray,
+        orderByQueue: Queue<OrderByParameter>,
+        indexName: Array<String>
+    ): JsonObject
 
-    fun parseParam(type: Class<E>, paramJsonString: String, key: String,
-                   params: MutableMap<String, List<FilterParameter>>, errors: JsonObject) {
+    fun parseParam(
+        type: Class<E>,
+        paramJsonString: String,
+        key: String,
+        params: MutableMap<String, List<FilterParameter>>,
+        errors: JsonObject
+    ) {
         val filterParameters = Json.decodeValue<FilterParameter>(paramJsonString, FilterParameter::class.java)
 
         when {
@@ -629,7 +680,6 @@ interface Repository<E : Model> {
             e.printStackTrace()
             "noTagForCollection"
         }
-
     }
 
     fun extractValueAsDouble(field: Field, r: E): Double {
@@ -641,14 +691,12 @@ interface Repository<E : Model> {
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         } catch (e: IllegalAccessException) {
             try {
                 return (field.get(r) as Long).toDouble()
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         }
 
         try {
@@ -659,14 +707,12 @@ interface Repository<E : Model> {
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         } catch (e: IllegalAccessException) {
             try {
                 return (field.get(r) as Int).toDouble()
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         }
 
         try {
@@ -677,14 +723,12 @@ interface Repository<E : Model> {
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         } catch (e: IllegalAccessException) {
             try {
                 return (field.get(r) as Short).toDouble()
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         }
 
         try {
@@ -701,14 +745,12 @@ interface Repository<E : Model> {
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         } catch (e: IllegalAccessException) {
             try {
                 return (field.get(r) as Float).toDouble()
             } catch (ignored: IllegalArgumentException) {
             } catch (ignored: IllegalAccessException) {
             }
-
         }
 
         logger.error("Conversion is null!")

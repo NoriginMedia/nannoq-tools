@@ -31,7 +31,8 @@ import com.nannoq.tools.repository.utils.AggregateFunctions.COUNT
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
-import java.util.*
+import java.util.LinkedList
+import java.util.Objects
 import java.util.stream.Collectors.toList
 
 /**
@@ -141,7 +142,7 @@ class AggregateFunction {
     }
 
     fun hasGrouping(): Boolean {
-        return !groupBy!!.isEmpty()
+        return groupBy!!.isNotEmpty()
     }
 
     fun <E : ETagable> validateFieldForFunction(TYPE: Class<E>): Boolean {

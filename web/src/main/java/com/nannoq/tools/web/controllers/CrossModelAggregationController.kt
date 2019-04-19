@@ -30,8 +30,20 @@ import com.nannoq.tools.repository.models.ETagable
 import com.nannoq.tools.repository.models.ModelUtils
 import com.nannoq.tools.repository.models.ValidationError
 import com.nannoq.tools.repository.repository.Repository
-import com.nannoq.tools.repository.utils.*
-import com.nannoq.tools.repository.utils.AggregateFunctions.*
+import com.nannoq.tools.repository.utils.AggregateFunction
+import com.nannoq.tools.repository.utils.AggregateFunctions
+import com.nannoq.tools.repository.utils.AggregateFunctions.AVG
+import com.nannoq.tools.repository.utils.AggregateFunctions.COUNT
+import com.nannoq.tools.repository.utils.AggregateFunctions.SUM
+import com.nannoq.tools.repository.utils.CrossModelAggregateFunction
+import com.nannoq.tools.repository.utils.CrossModelGroupingConfiguration
+import com.nannoq.tools.repository.utils.CrossTableProjection
+import com.nannoq.tools.repository.utils.FilterPack
+import com.nannoq.tools.repository.utils.FilterPackField
+import com.nannoq.tools.repository.utils.FilterPackModel
+import com.nannoq.tools.repository.utils.FilterParameter
+import com.nannoq.tools.repository.utils.GroupingConfiguration
+import com.nannoq.tools.repository.utils.QueryPack
 import com.nannoq.tools.web.RoutingHelper.setStatusCodeAndAbort
 import com.nannoq.tools.web.RoutingHelper.setStatusCodeAndContinue
 import com.nannoq.tools.web.RoutingHelper.splitQuery
@@ -42,18 +54,25 @@ import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpHeaders
 import io.vertx.core.impl.ConcurrentHashSet
-import io.vertx.core.json.*
+import io.vertx.core.json.DecodeException
+import io.vertx.core.json.EncodeException
+import io.vertx.core.json.Json
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.RoutingContext
-import java.util.*
 import java.util.AbstractMap.SimpleEntry
+import java.util.Arrays
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.function.BiConsumer
 import java.util.function.BiFunction
 import java.util.function.Consumer
 import java.util.function.Function
-import java.util.stream.Collectors.*
+import java.util.stream.Collectors.groupingBy
+import java.util.stream.Collectors.toList
+import java.util.stream.Collectors.toMap
+import java.util.stream.Collectors.toSet
 import kotlin.collections.Map.Entry
 
 /**
@@ -62,8 +81,10 @@ import kotlin.collections.Map.Entry
  * @author Anders Mikkelsen
  * @version 13/11/17
  */
-class CrossModelAggregationController(private val repositoryProvider: (Class<*>) -> (Repository<*>?),
-                                      models: Array<Class<*>>) : Handler<RoutingContext> {
+class CrossModelAggregationController(
+    private val repositoryProvider: (Class<*>) -> (Repository<*>?),
+    models: Array<Class<*>>
+) : Handler<RoutingContext> {
     private val modelMap: Map<String, Class<*>>
 
     init {
@@ -104,11 +125,14 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         } catch (e: Exception) {
             e.printStackTrace()
         }
-
     }
 
-    private fun performAggregation(routingContext: RoutingContext, aggregateFunction: CrossModelAggregateFunction,
-                                   projection: Map<Class<*>, Set<String>>, initialNanoTime: Long) {
+    private fun performAggregation(
+        routingContext: RoutingContext,
+        aggregateFunction: CrossModelAggregateFunction,
+        projection: Map<Class<*>, Set<String>>,
+        initialNanoTime: Long
+    ) {
         val request = routingContext.request()
         val route = request.path()
         val query = request.query()
@@ -118,7 +142,8 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         val projections = getProjections(routingContext)
 
         when (function) {
-            AVG, SUM, COUNT -> doValueAggregation(routingContext, route, query, requestEtag, identifier, aggregateFunction, projection,
+            AVG, SUM, COUNT ->
+                doValueAggregation(routingContext, route, query, requestEtag, identifier, aggregateFunction, projection,
                     function, projections, initialNanoTime)
             else -> {
                 val supportErrorObject = JsonObject().put("function_support_error",
@@ -128,10 +153,18 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         }
     }
 
-    private fun doValueAggregation(routingContext: RoutingContext, route: String, query: String, requestEtag: String,
-                                   identifier: JsonObject, aggregate: CrossModelAggregateFunction,
-                                   projection: Map<Class<*>, Set<String>>, aggregateFunction: AggregateFunctions,
-                                   projections: Array<String>?, initialNanoTime: Long) {
+    private fun doValueAggregation(
+        routingContext: RoutingContext,
+        route: String,
+        query: String,
+        requestEtag: String,
+        identifier: JsonObject,
+        aggregate: CrossModelAggregateFunction,
+        projection: Map<Class<*>, Set<String>>,
+        aggregateFunction: AggregateFunctions,
+        projections: Array<String>?,
+        initialNanoTime: Long
+    ) {
         val groupingList = CopyOnWriteArrayList<Map<String, Double>>()
         val totalValue = AtomicDouble()
         val aggFutures = CopyOnWriteArrayList<Future<*>>()
@@ -227,8 +260,10 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         return klazz.simpleName.toLowerCase() + "s"
     }
 
-    private fun buildLongSorter(function: CrossModelAggregateFunction,
-                                groupingConfigurations: List<GroupingConfiguration>): Comparator<JsonObject> {
+    private fun buildLongSorter(
+        function: CrossModelAggregateFunction,
+        groupingConfigurations: List<GroupingConfiguration>
+    ): Comparator<JsonObject> {
         val lowerCaseFunctionName = function.function?.name?.toLowerCase()
         if (groupingConfigurations.size > 3) throw IllegalArgumentException("GroupBy size of three is max!")
         val levelOne = if (groupingConfigurations.isNotEmpty()) groupingConfigurations[0] else null
@@ -248,8 +283,10 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
             Comparator.comparingLong<JsonObject> { item -> item.getLong(lowerCaseFunctionName) }.reversed()
     }
 
-    private fun buildDoubleSorter(function: CrossModelAggregateFunction,
-                                  groupingConfigurations: List<GroupingConfiguration>): Comparator<JsonObject> {
+    private fun buildDoubleSorter(
+        function: CrossModelAggregateFunction,
+        groupingConfigurations: List<GroupingConfiguration>
+    ): Comparator<JsonObject> {
         val lowerCaseFunctionName = function.function?.name?.toLowerCase()
         if (groupingConfigurations.size > 3) throw IllegalArgumentException("GroupBy size of three is max!")
         val levelOne = if (groupingConfigurations.isNotEmpty()) groupingConfigurations[0] else null
@@ -272,8 +309,10 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
     private inner class AggregationResultPack internal constructor(internal val aggregate: CrossModelAggregateFunction, internal val result: JsonObject, internal val value: AtomicDouble)
 
     private fun getAggregationResultHandler(
-            longSorter: Comparator<JsonObject>, doubleSorter: Comparator<JsonObject>,
-            aggregateFunction: AggregateFunctions): BiConsumer<AggregationResultPack, MutableList<Map<String, Double>>>? {
+        longSorter: Comparator<JsonObject>,
+        doubleSorter: Comparator<JsonObject>,
+        aggregateFunction: AggregateFunctions
+    ): BiConsumer<AggregationResultPack, MutableList<Map<String, Double>>>? {
         val keyMapper = BiFunction<AggregationResultPack, JsonObject, String> { resultPack, item ->
             val aggregate = resultPack.aggregate
 
@@ -334,11 +373,16 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         }
     }
 
-    private inner class ValueAggregationResultPack internal constructor(internal val aggregate: CrossModelAggregateFunction, internal val routingContext: RoutingContext,
-                                                                        internal val initTime: Long, internal val value: AtomicDouble)
+    private inner class ValueAggregationResultPack internal constructor(
+        internal val aggregate: CrossModelAggregateFunction,
+        internal val routingContext: RoutingContext,
+        internal val initTime: Long,
+        internal val value: AtomicDouble
+    )
 
     private fun getResultHandler(
-            aggregateFunction: CrossModelAggregateFunction): BiConsumer<ValueAggregationResultPack, List<Map<String, Double>>>? {
+        aggregateFunction: CrossModelAggregateFunction
+    ): BiConsumer<ValueAggregationResultPack, List<Map<String, Double>>>? {
         val asc = aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].groupingSortOrder!!.equals("asc", ignoreCase = true)
         val comparator = buildComparator<Long>(aggregateFunction, if (aggregateFunction.hasGrouping())
             aggregateFunction.groupBy!![0]
@@ -349,7 +393,7 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
             val results = JsonArray()
             val countMap = LinkedHashMap<String, Long>()
             groupingList.forEach { map ->
-                map.forEach { k, v ->
+                map.forEach { (k, v) ->
                     when {
                         aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging() -> {
                             val groupingObject = JsonObject(k)
@@ -509,7 +553,9 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
     }
 
     private fun <T : Comparable<T>> createValueComparator(
-            asc: Boolean, groupingConfiguration: CrossModelGroupingConfiguration?): Comparator<Entry<String, T>> {
+        asc: Boolean,
+        groupingConfiguration: CrossModelGroupingConfiguration?
+    ): Comparator<Entry<String, T>> {
         return when {
             groupingConfiguration != null && groupingConfiguration.hasGroupRanging() ->
                 if (asc) KeyComparator() else KeyComparator<String, T>().reversed()
@@ -519,7 +565,9 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
     }
 
     private fun <T> buildComparator(
-            aggregateFunction: CrossModelAggregateFunction, groupingConfiguration: CrossModelGroupingConfiguration?): BiConsumer<JsonArray, Entry<String, T>> {
+        aggregateFunction: CrossModelAggregateFunction,
+        groupingConfiguration: CrossModelGroupingConfiguration?
+    ): BiConsumer<JsonArray, Entry<String, T>> {
         return when {
             groupingConfiguration != null && groupingConfiguration.hasGroupRanging() -> BiConsumer { results, x ->
                 results.add(
@@ -564,13 +612,22 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         }
     }
 
-    private fun valueAggregation(routingContext: RoutingContext,
-                                 TYPE: Class<*>, repo: Repository<*>, fut: Future<Boolean>,
-                                 aggregationResultHandler: BiConsumer<AggregationResultPack, MutableList<Map<String, Double>>>?,
-                                 identifier: JsonObject, route: String, requestEtag: String,
-                                 projections: Array<String>?, groupingList: List<Map<String, Double>>,
-                                 totalCount: AtomicDouble, aggregate: CrossModelAggregateFunction,
-                                 temp: AggregateFunction, filterPack: FilterPack?) {
+    private fun valueAggregation(
+        routingContext: RoutingContext,
+        TYPE: Class<*>,
+        repo: Repository<*>,
+        fut: Future<Boolean>,
+        aggregationResultHandler: BiConsumer<AggregationResultPack, MutableList<Map<String, Double>>>?,
+        identifier: JsonObject,
+        route: String,
+        requestEtag: String,
+        projections: Array<String>?,
+        groupingList: List<Map<String, Double>>,
+        totalCount: AtomicDouble,
+        aggregate: CrossModelAggregateFunction,
+        temp: AggregateFunction,
+        filterPack: FilterPack?
+    ) {
         val finalRoute = TYPE.simpleName + "_AGG_" + route
         val params = convertToFilterList(TYPE, filterPack)
         val valueQueryPack = QueryPack.builder(TYPE)
@@ -630,7 +687,9 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
     }
 
     private fun convertToFilterList(
-            TYPE: Class<*>, filterPack: FilterPack?): Map<String, MutableList<FilterParameter>> {
+        TYPE: Class<*>,
+        filterPack: FilterPack?
+    ): Map<String, MutableList<FilterParameter>> {
         if (filterPack == null) return ConcurrentHashMap()
 
         val params = ConcurrentHashMap<String, MutableList<FilterParameter>>()
@@ -662,8 +721,11 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         return pm.fields!!.stream().collect(groupingBy { it.field })
     }
 
-    private fun verifyRequest(routingContext: RoutingContext,
-                              query: String?, initialProcessTime: Long): AggregationPack? {
+    private fun verifyRequest(
+        routingContext: RoutingContext,
+        query: String?,
+        initialProcessTime: Long
+    ): AggregationPack? {
         when (query) {
             null -> noQueryError(routingContext, initialProcessTime)
             else -> {
@@ -714,7 +776,6 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
 
                         sendQueryErrorResponse(aggregationQueryErrorObject, routingContext, initialProcessTime)
                     }
-
                 }
             }
         }
@@ -739,11 +800,12 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                     }
                     .collect(toSet())
         }
-
     }
 
-    private fun verifyAggregation(aggregateFunction: CrossModelAggregateFunction,
-                                  crossTableProjection: Map<Class<*>, Set<String>>): List<JsonObject> {
+    private fun verifyAggregation(
+        aggregateFunction: CrossModelAggregateFunction,
+        crossTableProjection: Map<Class<*>, Set<String>>
+    ): List<JsonObject> {
         val function = aggregateFunction.function
         val errors = ArrayList<JsonObject>()
 
@@ -769,8 +831,11 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         return errors
     }
 
-    private fun getGroupingConfigurations(aggregateFunction: CrossModelAggregateFunction,
-                                          klazz: Class<*>, fullList: Boolean = false): List<GroupingConfiguration> {
+    private fun getGroupingConfigurations(
+        aggregateFunction: CrossModelAggregateFunction,
+        klazz: Class<*>,
+        fullList: Boolean = false
+    ): List<GroupingConfiguration> {
         val groupBy = aggregateFunction.groupBy ?: return ArrayList()
         val modelName = getModelName(klazz)
 
@@ -821,8 +886,11 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                 .put("errors", validationArray)
     }
 
-    private fun verifyQuery(queryMap: Map<String, List<String>>?,
-                            routingContext: RoutingContext, initialProcessTime: Long): Boolean {
+    private fun verifyQuery(
+        queryMap: Map<String, List<String>>?,
+        routingContext: RoutingContext,
+        initialProcessTime: Long
+    ): Boolean {
         when {
             queryMap == null -> {
                 noAggregateError(routingContext, initialProcessTime)
@@ -847,7 +915,6 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
             }
             else -> return true
         }
-
     }
 
     private fun noAggregateError(routingContext: RoutingContext, initialProcessTime: Long) {
@@ -879,8 +946,11 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
         sendQueryErrorResponse(aggregationQueryErrorObject, routingContext, initialProcessTime)
     }
 
-    private fun sendQueryErrorResponse(aggregationQueryErrorObject: JsonObject,
-                                       routingContext: RoutingContext, initialProcessTimeNano: Long) {
+    private fun sendQueryErrorResponse(
+        aggregationQueryErrorObject: JsonObject,
+        routingContext: RoutingContext,
+        initialProcessTimeNano: Long
+    ) {
         routingContext.put(BODY_CONTENT_TAG, aggregationQueryErrorObject)
         setStatusCodeAndContinue(400, routingContext, initialProcessTimeNano)
     }
@@ -917,15 +987,16 @@ class CrossModelAggregationController(private val repositoryProvider: (Class<*>)
                 addLogMessageToRequestLog(routingContext, "Unable to parse projections: $e")
                 projections = null
             }
-
         }
 
         return projections
     }
 
-    private inner class AggregationPack internal constructor(internal val aggregate: CrossModelAggregateFunction,
-                                                             internal val projection: Map<Class<*>, Set<String>>,
-                                                             internal val pageToken: String?)
+    private inner class AggregationPack internal constructor(
+        internal val aggregate: CrossModelAggregateFunction,
+        internal val projection: Map<Class<*>, Set<String>>,
+        internal val pageToken: String?
+    )
 
     companion object {
         private val logger = LoggerFactory.getLogger(CrossModelAggregationController::class.java.simpleName)

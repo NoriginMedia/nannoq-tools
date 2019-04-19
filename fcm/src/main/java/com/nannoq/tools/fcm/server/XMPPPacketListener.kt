@@ -54,11 +54,14 @@ import org.jivesoftware.smack.packet.Packet
  * @author Anders Mikkelsen
  * @version 31.03.2016
  */
-class XMPPPacketListener internal constructor(private val server: FcmServer,
-                                              private val redisClient: RedisClient,
-                                              private val dataMessageHandler: DataMessageHandler?,
-                                              private val registrationService: RegistrationService?,
-                                              private val GCM_SENDER_ID: String?, private val GCM_API_KEY: String?) : PacketListener {
+class XMPPPacketListener internal constructor(
+    private val server: FcmServer,
+    private val redisClient: RedisClient,
+    private val dataMessageHandler: DataMessageHandler?,
+    private val registrationService: RegistrationService?,
+    private val GCM_SENDER_ID: String?,
+    private val GCM_API_KEY: String?
+) : PacketListener {
     private val logger = LoggerFactory.getLogger(XMPPPacketListener::class.java.simpleName)
     private val sender: MessageSender = MessageSender(server)
 

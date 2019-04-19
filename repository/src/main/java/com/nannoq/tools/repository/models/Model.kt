@@ -30,7 +30,7 @@ import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Date
 
 /**
  * This class defines the model interface which includes sanitation, validation and json representations.
@@ -71,8 +71,12 @@ interface Model {
         return Json.encode(toJsonFormat(projections))
     }
 
-    fun validateNotNullAndAdd(jsonObject: JsonObject, projectionList: List<String>,
-                              key: String, value: Any?): JsonObject {
+    fun validateNotNullAndAdd(
+        jsonObject: JsonObject,
+        projectionList: List<String>,
+        key: String,
+        value: Any?
+    ): JsonObject {
         if (value != null) {
             if (projectionList.isEmpty() || projectionList.contains(key)) {
                 jsonObject.put(key, value)

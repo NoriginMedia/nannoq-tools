@@ -47,7 +47,7 @@ import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -218,8 +218,12 @@ class MessageSender internal constructor(private val server: FcmServer) {
 
         @Suppress("SENSELESS_COMPARISON")
         @JvmOverloads
-        fun createCustomNotification(appPackageName: String?, to: String,
-                                     customNotification: FcmNotification, dryRun: Boolean = false): JsonObject {
+        fun createCustomNotification(
+            appPackageName: String?,
+            to: String,
+            customNotification: FcmNotification,
+            dryRun: Boolean = false
+        ): JsonObject {
             val message = JsonObject()
             message.put(GCM_PACKET_TO_NOTATION, to)
             message.put(GCM_PACKET_MESSAGE_ID_NOTATION, UUID.randomUUID().toString())

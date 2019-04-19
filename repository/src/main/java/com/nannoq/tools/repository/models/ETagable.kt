@@ -29,7 +29,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import java.lang.reflect.Field
-import java.util.*
+import java.util.Arrays
 import java.util.concurrent.atomic.AtomicLong
 
 /**

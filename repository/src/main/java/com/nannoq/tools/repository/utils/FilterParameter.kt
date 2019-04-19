@@ -25,10 +25,14 @@
 
 package com.nannoq.tools.repository.utils
 
+import com.nannoq.tools.repository.utils.FilterParameter.FILTER_TYPE.valueOf
+import com.nannoq.tools.repository.utils.FilterParameter.FILTER_TYPE.AND
+import com.nannoq.tools.repository.utils.FilterParameter.FILTER_TYPE.OR
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
-import java.util.*
+import java.util.Arrays
+import java.util.Objects
 
 /**
  * This class defines the operation to be performed on a specific field, with OR and AND types included.
@@ -390,8 +394,8 @@ class FilterParameter {
             typeSet = true
 
             when (type) {
-                FilterParameter.FILTER_TYPE.AND -> this.type = "and"
-                FilterParameter.FILTER_TYPE.OR -> this.type = "or"
+                AND -> this.type = "and"
+                OR -> this.type = "or"
             }
 
             return this
@@ -411,9 +415,9 @@ class FilterParameter {
 
     @Fluent
     fun setType(type: String): FilterParameter {
-        when (FILTER_TYPE.valueOf(type.toUpperCase())) {
-            FilterParameter.FILTER_TYPE.AND -> this.type = "AND"
-            FilterParameter.FILTER_TYPE.OR -> this.type = "OR"
+        when (valueOf(type.toUpperCase())) {
+            AND -> this.type = "AND"
+            OR -> this.type = "OR"
         }
 
         return this

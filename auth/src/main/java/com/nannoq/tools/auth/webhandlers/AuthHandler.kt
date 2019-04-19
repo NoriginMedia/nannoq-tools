@@ -55,9 +55,7 @@ class AuthHandler(private val TYPE: Class<*>, private val domainIdentifier: Stri
             auth != null ->
                 when {
                     auth.startsWith("APIKEY ") -> {
-                        val key = auth.substring("APIKEY".length).trim { it <= ' ' }
-
-                        when (key) {
+                        when (auth.substring("APIKEY".length).trim { it <= ' ' }) {
                             apiKey -> {
                                 addLogMessageToRequestLog(routingContext, "INFO: Google AUTH overriden by API KEY!")
                                 setAuthProcessTime(routingContext, processStartTime)

@@ -41,7 +41,12 @@ import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
-import org.jivesoftware.smack.*
+import org.jivesoftware.smack.Connection
+import org.jivesoftware.smack.ConnectionConfiguration
+import org.jivesoftware.smack.ConnectionListener
+import org.jivesoftware.smack.PacketInterceptor
+import org.jivesoftware.smack.XMPPConnection
+import org.jivesoftware.smack.XMPPException
 import org.jivesoftware.smack.filter.PacketTypeFilter
 import org.jivesoftware.smack.packet.Message
 import org.jivesoftware.smack.provider.PacketExtensionProvider
@@ -376,7 +381,6 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
         } catch (e: XMPPException) {
             logger.error("Could not connect secondary on draining!")
         }
-
     }
 
     companion object {

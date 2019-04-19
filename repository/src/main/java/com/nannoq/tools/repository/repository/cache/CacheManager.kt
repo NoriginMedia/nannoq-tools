@@ -47,16 +47,25 @@ interface CacheManager<E> where E : Cacheable, E : Model {
     fun checkItemListCache(cacheId: String, projections: Array<String>, resultHandler: Handler<AsyncResult<ItemList<E>>>)
     fun checkAggregationCache(cacheKey: String, resultHandler: Handler<AsyncResult<String>>)
 
-    fun replaceCache(writeFuture: Future<Boolean>, records: List<E>,
-                     shortCacheIdSupplier: Function<E, String>,
-                     cacheIdSupplier: Function<E, String>)
+    fun replaceCache(
+        writeFuture: Future<Boolean>,
+        records: List<E>,
+        shortCacheIdSupplier: Function<E, String>,
+        cacheIdSupplier: Function<E, String>
+    )
 
     fun replaceObjectCache(cacheId: String, item: E, future: Future<E>, projections: Array<String>)
-    fun replaceItemListCache(content: String, cacheIdSupplier: Supplier<String>,
-                             resultHandler: Handler<AsyncResult<Boolean>>)
+    fun replaceItemListCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    )
 
-    fun replaceAggregationCache(content: String, cacheIdSupplier: Supplier<String>,
-                                resultHandler: Handler<AsyncResult<Boolean>>)
+    fun replaceAggregationCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    )
 
     fun purgeCache(future: Future<Boolean>, records: List<E>, cacheIdSupplier: (E) -> String)
 }

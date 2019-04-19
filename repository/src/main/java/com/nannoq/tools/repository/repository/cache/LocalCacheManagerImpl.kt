@@ -41,7 +41,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.shareddata.LocalMap
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
+import java.util.Arrays
 import java.util.function.Function
 import java.util.function.Supplier
 import java.util.stream.Collectors.toList
@@ -130,8 +130,11 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun checkItemListCache(cacheId: String, projections: Array<String>,
-                                    resultHandler: Handler<AsyncResult<ItemList<E>>>) {
+    override fun checkItemListCache(
+        cacheId: String,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<ItemList<E>>>
+    ) {
         if (logger.isDebugEnabled) {
             logger.debug("Checking Item List Cache")
         }
@@ -220,9 +223,12 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun replaceCache(writeFuture: Future<Boolean>, records: List<E>,
-                              shortCacheIdSupplier: Function<E, String>,
-                              cacheIdSupplier: Function<E, String>) {
+    override fun replaceCache(
+        writeFuture: Future<Boolean>,
+        records: List<E>,
+        shortCacheIdSupplier: Function<E, String>,
+        cacheIdSupplier: Function<E, String>
+    ) {
         when {
             isObjectCacheAvailable -> {
                 records.forEach { record ->
@@ -247,8 +253,11 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun replaceItemListCache(content: String, cacheIdSupplier: Supplier<String>,
-                                      resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun replaceItemListCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         when {
             isItemListCacheAvailable -> {
                 val cacheId = cacheIdSupplier.get()
@@ -266,8 +275,11 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun replaceAggregationCache(content: String, cacheIdSupplier: Supplier<String>,
-                                         resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun replaceAggregationCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         when {
             isAggregationCacheAvailable -> {
                 val cacheKey = cacheIdSupplier.get()
@@ -366,7 +378,6 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
 
             cache!!.clear()
         }
-
     }
 
     companion object {

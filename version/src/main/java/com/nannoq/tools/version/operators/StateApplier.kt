@@ -43,26 +43,31 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.ParameterizedType
 import java.math.BigDecimal
 import java.math.BigInteger
-import java.util.*
 import java.util.AbstractMap.SimpleEntry
+import java.util.Date
+import java.util.Objects
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
-import java.util.stream.Collectors.*
+import java.util.stream.Collectors.partitioningBy
+import java.util.stream.Collectors.toList
+import java.util.stream.Collectors.toMap
 import java.util.stream.IntStream
 import java.util.stream.Stream
 
-internal class StateApplier(private val objectMapper: ObjectMapper,
-                            private val versionUtils: VersionUtils) {
+internal class StateApplier(
+    private val objectMapper: ObjectMapper,
+    private val versionUtils: VersionUtils
+) {
     private val logger = LoggerFactory.getLogger(StateApplier::class.java)
 
-    fun <T: Any> applyState(version: Version, obj: T, handler: Handler<AsyncResult<T>>): StateApplier {
+    fun <T : Any> applyState(version: Version, obj: T, handler: Handler<AsyncResult<T>>): StateApplier {
         handler.handle(succeededFuture(applyState(version, obj)))
 
         return this
     }
 
     @Throws(IllegalStateException::class)
-    fun <T: Any> applyState(version: Version, obj: T): T {
+    fun <T : Any> applyState(version: Version, obj: T): T {
         val failedApply = AtomicBoolean()
         val changeMap = version.objectModificationMap
 
@@ -108,12 +113,14 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
         return k.startsWith(DELETE_TOKEN) || k.startsWith(ADD_TOKEN)
     }
 
-    private fun <T> applySimpleFields(failedApply: AtomicBoolean,
-                                      fieldChangeMap: MutableMap<String, ObjectModification>,
-                                      obj: T,
-                                      klazz: Class<*>,
-                                      complexFieldChangeMap: MutableMap<String, MutableMap<String, ObjectModification>>,
-                                      field: String) {
+    private fun <T> applySimpleFields(
+        failedApply: AtomicBoolean,
+        fieldChangeMap: MutableMap<String, ObjectModification>,
+        obj: T,
+        klazz: Class<*>,
+        complexFieldChangeMap: MutableMap<String, MutableMap<String, ObjectModification>>,
+        field: String
+    ) {
         val isSuper = field.contains(FIELD_SEPARATOR_TOKEN)
         val isSimpleMapValue = field.endsWith(COLLECTION_END_TOKEN)
 
@@ -144,9 +151,12 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
 
     @Suppress("UNCHECKED_CAST")
     @Throws(NoSuchFieldException::class, IllegalAccessException::class)
-    private fun <T> setSimpleMapValues(klazz: Class<*>, obj: T,
-                                       field: String,
-                                       fieldChangeMap: MutableMap<String, ObjectModification>) {
+    private fun <T> setSimpleMapValues(
+        klazz: Class<*>,
+        obj: T,
+        field: String,
+        fieldChangeMap: MutableMap<String, ObjectModification>
+    ) {
         val splitValue = field.split(("[\\$COLLECTION_START_TOKEN]").toRegex())
         val split = splitValue.dropLastWhile { it.isEmpty() }.toTypedArray()
         val declaredField = versionUtils.getField(klazz, split[0])
@@ -163,11 +173,13 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
         }
     }
 
-    private fun <T> applyComplexFields(failedApply: AtomicBoolean,
-                                       obj: T,
-                                       klazz: Class<*>,
-                                       complexChangeMap: Map<String, Map<String, ObjectModification>>)
-            : (String) -> Unit {
+    private fun <T> applyComplexFields(
+        failedApply: AtomicBoolean,
+        obj: T,
+        klazz: Class<*>,
+        complexChangeMap: Map<String, Map<String, ObjectModification>>
+    ):
+            (String) -> Unit {
         return { field ->
             try {
                 val fieldObject = versionUtils.getFieldObject(klazz, field, obj!!)
@@ -181,11 +193,13 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
         }
     }
 
-    private fun <T> applyCollectionFields(failedApply: AtomicBoolean,
-                                          additionAndRemovalFields: List<String>,
-                                          obj: T,
-                                          klazz: Class<*>,
-                                          changeMap: Map<String, ObjectModification>) {
+    private fun <T> applyCollectionFields(
+        failedApply: AtomicBoolean,
+        additionAndRemovalFields: List<String>,
+        obj: T,
+        klazz: Class<*>,
+        changeMap: Map<String, ObjectModification>
+    ) {
         if (additionAndRemovalFields.isNotEmpty()) {
             val deletionMap = additionAndRemovalFields.stream()
                     .collect(partitioningBy { field -> field.startsWith(ADD_TOKEN) })
@@ -202,10 +216,13 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
         }
     }
 
-    private fun <T> trimNullsOnAllModifiedCollections(failedApply: AtomicBoolean,
-                                                      obj: T, klazz: Class<*>,
-                                                      deletionMap: Map<Boolean, List<String>>,
-                                                      setToListConversionMap: Map<String, List<*>>) {
+    private fun <T> trimNullsOnAllModifiedCollections(
+        failedApply: AtomicBoolean,
+        obj: T,
+        klazz: Class<*>,
+        deletionMap: Map<Boolean, List<String>>,
+        setToListConversionMap: Map<String, List<*>>
+    ) {
         Stream.concat(deletionMap[false]?.stream(), deletionMap[true]?.stream())
                 .forEach { addRemoveField ->
                     try {
@@ -265,11 +282,14 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun performCollectionUpdates(failedApply: AtomicBoolean,
-                                         klazz: Class<*>, obj: Any,
-                                         setToListConversionMap: MutableMap<String, MutableList<*>>,
-                                         fields: List<String>,
-                                         fieldChangeMap: Map<String, ObjectModification>) {
+    private fun performCollectionUpdates(
+        failedApply: AtomicBoolean,
+        klazz: Class<*>,
+        obj: Any,
+        setToListConversionMap: MutableMap<String, MutableList<*>>,
+        fields: List<String>,
+        fieldChangeMap: Map<String, ObjectModification>
+    ) {
         fields.forEach { field ->
             try {
                 val objectModification = fieldChangeMap[field]
@@ -302,10 +322,12 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(IOException::class, ClassNotFoundException::class)
-    private fun performMapUpdates(mapFromObj: MutableMap<Any, Any?>,
-                                  objectModification: ObjectModification,
-                                  split: String,
-                                  declaredField: Field) {
+    private fun performMapUpdates(
+        mapFromObj: MutableMap<Any, Any?>,
+        objectModification: ObjectModification,
+        split: String,
+        declaredField: Field
+    ) {
         val key = split.substring(0, split.length - 1)
         val newValue = objectModification.newValue
 
@@ -327,10 +349,15 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalAccessException::class, ClassNotFoundException::class,
             IOException::class, NoSuchFieldException::class)
-    private fun performSetUpdates(klazz: Class<*>, obj: Any, field: String,
-                                  setToListConversionMap: MutableMap<String, MutableList<*>>,
-                                  objectModification: ObjectModification,
-                                  split: String, declaredField: Field) {
+    private fun performSetUpdates(
+        klazz: Class<*>,
+        obj: Any,
+        field: String,
+        setToListConversionMap: MutableMap<String, MutableList<*>>,
+        objectModification: ObjectModification,
+        split: String,
+        declaredField: Field
+    ) {
         val fieldIndex = Integer.parseInt(split.substring(0, split.length - 1))
         val addOrRemoveField = versionUtils.getAddOrRemovalField(klazz, field).name
         var list: MutableList<*>? = setToListConversionMap[addOrRemoveField]
@@ -345,16 +372,26 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
 
     @Suppress("UNCHECKED_CAST")
     @Throws(ClassNotFoundException::class, IOException::class)
-    private fun performListUpdates(listFromObj: MutableList<*>, field: String,
-                                   objectModification: ObjectModification, split: String, declaredField: Field) {
+    private fun performListUpdates(
+        listFromObj: MutableList<*>,
+        field: String,
+        objectModification: ObjectModification,
+        split: String,
+        declaredField: Field
+    ) {
         val fieldIndex = Integer.parseInt(split.substring(0, split.length - 1))
 
         doCollectionUpdate(field, objectModification, declaredField, fieldIndex, listFromObj as MutableList<Any?>)
     }
 
     @Throws(ClassNotFoundException::class, IOException::class)
-    private fun doCollectionUpdate(field: String, objectModification: ObjectModification, declaredField: Field,
-                                   fieldIndex: Int, list: MutableList<Any?>) {
+    private fun doCollectionUpdate(
+        field: String,
+        objectModification: ObjectModification,
+        declaredField: Field,
+        fieldIndex: Int,
+        list: MutableList<Any?>
+    ) {
         when {
             field.startsWith(DELETE_TOKEN) -> list[fieldIndex] = null
             field.startsWith(ADD_TOKEN) -> {
@@ -364,8 +401,12 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(ClassNotFoundException::class, IOException::class)
-    private fun handleAddToken(objectModification: ObjectModification, declaredField: Field,
-                               fieldIndex: Int, list: MutableList<Any?>) {
+    private fun handleAddToken(
+        objectModification: ObjectModification,
+        declaredField: Field,
+        fieldIndex: Int,
+        list: MutableList<Any?>
+    ) {
         val o = readObjectFromGenericType(objectModification, declaredField)
 
         when {
@@ -381,8 +422,11 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(ClassNotFoundException::class, IOException::class)
-    private fun readObjectFromGenericType(objectModification: ObjectModification, declaredField: Field,
-                                          argumentNum: Int = 0): Any {
+    private fun readObjectFromGenericType(
+        objectModification: ObjectModification,
+        declaredField: Field,
+        argumentNum: Int = 0
+    ): Any {
         val genericType = declaredField.genericType as ParameterizedType
         val aClass = Class.forName(genericType.actualTypeArguments[argumentNum].typeName)
 
@@ -390,11 +434,14 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(IllegalAccessException::class)
-    private fun setNewFieldValue(failedApply: AtomicBoolean,
-                                 klazz: Class<*>, obj: Any,
-                                 field: String,
-                                 objectModification: ObjectModification,
-                                 declaredField: Field) {
+    private fun setNewFieldValue(
+        failedApply: AtomicBoolean,
+        klazz: Class<*>,
+        obj: Any,
+        field: String,
+        objectModification: ObjectModification,
+        declaredField: Field
+    ) {
         val newFieldString = if (objectModification.newValue != null) objectModification.newValue.toString() else null
         val typeName = declaredField.type.simpleName
 
@@ -432,9 +479,14 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
         }
     }
 
-    private fun processComplexOrCollectionFields(failedApply: AtomicBoolean,
-                                                 klazz: Class<*>, obj: Any, field: String,
-                                                 objectModification: ObjectModification, declaredField: Field) {
+    private fun processComplexOrCollectionFields(
+        failedApply: AtomicBoolean,
+        klazz: Class<*>,
+        obj: Any,
+        field: String,
+        objectModification: ObjectModification,
+        declaredField: Field
+    ) {
         try {
             val type = declaredField.type
             val oldValue = objectModification.oldValue
@@ -460,10 +512,17 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(IOException::class, IllegalAccessException::class, NoSuchFieldException::class)
-    private fun setNonEnumField(failedApply: AtomicBoolean,
-                                klazz: Class<*>, obj: Any, field: String,
-                                objectModification: ObjectModification, declaredField: Field,
-                                type: Class<*>, oldValue: Any?, newValue: Any?) {
+    private fun setNonEnumField(
+        failedApply: AtomicBoolean,
+        klazz: Class<*>,
+        obj: Any,
+        field: String,
+        objectModification: ObjectModification,
+        declaredField: Field,
+        type: Class<*>,
+        oldValue: Any?,
+        newValue: Any?
+    ) {
         when {
             oldValue == null && newValue != null ->
                 newComplexOrCollection(failedApply, obj, objectModification, declaredField, type)
@@ -474,9 +533,13 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(IOException::class, IllegalAccessException::class)
-    private fun newComplexOrCollection(failedApply: AtomicBoolean,
-                                       obj: Any, objectModification: ObjectModification, declaredField: Field,
-                                       type: Class<*>) {
+    private fun newComplexOrCollection(
+        failedApply: AtomicBoolean,
+        obj: Any,
+        objectModification: ObjectModification,
+        declaredField: Field,
+        type: Class<*>
+    ) {
         val jsonString = objectModification.newValue.toString()
 
         when {
@@ -489,25 +552,36 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(IOException::class, IllegalAccessException::class)
-    private fun setListValue(failedApply: AtomicBoolean,
-                             obj: Any, declaredField: Field, jsonString: String) {
+    private fun setListValue(
+        failedApply: AtomicBoolean,
+        obj: Any,
+        declaredField: Field,
+        jsonString: String
+    ) {
         val list = objectMapper.readValue(jsonString, List::class.java)
 
         declaredField.set(obj, createNewListFromChangeMap(failedApply, list, declaredField))
     }
 
     @Throws(IOException::class, IllegalAccessException::class)
-    private fun setSetValue(failedApply: AtomicBoolean,
-                            obj: Any, declaredField: Field, jsonString: String) {
+    private fun setSetValue(
+        failedApply: AtomicBoolean,
+        obj: Any,
+        declaredField: Field,
+        jsonString: String
+    ) {
         val list = objectMapper.readValue(jsonString, List::class.java)
-
 
         declaredField.set(obj, LinkedHashSet(createNewListFromChangeMap(failedApply, list, declaredField)))
     }
 
     @Throws(IOException::class, IllegalAccessException::class)
-    private fun setMapValue(failedApply: AtomicBoolean,
-                            obj: Any, declaredField: Field, jsonString: String) {
+    private fun setMapValue(
+        failedApply: AtomicBoolean,
+        obj: Any,
+        declaredField: Field,
+        jsonString: String
+    ) {
         val map = objectMapper.readValue(jsonString, Map::class.java)
 
         declaredField.set(obj, map.keys.stream()
@@ -519,9 +593,11 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
                 .collect(toMap({ it?.key }, { it?.value }, { i, _ -> i }, { LinkedHashMap<String, Any>() })))
     }
 
-    private fun buildEntryWithParsedJsonObject(failedApply: AtomicBoolean,
-                                               declaredField: Field,
-                                               map: Map<String, Any>): (String) -> SimpleEntry<String, Any>? {
+    private fun buildEntryWithParsedJsonObject(
+        failedApply: AtomicBoolean,
+        declaredField: Field,
+        map: Map<String, Any>
+    ): (String) -> SimpleEntry<String, Any>? {
         return { k ->
             try {
                 SimpleEntry(k, readObjectFromGenericType(
@@ -538,13 +614,16 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
         }
     }
 
-    private fun createNewListFromChangeMap(failedApply: AtomicBoolean,
-                                           list: List<*>, declaredField: Field): List<*> {
+    private fun createNewListFromChangeMap(
+        failedApply: AtomicBoolean,
+        list: List<*>,
+        declaredField: Field
+    ): List<*> {
         return list.stream()
                 .map { o ->
                     try {
                         readObjectFromGenericType(
-                                ObjectModification(newValue =objectMapper.writeValueAsString(o)), declaredField)
+                                ObjectModification(newValue = objectMapper.writeValueAsString(o)), declaredField)
                     } catch (e: ClassNotFoundException) {
                         failedStateApplication(failedApply, "Could not handle this type!", e)
 
@@ -560,8 +639,13 @@ internal class StateApplier(private val objectMapper: ObjectMapper,
     }
 
     @Throws(IllegalAccessException::class)
-    private fun doSet(failedApply: AtomicBoolean,
-                      objectModification: ObjectModification, declaredField: Field, obj: Any, value: Any?) {
+    private fun doSet(
+        failedApply: AtomicBoolean,
+        objectModification: ObjectModification,
+        declaredField: Field,
+        obj: Any,
+        value: Any?
+    ) {
         val currentValueAsString = declaredField.get(obj)?.toString()
         val oldValueAsString = objectModification.oldValue?.toString()
 

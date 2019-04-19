@@ -36,7 +36,8 @@ import com.nannoq.tools.fcm.server.XMPPPacketListener.Companion.RESTRICTED_PACKA
 import com.nannoq.tools.fcm.server.data.DataMessageHandler.Companion.ACTION_NOTATION
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.UUID
+import kotlin.collections.set
 
 /**
  * This class handles various utilities for messages.
@@ -57,8 +58,13 @@ object MessageUtils {
         return UUID.randomUUID().toString()
     }
 
-    fun createJsonMessage(to: String, action: String,
-                          payload: JsonObject, collapseKey: String, packageName: String): JsonObject {
+    fun createJsonMessage(
+        to: String,
+        action: String,
+        payload: JsonObject,
+        collapseKey: String,
+        packageName: String
+    ): JsonObject {
         return createJsonMessage(createAttributeMap(
                 to, action, generateNewMessageId(), payload, collapseKey, packageName))
     }
@@ -67,8 +73,14 @@ object MessageUtils {
         return map
     }
 
-    private fun createAttributeMap(to: String?, action: String, messageId: String?,
-                                   payload: JsonObject?, collapseKey: String?, packageName: String): JsonObject {
+    private fun createAttributeMap(
+        to: String?,
+        action: String,
+        messageId: String?,
+        payload: JsonObject?,
+        collapseKey: String?,
+        packageName: String
+    ): JsonObject {
         val message = HashMap<String, Any>()
 
         if (to != null) message[GCM_PACKET_TO_NOTATION] = to

@@ -40,7 +40,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import java.io.IOException
 import java.net.URISyntaxException
-import java.util.*
+import java.util.UUID
 import java.util.function.Supplier
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
@@ -218,7 +218,6 @@ interface ImageUploader {
                 } catch (e: Exception) {
                     logger.error("Error parsing image!", e)
                 }
-
             }
 
             if (image == null) throw IOException()
@@ -250,9 +249,7 @@ interface ImageUploader {
 
                 throw ee
             }
-
         }
-
     }
 
     fun convertImageToRGB(src: BufferedImage, typeIntRgb: Int): BufferedImage {

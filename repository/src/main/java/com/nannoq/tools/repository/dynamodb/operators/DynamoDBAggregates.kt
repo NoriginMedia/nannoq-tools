@@ -26,7 +26,11 @@
 package com.nannoq.tools.repository.dynamodb.operators
 
 import com.nannoq.tools.repository.dynamodb.DynamoDBRepository
-import com.nannoq.tools.repository.models.*
+import com.nannoq.tools.repository.models.Cacheable
+import com.nannoq.tools.repository.models.DynamoDBModel
+import com.nannoq.tools.repository.models.ETagable
+import com.nannoq.tools.repository.models.Model
+import com.nannoq.tools.repository.models.ModelUtils
 import com.nannoq.tools.repository.repository.cache.CacheManager
 import com.nannoq.tools.repository.repository.etag.ETagManager
 import com.nannoq.tools.repository.utils.AggregateFunction
@@ -41,17 +45,23 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import java.time.Duration
-import java.util.*
 import java.util.AbstractMap.SimpleEntry
+import java.util.Arrays
 import java.util.Comparator.comparing
 import java.util.Comparator.comparingLong
+import java.util.Date
+import java.util.Objects
 import java.util.function.BiFunction
 import java.util.function.BinaryOperator
 import java.util.function.Function
 import java.util.function.Supplier
-import java.util.stream.Collectors.*
+import java.util.stream.Collectors.averagingDouble
+import java.util.stream.Collectors.counting
+import java.util.stream.Collectors.groupingBy
+import java.util.stream.Collectors.summingDouble
+import java.util.stream.Collectors.toList
+import java.util.stream.Collectors.toMap
 import java.util.stream.IntStream
-import kotlin.collections.LinkedHashMap
 
 /**
  * This class defines the aggregate operations for the DynamoDBRepository.
@@ -59,12 +69,22 @@ import kotlin.collections.LinkedHashMap
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDBRepository<E>,
-                            private val HASH_IDENTIFIER: String, private val IDENTIFIER: String?,
-                            private val cacheManager: CacheManager<E>, private val eTagManager: ETagManager<E>?)
+class DynamoDBAggregates<E>(
+    private val TYPE: Class<E>,
+    private val db: DynamoDBRepository<E>,
+    private val HASH_IDENTIFIER: String,
+    private val IDENTIFIER: String?,
+    private val cacheManager: CacheManager<E>,
+    private val eTagManager: ETagManager<E>?
+)
         where E : ETagable, E : Cacheable, E : DynamoDBModel, E : Model {
-    fun aggregation(identifiers: JsonObject, queryPack: QueryPack, projections: Array<String>,
-                    GSI: String?, resultHandler: Handler<AsyncResult<String>>) {
+    fun aggregation(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         if (logger.isDebugEnabled) {
             logger.debug("QueryPack is: " + Json.encodePrettily(queryPack) + ", projections: " +
                     Arrays.toString(projections) + ", ids: " + identifiers.encodePrettily())
@@ -79,20 +99,35 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         }
     }
 
-    private fun findItemsWithMinOfField(identifiers: JsonObject, queryPack: QueryPack,
-                                        projections: Array<String>, GSI: String?, resultHandler: Handler<AsyncResult<String>>) {
+    private fun findItemsWithMinOfField(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         performMinOrMaxAggregation(identifiers, queryPack, "MIN",
                 BiFunction { r, f -> getAllItemsWithLowestValue(r, f) }, projections, GSI, resultHandler)
     }
 
-    private fun findItemsWithMaxOfField(identifiers: JsonObject, queryPack: QueryPack,
-                                        projections: Array<String>, GSI: String?, resultHandler: Handler<AsyncResult<String>>) {
+    private fun findItemsWithMaxOfField(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         performMinOrMaxAggregation(identifiers, queryPack, "MAX",
                 BiFunction { r, f -> getAllItemsWithHighestValue(r, f) }, projections, GSI, resultHandler)
     }
 
-    private fun doIdentifierBasedQuery(identifiers: JsonObject, queryPack: QueryPack, GSI: String??,
-                                       res: Handler<AsyncResult<List<E>>>, projs: Array<Array<String>>) {
+    private fun doIdentifierBasedQuery(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        GSI: String??,
+        res: Handler<AsyncResult<List<E>>>,
+        projs: Array<Array<String>>
+    ) {
         when {
             identifiers.isEmpty ->
                 when {
@@ -169,9 +204,15 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         return result
     }
 
-    private fun performMinOrMaxAggregation(identifiers: JsonObject, queryPack: QueryPack, command: String,
-                                           valueExtractor: BiFunction<List<E>, String, List<E>>, projections: Array<String>?,
-                                           GSI: String?, resultHandler: Handler<AsyncResult<String>>) {
+    private fun performMinOrMaxAggregation(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        command: String,
+        valueExtractor: BiFunction<List<E>, String, List<E>>,
+        projections: Array<String>?,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         val hashCode = if (queryPack.aggregateFunction!!.groupBy == null)
             0
         else
@@ -297,8 +338,12 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         return result
     }
 
-    private fun avgField(identifiers: JsonObject, queryPack: QueryPack, GSI: String?,
-                         resultHandler: Handler<AsyncResult<String>>) {
+    private fun avgField(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         val hashCode = if (queryPack.aggregateFunction!!.groupBy == null)
             0
         else
@@ -403,13 +448,23 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         })
     }
 
-    private fun doIdentifierBasedQueryNoIdentifierAddition(identifiers: JsonObject, queryPack: QueryPack, GSI: String?,
-                                                           res: Handler<AsyncResult<List<E>>>, projections: Array<String>) {
+    private fun doIdentifierBasedQueryNoIdentifierAddition(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        GSI: String?,
+        res: Handler<AsyncResult<List<E>>>,
+        projections: Array<String>
+    ) {
         doIdentifierBasedQueryNoIdentifierAddition(identifiers, queryPack, GSI, res, arrayOf(projections))
     }
 
-    private fun doIdentifierBasedQueryNoIdentifierAddition(identifiers: JsonObject, queryPack: QueryPack, GSI: String?,
-                                                           res: Handler<AsyncResult<List<E>>>, projections: Array<Array<String>>) {
+    private fun doIdentifierBasedQueryNoIdentifierAddition(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        GSI: String?,
+        res: Handler<AsyncResult<List<E>>>,
+        projections: Array<Array<String>>
+    ) {
         when {
             identifiers.isEmpty ->
                 when {
@@ -424,8 +479,12 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         }
     }
 
-    private fun sumField(identifiers: JsonObject, queryPack: QueryPack, GSI: String?,
-                         resultHandler: Handler<AsyncResult<String>>) {
+    private fun sumField(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         val hashCode = if (queryPack.aggregateFunction!!.groupBy == null)
             0
         else
@@ -521,8 +580,12 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         })
     }
 
-    private fun countItems(identifiers: JsonObject, queryPack: QueryPack, GSI: String?,
-                           resultHandler: Handler<AsyncResult<String>>) {
+    private fun countItems(
+        identifiers: JsonObject,
+        queryPack: QueryPack,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         val newEtagKeyPostfix = "_COUNT"
         val etagKey = queryPack.baseEtagKey +
                 newEtagKeyPostfix + queryPack.aggregateFunction!!.groupBy!!.hashCode()
@@ -598,8 +661,11 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
     }
 
     @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
-    private fun performGroupingAndSorting(items: List<E>, aggregateFunction: AggregateFunction,
-                                          mappingFunction: BiFunction<List<E>, List<GroupingConfiguration>, Map<String, *>>): JsonObject {
+    private fun performGroupingAndSorting(
+        items: List<E>,
+        aggregateFunction: AggregateFunction,
+        mappingFunction: BiFunction<List<E>, List<GroupingConfiguration>, Map<String, *>>
+    ): JsonObject {
         val groupingConfigurations = aggregateFunction.groupBy
         if (groupingConfigurations!!.size > 3) throw IllegalArgumentException("GroupBy size of three is max!")
         val levelOne = groupingConfigurations[0]
@@ -721,9 +787,12 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 .put("results", results)
     }
 
-    private fun doRangedGrouping(aggregationFunctionKey: String,
-                                 mapStream: Map<String, *>,
-                                 groupingConfiguration: GroupingConfiguration, totalGroupCount: Int): JsonObject {
+    private fun doRangedGrouping(
+        aggregationFunctionKey: String,
+        mapStream: Map<String, *>,
+        groupingConfiguration: GroupingConfiguration,
+        totalGroupCount: Int
+    ): JsonObject {
         val results = JsonArray()
         mapStream.forEach { key, value ->
             val rangeObject = JsonObject(key)
@@ -745,13 +814,15 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
     }
 
     private fun <T> doNormalSorting(
-            collect: Map<String, T>, groupingConfiguration: GroupingConfiguration): Map<String, T> {
+        collect: Map<String, T>,
+        groupingConfiguration: GroupingConfiguration
+    ): Map<String, T> {
         val asc = groupingConfiguration.groupingSortOrder.equals("asc", ignoreCase = true)
 
         when {
             collect.isEmpty() -> return collect.entries
                     .map { e -> SimpleEntry(e.key, e.value) }
-                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
+                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator }
             else -> {
                 val next = collect.entries.iterator().next()
                 val isCollection = next.value is Collection<*> || next.value is Map<*, *>
@@ -771,18 +842,20 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                 return when {
                     groupingConfiguration.isFullList -> sorted
                             .collect(toList())
-                            .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
+                            .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator }
                     else -> sorted
                             .limit(groupingConfiguration.groupingListLimit.toLong())
                             .collect(toList())
-                            .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
+                            .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator }
                 }
             }
         }
     }
 
     private fun <T> doRangedSorting(
-            collect: Map<String, T>, groupingConfiguration: GroupingConfiguration): Map<String, T> {
+        collect: Map<String, T>,
+        groupingConfiguration: GroupingConfiguration
+    ): Map<String, T> {
         val asc = groupingConfiguration.groupingSortOrder.equals("asc", ignoreCase = true)
         val comp = comparingLong<SimpleEntry<String, T>> { e -> JsonObject(e.key).getLong("floor") }
 
@@ -794,11 +867,11 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         return when {
             groupingConfiguration.isFullList -> sorted
                     .collect(toList())
-                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
+                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator }
             else -> sorted
                     .limit(groupingConfiguration.groupingListLimit.toLong())
                     .collect(toList())
-                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator}
+                    .fold(LinkedHashMap()) { accumulator, item -> accumulator[item.key] = item.value; accumulator }
         }
     }
 
@@ -832,7 +905,7 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
                         rangingValue = Math.ceil((value / groupingValue).toDouble())
                     }
                     groupByRangeUnit.equals("DATE", ignoreCase = true) -> {
-                        val date : Date = db.getFieldAsObject(groupingConfiguration.groupBy!!, item as Any)
+                        val date: Date = db.getFieldAsObject(groupingConfiguration.groupBy!!, item as Any)
                         groupingValue = getTimeRangeFromDateUnit(groupByRangeRange!!.toString())
 
                         rangingValue = Math.ceil((date.time / groupingValue).toDouble())
@@ -864,8 +937,13 @@ class DynamoDBAggregates<E>(private val TYPE: Class<E>, private val db: DynamoDB
         }
     }
 
-    private fun setEtagAndCacheAndReturnContent(etagKey: String, hash: Int, cacheKey: String, content: String,
-                                                resultHandler: Handler<AsyncResult<String>>) {
+    private fun setEtagAndCacheAndReturnContent(
+        etagKey: String,
+        hash: Int,
+        cacheKey: String,
+        content: String,
+        resultHandler: Handler<AsyncResult<String>>
+    ) {
         val etagItemListHashKey = TYPE.simpleName + "_" + hash + "_" + "itemListEtags"
         val newEtag = ModelUtils.returnNewEtag(content.hashCode().toLong())
 

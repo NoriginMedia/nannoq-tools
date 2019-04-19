@@ -33,7 +33,11 @@ import com.nannoq.tools.web.controllers.gen.models.TestModel
 import com.nannoq.tools.web.controllers.utils.DynamoDBTestClass
 import io.restassured.RestAssured.given
 import io.restassured.response.Response
-import io.vertx.core.*
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.http.HttpServer
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
@@ -53,7 +57,9 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.parallel.Execution
 import org.junit.jupiter.api.parallel.ExecutionMode
 import java.time.LocalDate
-import java.util.*
+import java.util.Date
+import java.util.Random
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ThreadLocalRandom
 import java.util.function.Consumer
@@ -88,8 +94,11 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
                 .listen(port, context.completing<HttpServer>())
     }
 
-    private fun createRouter(vertx: Vertx, controller: RestControllerImpl<TestModel>,
-                             crossModelcontroller: CrossModelAggregationController): Router {
+    private fun createRouter(
+        vertx: Vertx,
+        controller: RestControllerImpl<TestModel>,
+        crossModelcontroller: CrossModelAggregationController
+    ): Router {
         val router = Router.router(vertx)
 
         routeWithLogger(Supplier { router.get("/parent/:hash/testModels/:range") }, Consumer { route -> route.get().handler { controller.show(it) } })
@@ -108,8 +117,11 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         context.completeNow()
     }
 
-    private fun createXItems(testInfo: TestInfo, count: Int,
-                             resultHandler: Handler<AsyncResult<List<CreateResult<TestModel>>>>) {
+    private fun createXItems(
+        testInfo: TestInfo,
+        count: Int,
+        resultHandler: Handler<AsyncResult<List<CreateResult<TestModel>>>>
+    ) {
         val items = ArrayList<TestModel>()
         val futures = CopyOnWriteArrayList<Future<*>>()
         @Suppress("UNCHECKED_CAST")
