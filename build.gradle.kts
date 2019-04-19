@@ -62,6 +62,7 @@ plugins {
     id("com.adarshr.test-logger") version(Versions.gradle_test_logger_version)
     id("com.github.ben-manes.versions") version(Versions.gradle_versions_version)
     id("org.jlleitschuh.gradle.ktlint") version(Versions.gradle_ktlint_version)
+    id("jacoco")
     kotlin("jvm") version(Versions.kotlin_version)
     kotlin("kapt") version(Versions.kotlin_version)
 
@@ -97,6 +98,7 @@ subprojects {
         plugin<IdeaPlugin>()
         plugin<MavenPublishPlugin>()
         plugin<TestLoggerPlugin>()
+        plugin<JacocoPlugin>()
         plugin("org.jlleitschuh.gradle.ktlint")
         plugin("com.github.ben-manes.versions")
         plugin("java")
@@ -217,11 +219,15 @@ subprojects {
         options.compilerArgs = listOf("-Xdoclint:none", "-Xlint:none", "-nowarn")
     }
 
+    val jacocoTestReport by tasks.existing(JacocoReport::class)
+
     tasks {
         "test"(Test::class) {
             @Suppress("UnstableApiUsage")
             useJUnitPlatform()
             systemProperties = mapOf(Pair("vertx.logger-delegate-factory-class-name", Versions.logger_factory_version))
+
+            finalizedBy(jacocoTestReport)
         }
 
         "publish" {
