@@ -9,7 +9,7 @@ object Versions {
     const val assertj_version = "3.12.2"
     const val com_lmax_version = "3.4.2"
     const val rest_assured_version = "3.3.0"
-    const val awssdk_version = "1.11.535"
+    const val awssdk_version = "1.11.538"
     const val awssdk_encryption_version = "1.13.0"
     const val imagei_version = "3.4.1"
     const val jackson_annotations_version = "2.9.8"
