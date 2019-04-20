@@ -67,6 +67,7 @@ import javax.cache.expiry.Duration.FIVE_MINUTES
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("PrivatePropertyName")
 class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Vertx) : CacheManager<E> where E : Cacheable, E : Model {
     private val ITEM_LIST_KEY_MAP: String = TYPE.simpleName + "/ITEMLIST"
     private val AGGREGATION_KEY_MAP: String = TYPE.simpleName + "/AGGREGATION"
@@ -440,12 +441,12 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     replaceFutures.add(replaceFuture)
                 }
 
-                CompositeFuture.all(replaceFutures).setHandler { purgeSecondaryCaches(writeFuture.completer()) }
+                CompositeFuture.all(replaceFutures).setHandler { purgeSecondaryCaches(writeFuture) }
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(writeFuture.completer())
+                purgeSecondaryCaches(writeFuture)
             }
         }
     }
@@ -732,12 +733,12 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     purgeFutures.add(purgeFuture)
                 }
 
-                CompositeFuture.all(purgeFutures).setHandler { purgeSecondaryCaches(future.completer()) }
+                CompositeFuture.all(purgeFutures).setHandler { purgeSecondaryCaches(future) }
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(future.completer())
+                purgeSecondaryCaches(future)
             }
         }
     }
@@ -834,7 +835,8 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                         }
                         else ->
                             try {
-                                val cachePartitionKey = TYPE.newInstance().cachePartitionKey
+                                val cachePartitionKey =
+                                        TYPE.getDeclaredConstructor().newInstance().cachePartitionKey
 
                                 map.result().get(cachePartitionKey) {
                                     purgeMapContents(it, cache, purgeAllListCaches, cachePartitionKey, map.result())

@@ -49,6 +49,7 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
     private val localObjectMap: LocalMap<String, String>
         get() = vertx.sharedData().getLocalMap(OBJECT_ETAG_MAP)
 
+    @Suppress("unused")
     constructor(TYPE: Class<E>) : this(Vertx.currentContext().owner(), TYPE)
 
     private fun getLocalObjectMap(etagKeyBase: String): LocalMap<String, String> {
@@ -167,10 +168,10 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
                         val map = it.result()
                         val setFutures = ArrayList<Future<*>>()
 
-                        etagMap.forEach { k, v ->
+                        etagMap.forEach { (k, v) ->
                             val setFuture = Future.future<Void>()
 
-                            map.put(k, v, setFuture.completer())
+                            map.put(k, v, setFuture)
 
                             setFutures.add(setFuture)
                         }
@@ -186,7 +187,7 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
             })
             else -> {
                 val localObjectMap = localObjectMap
-                etagMap.forEach { k, v -> localObjectMap[k] = v }
+                etagMap.forEach { (k, v) -> localObjectMap[k] = v }
 
                 resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
             }
@@ -202,7 +203,9 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
             when {
                 vertx.isClustered -> getClusteredObjectMap(etagKeyBase, Handler { mapRes ->
                     if (mapRes.succeeded()) {
-                        mapRes.result().put(key, etag) { setRes -> }
+                        mapRes.result().put(key, etag) { setRes ->
+                            if (setRes.failed()) logger.warn("Etag Set failed!", setRes.cause())
+                        }
                     }
                 })
                 else -> getLocalObjectMap(etagKeyBase)[key] = etag
@@ -252,18 +255,18 @@ class InMemoryETagManagerImpl<E>(private val vertx: Vertx, private val TYPE: Cla
     override fun checkItemEtag(
         etagKeyBase: String,
         key: String,
-        etag: String,
+        requestEtag: String,
         resultHandler: Handler<AsyncResult<Boolean>>
     ) {
         when {
             vertx.isClustered -> getClusteredObjectMap(etagKeyBase, Handler {
-                checkEtagFromMap(key, etag, resultHandler, it)
+                checkEtagFromMap(key, requestEtag, resultHandler, it)
             })
             else -> {
                 val s = localObjectMap[key]
 
                 when {
-                    s != null -> resultHandler.handle(Future.succeededFuture(s == etag))
+                    s != null -> resultHandler.handle(Future.succeededFuture(s == requestEtag))
                     else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.FALSE))
                 }
             }

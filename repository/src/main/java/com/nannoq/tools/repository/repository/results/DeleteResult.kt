@@ -33,6 +33,7 @@ import com.nannoq.tools.repository.models.Model
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("unused")
 class DeleteResult<out K : Model>(val item: K) {
     var preOperationProcessingTime: Long = 0
     var operationProcessingTime: Long = 0

@@ -70,6 +70,7 @@ class DynamoDBCreator<E>(
     private val eTagManager: ETagManager<E>?
 )
         where E : DynamoDBModel, E : Model, E : ETagable, E : Cacheable {
+    @Suppress("PrivatePropertyName")
     private val DYNAMO_DB_MAPPER: DynamoDBMapper = db.dynamoDbMapper
 
     private val shortCacheIdSupplier: Function<E, String>
@@ -96,7 +97,7 @@ class DynamoDBCreator<E>(
             try {
                 val writeFutures = ArrayList<Future<*>>()
 
-                writeMap.forEach { record: E, updateLogic: Function<E, E> ->
+                writeMap.forEach { (record: E, updateLogic: Function<E, E>) ->
                     val writeFuture = Future.future<E>()
 
                     when {
@@ -311,8 +312,8 @@ class DynamoDBCreator<E>(
                             val removeProjections = Future.future<Boolean>()
                             val removeETags = Future.future<Boolean>()
 
-                            eTagManager.removeProjectionsEtags(hashId, removeProjections.completer())
-                            eTagManager.destroyEtags(hashId, removeETags.completer())
+                            eTagManager.removeProjectionsEtags(hashId, removeProjections)
+                            eTagManager.destroyEtags(hashId, removeETags)
 
                             CompositeFuture.all(removeProjections, removeETags).setHandler {
                                 when {

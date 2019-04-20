@@ -39,6 +39,7 @@ import io.vertx.core.logging.LoggerFactory
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("unused")
 interface RepositoryService<T> {
 
     @GenIgnore

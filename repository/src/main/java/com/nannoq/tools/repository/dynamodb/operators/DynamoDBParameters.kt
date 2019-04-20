@@ -649,20 +649,6 @@ class DynamoDBParameters<E>(
         return filterExpression
     }
 
-    private fun buildRangeKeyConditionForMultipleIds(
-        filterExpression: DynamoDBQueryExpression<E>,
-        field: String,
-        ids: List<String>
-    ) {
-        val idsAsAttributeValues = ids.stream()
-                .map { id -> AttributeValue().withS(id) }
-                .collect(toList())
-
-        filterExpression.withRangeKeyCondition(field, Condition()
-                .withComparisonOperator(ComparisonOperator.IN)
-                .withAttributeValueList(idsAsAttributeValues))
-    }
-
     private fun buildRangeKeyCondition(
         filterExpression: DynamoDBQueryExpression<E>,
         count: Int,
@@ -765,38 +751,38 @@ class DynamoDBParameters<E>(
     }
 
     internal fun buildProjections(projections: Array<String>?, indexName: String): Array<String>? {
-        var projections = projections
-        if (projections == null || projections.isEmpty()) return projections
-        val finalProjections = projections
+        var newProjections = projections
+        if (newProjections == null || newProjections.isEmpty()) return newProjections
+        val finalProjections = newProjections
 
         if (Arrays.stream(finalProjections).noneMatch { p -> p.equals(HASH_IDENTIFIER, ignoreCase = true) }) {
             val newProjectionArray = arrayOfNulls<String>(finalProjections.size + 1)
             IntStream.range(0, finalProjections.size).forEach { i -> newProjectionArray[i] = finalProjections[i] }
             newProjectionArray[finalProjections.size] = HASH_IDENTIFIER
-            projections = newProjectionArray.requireNoNulls()
+            newProjections = newProjectionArray.requireNoNulls()
         }
 
-        val finalProjections2 = projections
+        val finalProjections2 = newProjections
 
         if (db.hasRangeKey()) {
             if (Arrays.stream(finalProjections2).noneMatch { p -> p.equals(IDENTIFIER, ignoreCase = true) }) {
                 val newProjectionArray = arrayOfNulls<String>(finalProjections2.size + 1)
                 IntStream.range(0, finalProjections2.size).forEach { i -> newProjectionArray[i] = finalProjections2[i] }
                 newProjectionArray[finalProjections2.size] = IDENTIFIER
-                projections = newProjectionArray.requireNoNulls()
+                newProjections = newProjectionArray.requireNoNulls()
             }
         }
 
-        val finalProjections3 = projections
+        val finalProjections3 = newProjections
 
         if (Arrays.stream(finalProjections3).noneMatch { p -> p.equals(indexName, ignoreCase = true) }) {
             val newProjectionArray = arrayOfNulls<String>(finalProjections3.size + 1)
             IntStream.range(0, finalProjections3.size).forEach { i -> newProjectionArray[i] = finalProjections3[i] }
             newProjectionArray[finalProjections3.size] = indexName
-            projections = newProjectionArray.requireNoNulls()
+            newProjections = newProjectionArray.requireNoNulls()
         }
 
-        return projections
+        return newProjections
     }
 
     internal fun createPageTokenMap(

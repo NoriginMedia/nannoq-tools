@@ -27,7 +27,6 @@ package com.nannoq.tools.repository.repository.etag
 
 import com.nannoq.tools.repository.models.ETagable
 import com.nannoq.tools.repository.models.Model
-import com.nannoq.tools.repository.repository.redis.RedisUtils
 import com.nannoq.tools.repository.repository.redis.RedisUtils.performJedisWithRetry
 import com.nannoq.tools.repository.utils.ItemList
 import io.vertx.core.AsyncResult
@@ -102,7 +101,7 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         etagMap: Map<String, String>,
         resultHandler: Handler<AsyncResult<Boolean>>
     ) {
-        RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
+        performJedisWithRetry(REDIS_CLIENT) {
             etagMap.keys.forEach { key ->
                 it.set(key, etagMap[key]) {
                     if (it.failed()) {
@@ -121,7 +120,7 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
             val key = TYPE.simpleName + "_" + hash + "/projections" + Arrays.hashCode(projections)
             val etag = item.etag
 
-            RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
+            performJedisWithRetry(REDIS_CLIENT) {
                 it.hset(etagKeyBase, key, etag) { result ->
                     if (result.failed()) {
                         logger.error("Unable to store projection etag!", result.cause())
@@ -137,7 +136,7 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         itemList: ItemList<E>,
         itemListEtagFuture: Future<Boolean>
     ) {
-        RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
+        performJedisWithRetry(REDIS_CLIENT) {
             it.hset(etagItemListHashKey, etagKey, itemList.meta?.etag) {
                 itemListEtagFuture.complete(java.lang.Boolean.TRUE)
             }
@@ -150,7 +149,7 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         requestEtag: String,
         resultHandler: Handler<AsyncResult<Boolean>>
     ) {
-        RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
+        performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagKeyBase, key) { result ->
                 when {
                     result.succeeded() && result.result() != null && result.result() == requestEtag ->
@@ -167,7 +166,7 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         etag: String,
         resultHandler: Handler<AsyncResult<Boolean>>
     ) {
-        RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
+        performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagItemListHashKey, etagKey) { result ->
                 if (logger.isDebugEnabled) {
                     logger.debug("Stored etag: " + result.result() + ", request: " + etag)
@@ -188,7 +187,7 @@ class RedisETagManagerImpl<E>(private val TYPE: Class<E>, private val REDIS_CLIE
         etag: String,
         resultHandler: Handler<AsyncResult<Boolean>>
     ) {
-        RedisUtils.performJedisWithRetry(REDIS_CLIENT) {
+        performJedisWithRetry(REDIS_CLIENT) {
             it.hget(etagItemListHashKey, etagKey) { result ->
                 when {
                     result.succeeded() && result.result() != null && result.result() == etag ->

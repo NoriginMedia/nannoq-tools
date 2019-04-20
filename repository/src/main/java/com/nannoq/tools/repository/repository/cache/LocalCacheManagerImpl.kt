@@ -52,6 +52,7 @@ import java.util.stream.Collectors.toList
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("PrivatePropertyName")
 class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Vertx) : CacheManager<E> where E : Model, E : Cacheable {
     private val ITEM_LIST_KEY_MAP: String = TYPE.simpleName + "/ITEMLIST"
     private val AGGREGATION_KEY_MAP: String = TYPE.simpleName + "/AGGREGATION"
@@ -115,9 +116,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
     override fun checkObjectCache(cacheId: String, resultHandler: Handler<AsyncResult<E>>) {
         when {
             isObjectCacheAvailable -> {
-                val content = objectCache!![cacheId]
-
-                when (content) {
+                when (val content = objectCache!![cacheId]) {
                     null -> resultHandler.handle(ServiceException.fail(404, "Cache result is null!"))
                     else -> resultHandler.handle(Future.succeededFuture(Json.decodeValue(content, TYPE)))
                 }
@@ -141,9 +140,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
 
         when {
             isItemListCacheAvailable -> {
-                val content = itemListCache!![cacheId]
-
-                when (content) {
+                when (val content = itemListCache!![cacheId]) {
                     null -> resultHandler.handle(ServiceException.fail(404, "Cache result is null!"))
                     else -> try {
                         val jsonObject = JsonObject(content)
@@ -187,9 +184,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
     override fun checkAggregationCache(cacheKey: String, resultHandler: Handler<AsyncResult<String>>) {
         when {
             isAggregationCacheAvailable -> {
-                val content = aggregationCache!![cacheKey]
-
-                when (content) {
+                when (val content = aggregationCache!![cacheKey]) {
                     null -> resultHandler.handle(ServiceException.fail(404, "Cache result is null..."))
                     else -> {
                         if (logger.isDebugEnabled) {
@@ -243,12 +238,12 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                     objectCache!!["FULL_CACHE_$shortCacheId"] = Json.encode(record)
                 }
 
-                purgeSecondaryCaches(writeFuture.completer())
+                purgeSecondaryCaches(writeFuture)
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(writeFuture.completer())
+                purgeSecondaryCaches(writeFuture)
             }
         }
     }
@@ -324,12 +319,12 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                     objectCache!!.remove(secondaryCache)
                 }
 
-                purgeSecondaryCaches(future.completer())
+                purgeSecondaryCaches(future)
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(future.completer())
+                purgeSecondaryCaches(future)
             }
         }
     }
@@ -353,7 +348,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
             val localMap = vertx.sharedData().getLocalMap<String, String>(MAP_KEY)
 
             try {
-                val cachePartitionKey = TYPE.newInstance().cachePartitionKey
+                val cachePartitionKey = TYPE.getDeclaredConstructor().newInstance().cachePartitionKey
 
                 val strings = localMap[cachePartitionKey]
 

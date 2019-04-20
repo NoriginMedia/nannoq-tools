@@ -70,6 +70,7 @@ class DynamoDBDeleter<E>(
     private val eTagManager: ETagManager<E>?
 )
         where E : Cacheable, E : ETagable, E : DynamoDBModel, E : Model {
+    @Suppress("PrivatePropertyName")
     private val DYNAMO_DB_MAPPER: DynamoDBMapper = db.dynamoDbMapper
 
     fun doDelete(identifiers: List<JsonObject>, resultHandler: Handler<AsyncResult<List<E>>>) {
@@ -99,7 +100,7 @@ class DynamoDBDeleter<E>(
                     val deleteEtagsFuture = Future.future<Boolean>()
 
                     try {
-                        eTagManager?.removeProjectionsEtags(identifiers[it].hashCode(), deleteEtagsFuture.completer())
+                        eTagManager?.removeProjectionsEtags(identifiers[it].hashCode(), deleteEtagsFuture)
 
                         this.optimisticLockingDelete(record, null, deleteFuture)
                     } catch (e: Exception) {
@@ -128,7 +129,7 @@ class DynamoDBDeleter<E>(
 
                                             val hash = JsonObject().put("hash", items[0].hash)
                                                     .encode().hashCode()
-                                            eTagManager.destroyEtags(hash, removeETags.completer())
+                                            eTagManager.destroyEtags(hash, removeETags)
 
                                             etagFutures.add(removeETags)
 

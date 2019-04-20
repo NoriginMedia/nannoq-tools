@@ -51,8 +51,18 @@ interface Model {
     fun validateUpdate(): List<ValidationError>
 
     fun setIdentifiers(identifiers: JsonObject): Model
-    fun setCreatedAt(date: Date): Model
-    fun setUpdatedAt(date: Date): Model
+
+    fun setCreatedAt(date: Date): Model {
+        createdAt = Date()
+
+        return this
+    }
+
+    fun setUpdatedAt(date: Date): Model {
+        updatedAt = Date()
+
+        return this
+    }
 
     @Fluent
     fun setInitialValues(record: Model): Model

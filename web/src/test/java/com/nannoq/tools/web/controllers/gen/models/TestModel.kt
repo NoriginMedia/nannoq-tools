@@ -65,6 +65,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
 
     constructor()
 
+    @Suppress("unused")
     constructor(jsonObject: JsonObject) {
         fromJson(jsonObject, this)
 
@@ -74,6 +75,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         updatedAt = if (jsonObject.getLong("updatedAt") == null) null else Date(jsonObject.getLong("updatedAt"))
     }
 
+    @Suppress("unused")
     fun toJson(): JsonObject {
         return JsonObject.mapFrom(this)
     }
@@ -125,6 +127,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         return someStringFour
     }
 
+    @Suppress("unused")
     @Fluent
     fun setSomeStringFour(someStringFour: String): TestModel {
         this.someStringFour = someStringFour
@@ -171,6 +174,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         return if (someLongTwo != null) someLongTwo else 0L
     }
 
+    @Suppress("unused")
     @Fluent
     fun setSomeLongTwo(someLongTwo: Long?): TestModel {
         this.someLongTwo = someLongTwo
@@ -182,6 +186,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         return if (someInteger != null) someInteger else 0
     }
 
+    @Suppress("unused")
     @Fluent
     fun setSomeInteger(someInteger: Int?): TestModel {
         this.someInteger = someInteger
@@ -193,6 +198,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         return if (someIntegerTwo != null) someIntegerTwo else 0
     }
 
+    @Suppress("unused")
     @Fluent
     fun setSomeIntegerTwo(someIntegerTwo: Int?): TestModel {
         this.someIntegerTwo = someIntegerTwo
@@ -215,6 +221,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         return if (someBooleanTwo != null) someBooleanTwo else java.lang.Boolean.FALSE
     }
 
+    @Suppress("unused")
     @Fluent
     fun setSomeBooleanTwo(someBooleanTwo: Boolean?): TestModel {
         this.someBooleanTwo = someBooleanTwo
@@ -226,6 +233,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         return documents
     }
 
+    @Suppress("unused")
     @Fluent
     fun setDocuments(documents: List<TestDocument>): TestModel {
         this.documents = documents
@@ -238,6 +246,7 @@ class TestModel : DynamoDBModel, Model, ETagable, Cacheable {
         return version
     }
 
+    @Suppress("unused")
     @Fluent
     fun setVersion(version: Long?): TestModel {
         this.version = version

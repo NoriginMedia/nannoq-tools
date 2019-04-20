@@ -44,7 +44,6 @@ import java.util.concurrent.TimeUnit
  * @version 17.11.2017
  */
 class ResponseLogHandler : Handler<RoutingContext> {
-
     override fun handle(routingContext: RoutingContext) {
         val uniqueToken = routingContext.get<String>(REQUEST_ID_TAG)
         val statusCode = routingContext.response().statusCode
@@ -58,10 +57,7 @@ class ResponseLogHandler : Handler<RoutingContext> {
         routingContext.response().putHeader("X-Internal-Time-To-Process", totalProcessTime.toString())
 
         if (statusCode >= 400 || statusCode == 202) {
-            routingContext.response().putHeader("Access-Control-Allow-Origin", "*")
-            routingContext.response().putHeader("Access-Control-Allow-Credentials", "false")
-            routingContext.response().putHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS")
-            routingContext.response().putHeader("Access-Control-Allow-Headers", "DNT,Authorization,X-Real-IP,X-Forwarded-For,Keep-Alive,User-Agent,X-Requested-With,If-None-Match,Cache-Control,Content-Type")
+            addCorsHeaders(routingContext)
         }
 
         val sb = buildLogs(routingContext, statusCode, uniqueToken, body, debug)
@@ -72,6 +68,18 @@ class ResponseLogHandler : Handler<RoutingContext> {
         }
 
         outputLog(statusCode, sb)
+    }
+
+    private fun addCorsHeaders(routingContext: RoutingContext) {
+        routingContext.response().putHeader("Access-Control-Allow-Origin", "*")
+        routingContext.response().putHeader("Access-Control-Allow-Credentials", "false")
+        routingContext.response().putHeader(
+                "Access-Control-Allow-Methods",
+                "POST, GET, PUT, DELETE, OPTIONS")
+        routingContext.response().putHeader(
+                "Access-Control-Allow-Headers",
+                "DNT,Authorization,X-Real-IP,X-Forwarded-For,Keep-Alive,User-Agent," +
+                        "X-Requested-With,If-None-Match,Cache-Control,Content-Type")
     }
 
     companion object {
@@ -94,16 +102,10 @@ class ResponseLogHandler : Handler<RoutingContext> {
             sb.append("\n--- ").append("Request Frame : ").append(statusCode).append(" ---\n")
             sb.append("\nHeaders:\n")
 
-            routingContext.request().headers().forEach {
-                when {
-                    it.key.equals("Authorization", ignoreCase = true) || it.key.equals("X-Forwarded-For", ignoreCase = true) ->
-                        sb.append(it.key).append(" : ").append("[FILTERED]").append("\n")
-                    else -> sb.append(it.key).append(" : ").append(it.value).append("\n")
-                }
-            }
+            routingContext.request().headers().forEach(appendRequestHeaders(sb))
 
-            var requestBody: String? = null
             var bodyObject: JsonObject? = null
+            var requestBody: String? = null
 
             try {
                 requestBody = routingContext.bodyAsString
@@ -127,27 +129,49 @@ class ResponseLogHandler : Handler<RoutingContext> {
             sb.append("\n--- ").append("Response: ").append(uniqueToken).append(" ---")
             sb.append("\nHeaders:\n")
 
-            routingContext.response().headers().forEach { `var` -> sb.append(`var`.key).append(" : ").append(`var`.value).append("\n") }
+            routingContext.response().headers().forEach(appendResponseHeaders(sb))
 
-            sb.append("\nResponse Body:\n").append(if (body == null)
-                null
-            else (body as? String)?.toString() ?: Json.encodePrettily(body))
+            sb.append("\nResponse Body:\n").append(bodyToAppend(body))
             sb.append("\n--- ").append("Request Frame : ").append(statusCode).append(" ---\n")
             sb.append("\n--- ").append("End Request Logging: ").append(uniqueToken).append(" ---\n")
 
             return sb
         }
 
+        private fun appendResponseHeaders(sb: StringBuffer): (MutableMap.MutableEntry<String, String>) -> Unit =
+                { sb.append(it.key).append(" : ").append(it.value).append("\n") }
+
+        private fun bodyToAppend(body: Any?): String? {
+            return if (body == null)
+                null
+            else (body as? String)?.toString() ?: Json.encodePrettily(body)
+        }
+
+        private fun appendRequestHeaders(sb: StringBuffer): (MutableMap.MutableEntry<String, String>) -> Unit {
+            return {
+                when {
+                    filteredHeader(it) -> sb.append(it.key).append(" : ").append("[FILTERED]").append("\n")
+                    else -> sb.append(it.key).append(" : ").append(it.value).append("\n")
+                }
+            }
+        }
+
+        private fun filteredHeader(it: MutableMap.MutableEntry<String, String>) =
+                it.key.equals("Authorization", ignoreCase = true) ||
+                        it.key.equals("X-Forwarded-For", ignoreCase = true)
+
         private fun outputLog(statusCode: Int, sb: StringBuffer) {
             when {
-                statusCode == 200 -> if (logger.isDebugEnabled) {
-                    logger.error(sb.toString())
-                }
-                statusCode in 400..499 -> logger.error(sb.toString())
+                statusCode in 200..399 ->
+                    if (logger.isDebugEnabled) {
+                        logger.info(sb.toString())
+                    }
+                statusCode in 400..499 -> logger.warn(sb.toString())
                 statusCode >= 500 -> logger.error(sb.toString())
-                else -> if (logger.isDebugEnabled) {
-                    logger.debug(sb.toString())
-                }
+                else ->
+                    if (logger.isDebugEnabled) {
+                        logger.debug(sb.toString())
+                    }
             }
         }
     }

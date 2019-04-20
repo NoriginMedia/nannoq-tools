@@ -94,7 +94,9 @@ interface ETagable {
         return map
     }
 
-    fun generateEtagKeyIdentifier(): String
+    fun generateEtagKeyIdentifier(): String {
+        return javaClass.name + "_etag_" + hashCode()
+    }
 
     companion object {
         val logger: Logger = LoggerFactory.getLogger(ETagable::class.java.simpleName)

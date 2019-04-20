@@ -110,7 +110,8 @@ class CrossModelAggregationController(
             val request = routingContext.request()
             val query = request.query()
 
-            val aggregationPack = verifyRequest(routingContext, query, initialProcessNanoTime)
+            val aggregationPack = verifyRequest(
+                    routingContext, query, initialProcessNanoTime)
 
             when {
                 aggregationPack?.aggregate == null -> {
@@ -173,9 +174,7 @@ class CrossModelAggregationController(
             addLogMessageToRequestLog(routingContext, "ProjectionMap: " + Json.encodePrettily(projection))
         }
 
-        val valueResultHandler = getResultHandler(aggregate)
-
-        when (valueResultHandler) {
+        when (val valueResultHandler = getResultHandler(aggregate)) {
             null -> {
                 addLogMessageToRequestLog(routingContext, "ResultHandler is null!")
 
@@ -199,9 +198,8 @@ class CrossModelAggregationController(
                                 .withField(if (aggregateFunction != COUNT) field else null)
                                 .withGroupBy(groupingConfigurations)
                                 .build()
-                        val repo = repositoryProvider(it)
 
-                        when (repo) {
+                        when (val repo = repositoryProvider(it)) {
                             null -> {
                                 addLogMessageToRequestLog(routingContext, it.simpleName + " is not valid!")
 
@@ -440,7 +438,7 @@ class CrossModelAggregationController(
                     val results = JsonArray()
                     val countMap = LinkedHashMap<String, Double>()
                     groupingList.forEach { map ->
-                        map.forEach { k, v ->
+                        map.forEach { (k, v) ->
                             when {
                                 aggregateFunction.hasGrouping() && aggregateFunction.groupBy!![0].hasGroupRanging() -> {
                                     val groupingObject = JsonObject(k)
@@ -812,7 +810,7 @@ class CrossModelAggregationController(
         when {
             aggregateFunction.groupBy!!.size > 1 -> errors.add(
                     JsonObject().put("grouping_error", "Max grouping for cross model is 1!"))
-            else -> crossTableProjection.forEach { klazz, fieldSet ->
+            else -> crossTableProjection.forEach { (klazz, fieldSet) ->
                 fieldSet.forEach {
                     val groupingConfigurations = getGroupingConfigurations(aggregateFunction, klazz)
                     val temp = AggregateFunction.builder()
@@ -848,7 +846,9 @@ class CrossModelAggregationController(
                     innerGroupBy.stream()
                             .filter { gb -> gb.startsWith(modelName) }
                             .findFirst()
-                            .map<String> { s -> s.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()[1] }
+                            .map<String> { s ->
+                                s.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()[1]
+                            }
                             .orElse(null)
                 }
                 .findFirst()
@@ -868,6 +868,7 @@ class CrossModelAggregationController(
                 .orElseGet { ArrayList() }
     }
 
+    @Suppress("SameParameterValue")
     private fun buildValidationErrorObject(projection: String, errors: List<ValidationError>): JsonObject {
         val validationArray = JsonArray()
         errors.stream().map { it.toJson() }.forEach { validationArray.add(it) }
@@ -877,6 +878,7 @@ class CrossModelAggregationController(
                 .put("errors", validationArray)
     }
 
+    @Suppress("SameParameterValue")
     private fun buildJsonErrorObject(projection: String, errors: List<JsonObject>): JsonObject {
         val validationArray = JsonArray()
         errors.forEach { validationArray.add(it) }
@@ -992,6 +994,7 @@ class CrossModelAggregationController(
         return projections
     }
 
+    @Suppress("unused")
     private inner class AggregationPack internal constructor(
         internal val aggregate: CrossModelAggregateFunction,
         internal val projection: Map<Class<*>, Set<String>>,

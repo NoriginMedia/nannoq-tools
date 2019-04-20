@@ -40,7 +40,7 @@ import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
 import java.util.AbstractMap.SimpleImmutableEntry
 import java.util.Arrays
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeUnit.NANOSECONDS
 import java.util.function.Consumer
 import java.util.function.Supplier
 import java.util.stream.Collectors.groupingBy
@@ -63,14 +63,14 @@ object RoutingHelper {
 
     private val bodyHandler = BodyHandler.create().setMergeFormAttributes(true)
     private val timeOutHandler = Handler<RoutingContext> {
-        it.vertx().setTimer(9000L) { time -> if (!it.request().isEnded) it.fail(503) }
-
+        it.vertx().setTimer(9000L) { _ -> if (!it.request().isEnded) it.fail(503) }
         it.next()
     }
 
     private val responseContentTypeHandler = ResponseContentTypeHandler.create()
     private val responseTimeHandler = ResponseTimeHandler.create()
 
+    @Suppress("unused")
     fun setStatusCode(
         code: Int,
         routingContext: RoutingContext,
@@ -89,6 +89,7 @@ object RoutingHelper {
         routingContext.fail(code)
     }
 
+    @Suppress("unused")
     fun setStatusCodeAndContinue(code: Int, routingContext: RoutingContext) {
         routingContext.response().statusCode = code
         routingContext.next()
@@ -106,10 +107,11 @@ object RoutingHelper {
 
     private fun setDatabaseProcessTime(routingContext: RoutingContext, initialTime: Long) {
         val processTimeInNano = System.nanoTime() - initialTime
-        routingContext.response().putHeader(DATABASE_PROCESS_TIME,
-                TimeUnit.NANOSECONDS.toMillis(processTimeInNano).toString())
+
+        routingContext.response().putHeader(DATABASE_PROCESS_TIME, NANOSECONDS.toMillis(processTimeInNano).toString())
     }
 
+    @Suppress("unused")
     fun routeWithAuth(
         routeProducer: Supplier<Route>,
         authHandler: Handler<RoutingContext>,
@@ -118,10 +120,11 @@ object RoutingHelper {
         routeWithAuth(routeProducer, authHandler, null, routeSetter)
     }
 
+    @Suppress("SameParameterValue")
     private fun routeWithAuth(
         routeProducer: Supplier<Route>,
         authHandler: Handler<RoutingContext>,
-        finallyHandler: Handler<RoutingContext>?,
+        finallyHandler: Handler<RoutingContext>? = null,
         routeSetter: Consumer<Supplier<Route>>
     ) {
         prependStandards(routeProducer)
@@ -130,6 +133,7 @@ object RoutingHelper {
         appendStandards(routeProducer, finallyHandler)
     }
 
+    @Suppress("unused")
     fun routeWithBodyHandlerAndAuth(
         routeProducer: Supplier<Route>,
         authHandler: Handler<RoutingContext>,
@@ -138,10 +142,11 @@ object RoutingHelper {
         routeWithBodyHandlerAndAuth(routeProducer, authHandler, null, routeSetter)
     }
 
+    @Suppress("SameParameterValue")
     private fun routeWithBodyHandlerAndAuth(
         routeProducer: Supplier<Route>,
         authHandler: Handler<RoutingContext>,
-        finallyHandler: Handler<RoutingContext>?,
+        finallyHandler: Handler<RoutingContext>? = null,
         routeSetter: Consumer<Supplier<Route>>
     ) {
         prependStandards(routeProducer)
@@ -204,36 +209,38 @@ object RoutingHelper {
         val statusCode = routingContext.statusCode()
 
         routingContext.response().statusCode = if (statusCode != -1) statusCode else 500
-
         routingContext.next()
     }
 
     fun denyQuery(routingContext: RoutingContext): Boolean {
         val query = routingContext.request().query()
 
-        when {
-            query != null && !routingContext.request().rawMethod().equals("GET", ignoreCase = true) -> return true
-            query != null -> {
-                val queryMap = splitQuery(query)
+        return when {
+            query != null && !routingContext.request().rawMethod().equals("GET", ignoreCase = true) -> true
+            query != null -> invalidQuery(query, routingContext)
+            else -> false
+        }
+    }
 
-                when {
-                    queryMap.size > 1 || queryMap.size == 1 && queryMap["projection"] == null -> {
-                        routingContext.put(BODY_CONTENT_TAG, JsonObject()
-                                .put("query_error", "No query accepted for this route"))
-                        routingContext.fail(400)
+    private fun invalidQuery(query: String, routingContext: RoutingContext): Boolean {
+        val queryMap = splitQuery(query)
 
-                        return true
-                    }
-                    else -> {
-                        routingContext.put(BODY_CONTENT_TAG, JsonObject()
-                                .put("query_error", "Cannot parse this query string, are you sure it is in UTF-8?"))
-                        routingContext.fail(400)
-                    }
-                }
+        return when {
+            queryMap.size > 1 || queryMap.size == 1 && queryMap["projection"] == null -> {
+                routingContext.put(BODY_CONTENT_TAG, JsonObject()
+                        .put("query_error", "No query accepted for this route"))
+                routingContext.fail(400)
+
+                true
+            }
+            else -> {
+                routingContext.put(BODY_CONTENT_TAG, JsonObject()
+                        .put("query_error", "Cannot parse this query string, are you sure it is in UTF-8?"))
+                routingContext.fail(400)
+
+                false
             }
         }
-
-        return false
     }
 
     fun splitQuery(query: String): MutableMap<String, List<String>> {

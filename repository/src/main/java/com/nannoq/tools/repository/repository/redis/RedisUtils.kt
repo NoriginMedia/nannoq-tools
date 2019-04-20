@@ -27,7 +27,6 @@ package com.nannoq.tools.repository.repository.redis
 
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
 import io.vertx.redis.RedisOptions
 
@@ -38,8 +37,7 @@ import io.vertx.redis.RedisOptions
  * @version 17.11.2017
  */
 object RedisUtils {
-    private val logger = LoggerFactory.getLogger(RedisUtils::class.java.simpleName)
-
+    @Suppress("unused")
     fun getRedisClient(config: JsonObject): RedisClient {
         return getRedisClient(Vertx.currentContext().owner(), config)
     }

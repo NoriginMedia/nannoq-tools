@@ -21,12 +21,15 @@ class TestDocument : ETagable {
     @get:DynamoDBVersionAttribute
     var version: Long? = null
 
+    @Suppress("unused")
     constructor()
 
+    @Suppress("unused")
     constructor(jsonObject: JsonObject) {
         fromJson(jsonObject, this)
     }
 
+    @Suppress("unused")
     fun toJson(): JsonObject {
         return JsonObject.mapFrom(this)
     }

@@ -288,7 +288,7 @@ class DynamoDBReader<E>(
         consistent: Boolean
     ): E? {
         val query = DynamoDBQueryExpression<E>()
-        val keyObject = TYPE.newInstance()
+        val keyObject = TYPE.getDeclaredConstructor().newInstance()
         keyObject.hash = hash
         query.isConsistentRead = consistent
         query.hashKeyValues = keyObject
@@ -420,7 +420,7 @@ class DynamoDBReader<E>(
                 val filterExpression = dbParams.applyParameters(null, filterParameterMap)
 
                 if (filterExpression.keyConditionExpression == null) {
-                    val keyItem = TYPE.newInstance()
+                    val keyItem = TYPE.getDeclaredConstructor().newInstance()
                     keyItem.hash = identifier
                     filterExpression.hashKeyValues = keyItem
                 }
@@ -594,14 +594,14 @@ class DynamoDBReader<E>(
                     identifiers.isEmpty || identifiers.getString("hash") == null ->
                         runRootQuery(queryPack.baseEtagKey, multiple, identifiers, hash, queryPack, filteringExpression,
                             GSI, projections, pageToken, unFilteredIndex, alternateIndex, startTime,
-                            itemListFuture.completer())
+                            itemListFuture)
                     params != null && nameParams != null && dbParams.isIllegalRangedKeyQueryParams(nameParams) ->
                         runIllegalRangedKeyQueryAsScan(queryPack.baseEtagKey, hash, queryPack,
                             GSI, projections, pageToken, unFilteredIndex, alternateIndex, startTime,
-                            itemListFuture.completer())
+                            itemListFuture)
                     else -> runStandardQuery(queryPack.baseEtagKey, multiple, identifiers, hash, filteringExpression,
                             GSI, projections, pageToken, unFilteredIndex, alternateIndex, startTime,
-                            itemListFuture.completer())
+                            itemListFuture)
                 }
 
                 itemListFuture.setHandler { itemListResult ->
@@ -888,7 +888,7 @@ class DynamoDBReader<E>(
         when (GSI) {
             null -> when {
                 queryExpression.keyConditionExpression == null -> {
-                    val keyItem = TYPE.newInstance()
+                    val keyItem = TYPE.getDeclaredConstructor().newInstance()
                     keyItem.hash = hash
                     keyItem.range = null
                     queryExpression.hashKeyValues = keyItem
@@ -1411,7 +1411,7 @@ class DynamoDBReader<E>(
         vertx.executeBlocking<List<E>>({
             try {
                 val queryExpression = DynamoDBQueryExpression<E>()
-                val keyItem = TYPE.newInstance()
+                val keyItem = TYPE.getDeclaredConstructor().newInstance()
                 keyItem.hash = identifier
                 queryExpression.hashKeyValues = keyItem
                 queryExpression.isConsistentRead = true
@@ -1468,14 +1468,6 @@ class DynamoDBReader<E>(
         resultHandler: Handler<AsyncResult<List<E>>>
     ) {
         readAllWithoutPagination(identifier, queryPack, null, resultHandler)
-    }
-
-    fun readAllWithoutPagination(
-        queryPack: QueryPack,
-        projections: Array<String>,
-        resultHandler: Handler<AsyncResult<List<E>>>
-    ) {
-        readAllWithoutPagination(queryPack, projections, null, resultHandler)
     }
 
     fun readAllWithoutPagination(
@@ -1548,10 +1540,11 @@ class DynamoDBReader<E>(
         })
     }
 
+    @Suppress("SameParameterValue")
     private fun readAllWithoutPagination(
         identifier: String,
         queryPack: QueryPack,
-        projections: Array<String>?,
+        projections: Array<String>? = null,
         resultHandler: Handler<AsyncResult<List<E>>>
     ) {
         readAllWithoutPagination(identifier, queryPack, projections, null, resultHandler)
@@ -1595,7 +1588,7 @@ class DynamoDBReader<E>(
                 when (GSI) {
                     null -> {
                         if (filterExpression.keyConditionExpression == null) {
-                            val keyItem = TYPE.newInstance()
+                            val keyItem = TYPE.getDeclaredConstructor().newInstance()
                             keyItem.hash = identifier
                             filterExpression.hashKeyValues = keyItem
                         }
@@ -1665,7 +1658,7 @@ class DynamoDBReader<E>(
         GSI: String?,
         identifier: String
     ) {
-        val keyItem = TYPE.newInstance()
+        val keyItem = TYPE.getDeclaredConstructor().newInstance()
         val gsiField = GSI_KEY_MAP[GSI]?.getString("hash")
 
         if (logger.isDebugEnabled) {

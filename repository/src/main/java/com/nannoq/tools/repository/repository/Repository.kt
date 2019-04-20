@@ -65,6 +65,7 @@ import java.util.stream.Collectors.toMap
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("unused")
 interface Repository<E : Model> {
     val etagManager: ETagManager<*>?
 

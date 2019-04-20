@@ -39,7 +39,6 @@ import java.rmi.server.UID
  * @version 17.11.2017
  */
 class RequestLogHandler : Handler<RoutingContext> {
-
     override fun handle(routingContext: RoutingContext) {
         routingContext.put(REQUEST_PROCESS_TIME_TAG, System.nanoTime())
         val uniqueToken = UID().toString()

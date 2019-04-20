@@ -182,6 +182,10 @@ subprojects {
 
     testlogger {
         theme = ThemeType.STANDARD_PARALLEL
+        // showStandardStreams = true
+        // showPassedStandardStreams = false
+        // showSkippedStandardStreams = false
+        // showFailedStandardStreams = true
     }
 
     kapt {
@@ -218,9 +222,10 @@ subprojects {
     tasks {
         val jacocoTestReport by existing(JacocoReport::class)
         val ktlintKotlinScriptFormat by existing(KtlintFormatTask::class)
+        val ktlintFormat by existing(Task::class)
 
         withType<KotlinCompile> {
-            dependsOn(ktlintKotlinScriptFormat)
+            dependsOn(listOf(ktlintKotlinScriptFormat, ktlintFormat))
 
             kotlinOptions {
                 jvmTarget = Versions.jvmTargetValue

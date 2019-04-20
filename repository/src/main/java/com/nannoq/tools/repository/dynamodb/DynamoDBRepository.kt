@@ -128,7 +128,7 @@ import java.util.stream.IntStream
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@Suppress("LeakingThis")
+@Suppress("LeakingThis", "PrivatePropertyName")
 open class DynamoDBRepository<E>(
     protected var vertx: Vertx = Vertx.currentContext().owner(),
     private val TYPE: Class<E>,
@@ -217,6 +217,7 @@ open class DynamoDBRepository<E>(
                 .map<String> { table -> table.tableName }
                 .findFirst()
 
+        @Suppress("LocalVariableName")
         val COLLECTION: String
 
         when {
@@ -271,6 +272,7 @@ open class DynamoDBRepository<E>(
                 }
 
         setHashAndRange(TYPE)
+        @Suppress("LocalVariableName")
         val GSI_KEY_MAP = setGsiKeys(TYPE)
         if (isCached) this.cacheManager!!.initializeCache(Handler { isCached = it.succeeded() })
 
@@ -848,7 +850,7 @@ open class DynamoDBRepository<E>(
                 }
 
                 val query = DynamoDBQueryExpression<E>()
-                val keyObject = type.newInstance()
+                val keyObject = type.getDeclaredConstructor().newInstance()
                 keyObject.hash = hash
                 query.isConsistentRead = true
                 query.hashKeyValues = keyObject
@@ -942,6 +944,7 @@ open class DynamoDBRepository<E>(
         reader.readAll(pageToken, queryPack, projections, resultHandler)
     }
 
+    @Suppress("unused")
     fun readAll(identifiers: JsonObject, queryPack: QueryPack, GSI: String, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
         reader.readAll(identifiers, queryPack.pageToken, queryPack, queryPack.projections ?: arrayOf(), GSI, resultHandler)
     }
@@ -1239,7 +1242,7 @@ open class DynamoDBRepository<E>(
                 silenceDynamoDBLoggers()
                 val futures = ArrayList<Future<*>>()
 
-                collectionMap.forEach { k, v -> futures.add(initialize(appConfig, k, v)) }
+                collectionMap.forEach { (k, v) -> futures.add(initialize(appConfig, k, v)) }
 
                 CompositeFuture.all(futures).setHandler { res ->
                     if (logger.isDebugEnabled) {
@@ -1302,7 +1305,7 @@ open class DynamoDBRepository<E>(
                 }
             }
 
-            initialize(amazonDynamoDBAsync, dynamoDBMapper, COLLECTION, TYPE, future.completer())
+            initialize(amazonDynamoDBAsync, dynamoDBMapper, COLLECTION, TYPE, future)
 
             return future
         }
@@ -1383,10 +1386,11 @@ open class DynamoDBRepository<E>(
                     }
                 }
 
+                @Suppress("SameParameterValue")
                 private fun setAnyGlobalSecondaryIndexes(
                     req: CreateTableRequest,
-                    readProvisioning: Long,
-                    writeProvisioning: Long
+                    readProvisioning: Long = 100,
+                    writeProvisioning: Long = 100
                 ) {
                     @Suppress("UNCHECKED_CAST")
                     val map = setGsiKeys(TYPE as Class<Any>)
@@ -1394,7 +1398,7 @@ open class DynamoDBRepository<E>(
                     if (map.isNotEmpty()) {
                         val gsis = ArrayList<GlobalSecondaryIndex>()
 
-                        map.forEach { k, v ->
+                        map.forEach { (k, v) ->
                             gsis.add(GlobalSecondaryIndex()
                                     .withIndexName(k)
                                     .withProjection(Projection()

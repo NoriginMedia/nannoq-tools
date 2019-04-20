@@ -124,7 +124,7 @@ class DynamoDBAggregates<E>(
     private fun doIdentifierBasedQuery(
         identifiers: JsonObject,
         queryPack: QueryPack,
-        GSI: String??,
+        GSI: String?,
         res: Handler<AsyncResult<List<E>>>,
         projs: Array<Array<String>>
     ) {
@@ -775,7 +775,7 @@ class DynamoDBAggregates<E>(
 
     private fun doNormalGrouping(aggregationFunctionKey: String, mapStream: Map<String, *>, totalGroupCount: Int): JsonObject {
         val results = JsonArray()
-        mapStream.forEach { key, value ->
+        mapStream.forEach { (key, value) ->
             results.add(JsonObject()
                     .put("groupByKey", key)
                     .put(aggregationFunctionKey, value))
@@ -794,7 +794,7 @@ class DynamoDBAggregates<E>(
         totalGroupCount: Int
     ): JsonObject {
         val results = JsonArray()
-        mapStream.forEach { key, value ->
+        mapStream.forEach { (key, value) ->
             val rangeObject = JsonObject(key)
             val resultObject = JsonObject()
                     .put("floor", rangeObject.getLong("floor"))
