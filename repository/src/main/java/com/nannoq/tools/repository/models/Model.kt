@@ -42,32 +42,49 @@ import java.util.Date
 interface Model {
     var createdAt: Date?
     var updatedAt: Date?
-    fun setModifiables(newObject: Model): Model
 
     @Fluent
-    fun sanitize(): Model
-
-    fun validateCreate(): List<ValidationError>
-    fun validateUpdate(): List<ValidationError>
-
-    fun setIdentifiers(identifiers: JsonObject): Model
-
-    fun setCreatedAt(date: Date): Model {
-        createdAt = Date()
-
-        return this
-    }
-
-    fun setUpdatedAt(date: Date): Model {
-        updatedAt = Date()
-
+    fun setModifiables(newObject: Model): Model {
         return this
     }
 
     @Fluent
-    fun setInitialValues(record: Model): Model
+    fun sanitize(): Model {
+        return this
+    }
 
-    fun toJsonFormat(projections: Array<String>): JsonObject
+    fun validateCreate(): List<ValidationError> {
+        return emptyList()
+    }
+
+    fun validateUpdate(): List<ValidationError> {
+        return emptyList()
+    }
+
+    @Fluent
+    fun setIdentifiers(identifiers: JsonObject): Model {
+        return this
+    }
+
+    @Fluent
+    fun setInitialValues(record: Model): Model {
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+
+        return this
+    }
+
+    fun toJson(): JsonObject {
+        return JsonObject.mapFrom(this)
+    }
+
+    fun toJsonFormat(projections: Array<String>): JsonObject {
+        val jsonObject = JsonObject(Json.encode(this))
+
+        projections.forEach { jsonObject.remove(it) }
+
+        return jsonObject
+    }
 
     fun toJsonFormat(): JsonObject {
         return toJsonFormat(arrayOf())

@@ -138,9 +138,9 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
 
             val randomEpochDay = ThreadLocalRandom.current().longs(start, end).findAny().asLong
 
-            testModel.setSomeDate(Date(randomEpochDay + 1000L))
-            testModel.setSomeDateTwo(Date(randomEpochDay))
-            testModel.setSomeLong(Random().nextLong())
+            testModel.someDate = Date(randomEpochDay + 1000L)
+            testModel.someDateTwo = Date(randomEpochDay)
+            testModel.someLong = Random().nextLong()
 
             items.add(testModel)
         }
@@ -316,7 +316,7 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         return given()
                 .port(port)
                 .body(JsonObject()
-                        .put("someDateTwo", testModel.getSomeDateTwo()!!.time).encode())
+                        .put("someDateTwo", testModel.someDateTwo!!.time).encode())
             .`when`()
                 .post("/parent/testString/testModels")
             .then()
@@ -338,7 +338,7 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
                 assertEquals(oldEtag, response.header(HttpHeaders.ETAG))
                 getResponse(port, testModel, response.header(HttpHeaders.ETAG), 304)
 
-                testModel.setSomeLong(1L)
+                testModel.someLong = 1L
 
                 response = given()
                         .port(port)
@@ -355,8 +355,8 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
                 testModel = Json.decodeValue<TestModel>(response.asString(), TestModel::class.java)
                 assertNotEquals(oldEtag, response.header(HttpHeaders.ETAG))
 
-                assertEquals(1L, testModel.getSomeLong())
-                assertEquals(1L, updatedTestModel.getSomeLong())
+                assertEquals(1L, testModel.someLong!!)
+                assertEquals(1L, updatedTestModel.someLong!!)
 
                 it.complete()
             }

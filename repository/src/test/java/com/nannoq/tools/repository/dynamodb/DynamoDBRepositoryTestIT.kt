@@ -99,9 +99,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             val randomEpochDay = ThreadLocalRandom.current().longs(start, end).findAny().asLong
 
-            testModel.setSomeDate(Date(randomEpochDay + 1000L))
-            testModel.setSomeDateTwo(Date(randomEpochDay))
-            testModel.setSomeLong(Random().nextLong())
+            testModel.someDate = Date(randomEpochDay + 1000L)
+            testModel.someDateTwo = Date(randomEpochDay)
+            testModel.someLong = Random().nextLong()
 
             items.add(testModel)
         }
@@ -144,11 +144,6 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             context.completeNow()
         }
-    }
-
-    @Test
-    fun stripGet() {
-        assertThat(DynamoDBRepository.stripGet("getSomeStringOne")).isEqualTo("someStringOne")
     }
 
     @Test
@@ -338,7 +333,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         repo.create(nonNullTestModel()).setHandler { res ->
             val item = res.result().item
-            val count = item.getSomeLong()!!
+            val count = item.someLong!!
 
             repo.update(item, repo.incrementField(item, "someLong"), Handler { updateRes ->
                 context.verify {
@@ -347,8 +342,8 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     } else {
                         val updatedItem = updateRes.result().item
 
-                        assertThat(count).isNotEqualTo(updatedItem.getSomeLong())
-                        assertThat(updatedItem.getSomeLong() == count + 1).isTrue()
+                        assertThat(count).isNotEqualTo(updatedItem.someLong)
+                        assertThat(updatedItem.someLong == count + 1).isTrue()
                     }
 
                     context.completeNow()
@@ -363,7 +358,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         repo.create(nonNullTestModel()).setHandler { res ->
             val item = res.result().item
-            val count = item.getSomeLong()!!
+            val count = item.someLong!!
 
             repo.update(item, repo.decrementField(item, "someLong"), Handler {
                 context.verify {
@@ -372,8 +367,8 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     } else {
                         val updatedItem = it.result().item
 
-                        assertThat(count).isNotEqualTo(updatedItem.getSomeLong())
-                        assertThat(updatedItem.getSomeLong() == count - 1).isTrue()
+                        assertThat(count).isNotEqualTo(updatedItem.someLong)
+                        assertThat(updatedItem.someLong == count - 1).isTrue()
                     }
 
                     context.completeNow()
@@ -409,11 +404,15 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             }
 
             val testDate = Date()
-            repo.update(createRes.result().item, Function { it.setSomeDateTwo(testDate) }, Handler {
+
+            repo.update(createRes.result().item, Function {
+                it.someDateTwo = testDate
+                it
+            }, Handler {
                 context.verify {
                     assertThat(it.succeeded()).isTrue()
                     assertThat(it.result().item).isNotEqualTo(nonNullTestModel())
-                    assertThat(it.result().item.getSomeDateTwo()).isEqualTo(testDate)
+                    assertThat(it.result().item.someDateTwo).isEqualTo(testDate)
 
                     context.completeNow()
                 }
@@ -1091,14 +1090,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             val testDate = Date()
             val result = createRes.result()
-            result.setSomeDateTwo(testDate)
+            result.someDateTwo = testDate
 
             service.remoteUpdate(result, Handler { updateRes ->
                 if (updateRes.failed()) context.failNow(updateRes.cause())
 
                 context.verify {
                     assertThat(updateRes.succeeded()).isTrue()
-                    assertThat(testDate.toString()).isEqualTo(updateRes.result().getSomeDateTwo()!!.toString())
+                    assertThat(testDate.toString()).isEqualTo(updateRes.result().someDateTwo!!.toString())
 
                     context.completeNow()
                 }

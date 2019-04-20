@@ -23,7 +23,6 @@ import redis.embedded.RedisServer
 import java.net.ServerSocket
 import java.util.Date
 import java.util.UUID
-import java.util.concurrent.ConcurrentLinkedQueue
 
 @ExtendWith(VertxExtension::class)
 abstract class DynamoDBTestClass : ConfigSupport {
@@ -32,19 +31,25 @@ abstract class DynamoDBTestClass : ConfigSupport {
 
     private val testDate = Date()
     protected val nonNullTestModel = {
-        TestModel()
-                .setSomeStringOne("testString")
-                .setSomeStringTwo("testStringRange")
-                .setSomeStringThree("testStringThree")
-                .setSomeLong(1L)
-                .setSomeDate(testDate)
-                .setSomeDateTwo(Date())
+        TestModel(
+                someStringOne = "testString",
+                someStringTwo = "testStringRange",
+                someStringThree = "testStringThree",
+                someStringFour = null,
+                someLong = 1L,
+                someLongTwo = 0L,
+                someInteger = 0,
+                someIntegerTwo = 1,
+                someBoolean = null,
+                someBooleanTwo = false,
+                someDate = testDate,
+                someDateTwo = Date(),
+                documents = emptyList())
     }
 
     protected val contextObjects: MutableMap<String, Any> = HashMap()
 
     companion object {
-        private val sockets = ConcurrentLinkedQueue<ServerSocket>()
         private var localPort: Int = 0
         private val dynamoDBUtils = DynamoDBUtils()
 

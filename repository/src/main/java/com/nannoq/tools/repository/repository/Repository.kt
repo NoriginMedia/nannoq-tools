@@ -655,13 +655,15 @@ interface Repository<E : Model> {
     fun doWrite(create: Boolean, records: Map<E, Function<E, E>>, resultHandler: Handler<AsyncResult<List<E>>>)
 
     fun setCreatedAt(record: E): E {
-        @Suppress("UNCHECKED_CAST")
-        return record.setCreatedAt(Date()) as E
+        record.createdAt = Date()
+
+        return record
     }
 
     fun setUpdatedAt(record: E): E {
-        @Suppress("UNCHECKED_CAST")
-        return record.setUpdatedAt(Date()) as E
+        record.updatedAt = Date()
+
+        return record
     }
 
     fun doDelete(identifiers: List<JsonObject>, resultHandler: Handler<AsyncResult<List<E>>>)

@@ -20,7 +20,6 @@ import org.junit.jupiter.api.extension.ExtendWith
 import java.net.ServerSocket
 import java.util.Date
 import java.util.UUID
-import java.util.concurrent.ConcurrentLinkedQueue
 
 @ExtendWith(VertxExtension::class)
 abstract class DynamoDBTestClass : ConfigSupport {
@@ -29,23 +28,25 @@ abstract class DynamoDBTestClass : ConfigSupport {
 
     protected val testDate = Date()
     protected val nonNullTestModel = {
-        TestModel()
-                .setSomeStringOne("testString")
-                .setSomeStringTwo("testStringRange")
-                .setSomeStringThree("testStringThree")
-                .setSomeLong(1L)
-                .setSomeLongTwo(0L)
-                .setSomeInteger(0)
-                .setSomeIntegerTwo(1)
-                .setSomeBooleanTwo(false)
-                .setSomeDate(testDate)
-                .setSomeDateTwo(Date())
+        TestModel(
+                someStringOne = "testString",
+                someStringTwo = "testStringRange",
+                someStringThree = "testStringThree",
+                someStringFour = null,
+                someLong = 1L,
+                someLongTwo = 0L,
+                someInteger = 0,
+                someIntegerTwo = 1,
+                someBoolean = null,
+                someBooleanTwo = false,
+                someDate = testDate,
+                someDateTwo = Date(),
+                documents = emptyList())
     }
 
     protected val contextObjects: MutableMap<String, Any> = HashMap()
 
     companion object {
-        private val sockets = ConcurrentLinkedQueue<ServerSocket>()
         private var localPort: Int = 0
         private val dynamoDBUtils = DynamoDBUtils()
 

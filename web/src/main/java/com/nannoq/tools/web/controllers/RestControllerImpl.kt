@@ -767,6 +767,7 @@ open class RestControllerImpl<E>(
             setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
         } catch (ie: IllegalAccessException) {
             addLogMessageToRequestLog(routingContext, "Could not create item!", ie)
+
             setStatusCodeAndAbort(500, routingContext, initialProcessNanoTime)
         }
     }

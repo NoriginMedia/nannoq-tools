@@ -111,7 +111,7 @@ import java.lang.reflect.Method
 import java.lang.reflect.Type
 import java.text.ParseException
 import java.text.SimpleDateFormat
-import java.util.Arrays
+import java.util.Arrays.stream
 import java.util.Calendar
 import java.util.Date
 import java.util.Objects
@@ -203,7 +203,7 @@ open class DynamoDBRepository<E>(
     ) : this(vertx, type, appConfig, null, eTagManager)
 
     init {
-        if (Arrays.stream<Annotation>(TYPE.javaClass.annotations).anyMatch { ann -> ann is DynamoDBDocument }) {
+        if (stream<Annotation>(TYPE.javaClass.annotations).anyMatch { ann -> ann is DynamoDBDocument }) {
             throw DynamoDBMappingException("This type is a document definition, should not have own repository!")
         }
 
@@ -211,7 +211,7 @@ open class DynamoDBRepository<E>(
 
         setMapper(appConfig)
 
-        val tableName = Arrays.stream(TYPE.declaredAnnotations)
+        val tableName = stream(TYPE.declaredAnnotations)
                 .filter { a -> a is DynamoDBTable }
                 .map { a -> a as DynamoDBTable }
                 .map<String> { table -> table.tableName }
@@ -221,7 +221,7 @@ open class DynamoDBRepository<E>(
         val COLLECTION: String
 
         when {
-            tableName.isPresent || Arrays.stream(TYPE.declaredAnnotations)
+            tableName.isPresent || stream(TYPE.declaredAnnotations)
                     .anyMatch { a -> a is DynamoDBDocument } -> {
                 COLLECTION = tableName.orElseGet { TYPE.simpleName.substring(0, 1).toLowerCase() + TYPE.simpleName.substring(1) + "s" }
 
@@ -265,9 +265,9 @@ open class DynamoDBRepository<E>(
             }
         }
 
-        isVersioned = Arrays.stream(TYPE.declaredMethods)
+        isVersioned = stream(TYPE.declaredMethods)
                 .anyMatch { m ->
-                    Arrays.stream(m.declaredAnnotations)
+                    stream(m.declaredAnnotations)
                             .anyMatch { a -> a is DynamoDBVersionAttribute }
                 }
 
@@ -314,22 +314,22 @@ open class DynamoDBRepository<E>(
         IDENTIFIER = ""
         PAGINATION_IDENTIFIER = ""
 
-        Arrays.stream(allMethods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(allMethods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation -> annotation is DynamoDBHashKey }
         }
                 .findFirst()
                 .ifPresent { method -> HASH_IDENTIFIER = stripGet(method.name) }
 
-        Arrays.stream(allMethods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(allMethods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation -> annotation is DynamoDBRangeKey }
         }
                 .findFirst()
                 .ifPresent { method -> IDENTIFIER = stripGet(method.name) }
 
-        Arrays.stream(allMethods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(allMethods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation ->
                         annotation is DynamoDBIndexRangeKey && annotation.localSecondaryIndexName
                                 .equals(PAGINATION_INDEX, ignoreCase = true)
@@ -596,7 +596,7 @@ open class DynamoDBRepository<E>(
     }
 
     fun hasField(fields: Array<Field>, key: String): Boolean {
-        val hasField = Arrays.stream(fields).anyMatch { field -> field.name.equals(key, ignoreCase = true) }
+        val hasField = stream(fields).anyMatch { field -> field.name.equals(key, ignoreCase = true) }
 
         return hasField || hasField(TYPE.superclass, key)
     }
@@ -624,8 +624,8 @@ open class DynamoDBRepository<E>(
     fun getAlternativeIndexIdentifier(indexName: String): String? {
         val identifier = arrayOfNulls<String>(1)
 
-        Arrays.stream(TYPE.methods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(TYPE.methods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation ->
                         annotation is DynamoDBIndexRangeKey && annotation.localSecondaryIndexName
                                 .equals(indexName, ignoreCase = true)
@@ -1177,8 +1177,8 @@ open class DynamoDBRepository<E>(
             val allMethods = getAllMethodsOnType(type)
             val gsiMap = ConcurrentHashMap<String, JsonObject>()
 
-            Arrays.stream(allMethods).forEach { method ->
-                if (Arrays.stream(method.declaredAnnotations)
+            stream(allMethods).forEach { method ->
+                if (stream(method.declaredAnnotations)
                                 .anyMatch { annotation -> annotation is DynamoDBIndexHashKey }) {
                     val hashName = method.getDeclaredAnnotation<DynamoDBIndexHashKey>(DynamoDBIndexHashKey::class.java)
                             .globalSecondaryIndexName
@@ -1186,8 +1186,8 @@ open class DynamoDBRepository<E>(
                     val range = arrayOfNulls<String>(1)
 
                     if (hashName != "") {
-                        Arrays.stream(allMethods).forEach { rangeMethod ->
-                            if (Arrays.stream(rangeMethod.declaredAnnotations)
+                        stream(allMethods).forEach { rangeMethod ->
+                            if (stream(rangeMethod.declaredAnnotations)
                                             .anyMatch { annotation -> annotation is DynamoDBIndexRangeKey }) {
                                 val rangeIndexName = rangeMethod.getDeclaredAnnotation<DynamoDBIndexRangeKey>(DynamoDBIndexRangeKey::class.java)
                                         .globalSecondaryIndexName
@@ -1359,7 +1359,7 @@ open class DynamoDBRepository<E>(
 
                             client.createTableAsync(req, object : AsyncHandler<CreateTableRequest, CreateTableResult> {
                                 override fun onError(e: Exception) {
-                                    logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
+                                    logger.error(e.toString() + " : " + e.message + " : " + toString())
                                     if (logger.isDebugEnabled) {
                                         logger.debug("Could not remoteCreate table for: $COLLECTION")
                                     }
