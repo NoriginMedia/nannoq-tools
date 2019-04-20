@@ -53,7 +53,7 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
     override fun <T : Any> applyState(version: Version, obj: T): Future<T> {
         val fut = Future.future<T>()
 
-        stateApplier.applyState(version, obj, fut.completer())
+        stateApplier.applyState(version, obj, fut)
 
         return fut
     }
@@ -138,7 +138,7 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
     override fun <T : Any> extractVersion(pair: DiffPair<T>): Future<Version> {
         val fut = Future.future<Version>()
 
-        stateExtractor.extractVersion(pair, fut.completer())
+        stateExtractor.extractVersion(pair, fut)
 
         return fut
     }
@@ -213,7 +213,7 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
         val fut = Future.future<List<T>>()
 
         @Suppress("UNCHECKED_CAST")
-        iteratorIdManager.setIteratorIds(objs, fut.completer() as Handler<AsyncResult<Collection<T>>>)
+        iteratorIdManager.setIteratorIds(objs, fut as Handler<AsyncResult<Collection<T>>>)
 
         return fut
     }

@@ -81,7 +81,7 @@ class APIManager @JvmOverloads constructor(
 
             circuitBreakerMessageConsumerMap.values.forEach {
                 val future = Future.future<Void>()
-                it.unregister(future.completer())
+                it.unregister(future)
                 unRegisterFutures.add(future)
 
                 logger.info("Unregistered API circuitbreaker Consumer: " + it.address())

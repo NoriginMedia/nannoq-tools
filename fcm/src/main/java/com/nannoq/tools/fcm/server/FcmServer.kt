@@ -202,7 +202,7 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
 
                     it.fail(e)
                 }
-            }, false, startFuture.completer())
+            }, false, startFuture)
             else -> startFuture.fail(errors.encodePrettily())
         }
     }
@@ -219,7 +219,7 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
             }
 
             it.complete()
-        }, false, stopFuture.completer())
+        }, false, stopFuture)
     }
 
     fun checkForDeadConnections() {

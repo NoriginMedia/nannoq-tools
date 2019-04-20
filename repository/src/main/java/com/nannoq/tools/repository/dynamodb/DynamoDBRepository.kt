@@ -905,14 +905,14 @@ open class DynamoDBRepository<E>(
         when {
             isVersioned -> resultHandler.handle(ServiceException.fail(
                     400, "This model is versioned, use the updateLogic method!"))
-            else -> update(record, resultHandler)
+            else -> super.update(record, resultHandler)
         }
     }
 
     override fun update(record: E): Future<UpdateResult<E>> {
         return when {
             !isVersioned -> throw IllegalArgumentException("This model is versioned, use the updateLogic method!")
-            else -> update(record)
+            else -> super.update(record)
         }
     }
 
