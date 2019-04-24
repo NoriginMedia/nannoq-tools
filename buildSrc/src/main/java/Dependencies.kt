@@ -35,7 +35,7 @@ object Versions {
     const val gradle_test_logger_version = "1.6.0"
     const val gradle_versions_version = "0.21.0"
     const val gradle_gitflow_version = "0.6.0"
-    const val gradle_ktlint_version = "7.3.0"
+    const val gradle_ktlint_version = "7.4.0"
     const val logger_factory_version = "io.vertx.core.logging.Log4j2LogDelegateFactory"
 }
 
