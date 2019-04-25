@@ -138,8 +138,7 @@ class ResponseLogHandler : Handler<RoutingContext> {
             return sb
         }
 
-        private fun appendResponseHeaders(sb: StringBuffer): (MutableMap.MutableEntry<String, String>) -> Unit =
-                { sb.append(it.key).append(" : ").append(it.value).append("\n") }
+        private fun appendResponseHeaders(sb: StringBuffer): (MutableMap.MutableEntry<String, String>) -> Unit = { sb.append(it.key).append(" : ").append(it.value).append("\n") }
 
         private fun bodyToAppend(body: Any?): String? {
             return if (body == null)
