@@ -1,6 +1,6 @@
 # Welcome to Nannoq Tools
 
-[![Build Status](https://www.tomrom.net/buildStatus/icon?job=nannoq-tools/master)](https://www.tomrom.net/job/nannoq-tools/job/master/)
+![CodeBuild badge](https://codebuild.eu-west-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoicGltVU42V20rSGZITnZ5TFBmNWx5VDQ0c0EyTitETE9yOE13Q1htN1NzSldsNkZjUzRuSWdqdkVZZWpYa09tZG9HQm1mN2J3MHBSS2JudGs1QUpHQkVRPSIsIml2UGFyYW1ldGVyU3BlYyI6IlRUcm04ZWM3MmxVSWNJMEIiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
 
 Table of Contents
 =================
