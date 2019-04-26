@@ -191,7 +191,6 @@ subprojects {
     kapt {
         correctErrorTypes = true
         useBuildCache = true
-        includeCompileClasspath = false
 
         javacOptions {
             option("-Xdoclint:none")
