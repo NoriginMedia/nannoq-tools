@@ -32,6 +32,7 @@ import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.AsyncFile
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpClientOptions
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.streams.Pump
 import io.vertx.ext.web.FileUpload
@@ -39,7 +40,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import java.io.IOException
 import java.net.URISyntaxException
-import java.util.*
+import java.util.UUID
 import java.util.function.Supplier
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
@@ -191,7 +192,7 @@ interface ImageUploader {
         }
 
         req.setFollowRedirects(true)
-        req.exceptionHandler({ fut.fail(it) })
+        req.exceptionHandler { fut.fail(it) }
         req.end()
     }
 
@@ -217,7 +218,6 @@ interface ImageUploader {
                 } catch (e: Exception) {
                     logger.error("Error parsing image!", e)
                 }
-
             }
 
             if (image == null) throw IOException()
@@ -249,9 +249,7 @@ interface ImageUploader {
 
                 throw ee
             }
-
         }
-
     }
 
     fun convertImageToRGB(src: BufferedImage, typeIntRgb: Int): BufferedImage {
@@ -264,6 +262,6 @@ interface ImageUploader {
     }
 
     companion object {
-        val logger = LoggerFactory.getLogger(ImageUploader::class.java!!.getSimpleName())
+        val logger: Logger = LoggerFactory.getLogger(ImageUploader::class.java.simpleName)
     }
 }

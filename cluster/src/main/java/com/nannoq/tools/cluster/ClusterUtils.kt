@@ -55,7 +55,7 @@ import java.util.zip.ZipInputStream
  * @version 17.11.2017
  */
 object ClusterUtils {
-    private val logger = LoggerFactory.getLogger(ClusterUtils::class.java!!.simpleName)
+    private val logger = LoggerFactory.getLogger(ClusterUtils::class.java.simpleName)
 
     fun clusterReport(aLong: Long?) {
         val vertx = Vertx.currentContext().owner()
@@ -69,8 +69,8 @@ object ClusterUtils {
                 val instances = Hazelcast.getAllHazelcastInstances()
                 instances.stream().findFirst().ifPresent {
                     it.cluster.members.stream()
-                            .map {
-                                it.socketAddress.address.toString() + ":" + it.socketAddress.port
+                            .map { member ->
+                                member.socketAddress.address.toString() + ":" + member.socketAddress.port
                             }
                             .forEach { name -> sb.append(name).append("\n") }
                 }
@@ -92,16 +92,23 @@ object ClusterUtils {
         return eventBusOptions
     }
 
-    fun createModifiedClusterConfigByPortScanning(subnetBase: String, thirdElementScanRange: Int,
-                                                  clusterConfigFileName: String) {
+    fun createModifiedClusterConfigByPortScanning(
+        subnetBase: String,
+        thirdElementScanRange: Int,
+        clusterConfigFileName: String
+    ) {
         val contents = readClusterConfig(clusterConfigFileName)
                 ?: throw IllegalArgumentException("Could not load cluster config!")
 
         setClusterMembersForSubnet(subnetBase, thirdElementScanRange, contents, true)
     }
 
-    fun createModifiedClusterConfigByPortScanning(subnetBase: String, thirdElementScanRange: Int,
-                                                  clusterConfigFileName: String, dev: Boolean) {
+    fun createModifiedClusterConfigByPortScanning(
+        subnetBase: String,
+        thirdElementScanRange: Int,
+        clusterConfigFileName: String,
+        dev: Boolean
+    ) {
         val contents = readClusterConfig(clusterConfigFileName)
                 ?: throw IllegalArgumentException("Could not load cluster config!")
 
@@ -246,6 +253,5 @@ object ClusterUtils {
         } catch (e: InterruptedException) {
             logger.error("Error in finding other services!", e)
         }
-
     }
 }

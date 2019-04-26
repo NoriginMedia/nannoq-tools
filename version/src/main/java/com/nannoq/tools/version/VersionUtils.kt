@@ -26,7 +26,7 @@ package com.nannoq.tools.version
 
 import com.nannoq.tools.version.models.IteratorId
 import java.lang.reflect.Field
-import java.util.*
+import java.util.Arrays
 import java.util.function.Predicate
 
 class VersionUtils {
@@ -117,7 +117,6 @@ class VersionUtils {
 
             first.get()
         }
-
     }
 
     @Throws(IllegalAccessException::class)

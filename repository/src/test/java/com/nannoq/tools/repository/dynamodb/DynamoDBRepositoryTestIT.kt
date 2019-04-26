@@ -32,8 +32,12 @@ import com.nannoq.tools.repository.dynamodb.gen.models.TestModel
 import com.nannoq.tools.repository.dynamodb.utils.DynamoDBTestClass
 import com.nannoq.tools.repository.repository.results.CreateResult
 import com.nannoq.tools.repository.repository.results.ItemListResult
-import com.nannoq.tools.repository.utils.*
+import com.nannoq.tools.repository.utils.AggregateFunction
+import com.nannoq.tools.repository.utils.AggregateFunctions
 import com.nannoq.tools.repository.utils.AggregateFunctions.MAX
+import com.nannoq.tools.repository.utils.FilterParameter
+import com.nannoq.tools.repository.utils.GroupingConfiguration
+import com.nannoq.tools.repository.utils.QueryPack
 import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
@@ -42,16 +46,21 @@ import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.unit.Async
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.VertxUnitRunner
-import org.junit.Assert.*
-import org.junit.Test
-import org.junit.runner.RunWith
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInfo
+import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.util.*
+import java.util.Date
+import java.util.Random
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ThreadLocalRandom
@@ -66,14 +75,18 @@ import java.util.stream.IntStream
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@RunWith(VertxUnitRunner::class)
+@Execution(ExecutionMode.CONCURRENT)
+@ExtendWith(VertxExtension::class)
 class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     @Suppress("UNCHECKED_CAST")
-    private fun createXItems(context: TestContext, count: Int,
-                             resultHandler: Handler<AsyncResult<List<CreateResult<TestModel>>>>) {
+    private fun createXItems(
+        testInfo: TestInfo,
+        count: Int,
+        resultHandler: Handler<AsyncResult<List<CreateResult<TestModel>>>>
+    ) {
         val items = ArrayList<TestModel>()
         val futures = CopyOnWriteArrayList<Future<*>>()
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         IntStream.range(0, count).forEach {
             val testModel = nonNullTestModel()
@@ -86,9 +99,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
             val randomEpochDay = ThreadLocalRandom.current().longs(start, end).findAny().asLong
 
-            testModel.setSomeDate(Date(randomEpochDay + 1000L))
-            testModel.setSomeDateTwo(Date(randomEpochDay))
-            testModel.setSomeLong(Random().nextLong())
+            testModel.someDate = Date(randomEpochDay + 1000L)
+            testModel.someDateTwo = Date(randomEpochDay)
+            testModel.someLong = Random().nextLong()
 
             items.add(testModel)
         }
@@ -96,7 +109,7 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
         items.forEach {
             val future = Future.future<CreateResult<TestModel>>()
 
-            repo.create(it, future.completer())
+            repo.create(it, future)
 
             futures.add(future)
 
@@ -110,9 +123,11 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 resultHandler.handle(Future.failedFuture(res.cause()))
             } else {
                 val collect = futures.stream()
-                        .map({ it.result() })
+                        .map { it.result() }
                         .map { o -> o as CreateResult<TestModel> }
                         .collect(toList())
+
+                Thread.sleep(5000) // compensate for eventual consistency in testing
 
                 resultHandler.handle(Future.succeededFuture(collect))
             }
@@ -120,239 +135,302 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     }
 
     @Test
-    fun getBucketName(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val config: JsonObject = context.get("${name.methodName}-config")
+    fun getBucketName(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
+        val config: JsonObject = contextObjects["${testInfo.testMethod.get().name}-config"] as JsonObject
 
-        assertEquals("BucketName does not match Config!", config.getString("content_bucket") ?: "default", repo.bucketName)
+        context.verify {
+            assertThat(config.getString("content_bucket") ?: "default").isEqualTo(repo.bucketName)
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun stripGet() {
-        assertEquals("stripGet does not strip correctly!", "someStringOne", DynamoDBRepository.stripGet("getSomeStringOne"))
+    fun getField(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
+
+        context.verify {
+            assertThat(repo.getField("someStringOne")).isNotNull
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun getField(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun getFieldFail(testInfo: TestInfo, context: VertxTestContext) {
+        context.verify {
+            assertThrows<UnknownError> {
+                val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertNotNull("Field is null!", repo.getField("someStringOne"))
-    }
+                repo.getField("someBogusField")
+            }
 
-    @Test(expected = UnknownError::class)
-    fun getFieldFail(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-
-        repo.getField("someBogusField")
-    }
-
-    @Test
-    fun getFieldAsObject(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-
-        assertNotNull("FieldAsObject is null!", repo.getFieldAsObject<Any, TestModel>("someStringOne", nonNullTestModel()))
+            context.completeNow()
+        }
     }
 
     @Test
-    fun getFieldAsString(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun getFieldAsObject(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertNotNull("FieldAsString is null!", repo.getField("someStringOne"))
-        assertEquals(repo.getFieldAsString("someStringOne", nonNullTestModel()).javaClass, String::class.java)
+        context.verify {
+            assertThat(repo.getFieldAsObject<Any, TestModel>("someStringOne", nonNullTestModel())).isNotNull
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun checkAndGetField(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun getFieldAsString(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
+
+        context.verify {
+            assertThat(repo.getField("someStringOne")).isNotNull
+            assertThat(repo.getFieldAsString("someStringOne", nonNullTestModel()).javaClass).isEqualTo(String::class.java)
+
+            context.completeNow()
+        }
+    }
+
+    @Test
+    fun checkAndGetField(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val field = repo.checkAndGetField("someLong")
 
-        assertNotNull("CheckAndGetField is null!", field)
-        assertTrue("CheckAndGetField is not a long!", field.type == java.lang.Long::class.java)
-    }
+        context.verify {
+            assertThat(field).isNotNull.describedAs("CheckAndGetField is null!")
+            assertThat(field.type == java.lang.Long::class.java).describedAs("CheckAndGetField is not a long!").isTrue()
 
-    @Test(expected = IllegalArgumentException::class)
-    fun checkAndGetFieldNonIncrementable(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-
-        assertNotNull("CheckAndGetField is null!", repo.checkAndGetField("someStringOne"))
+            context.completeNow()
+        }
     }
 
     @Test
-    fun hasField(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun checkAndGetFieldNonIncrementable(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
+        context.verify {
+            assertThrows<IllegalArgumentException> {
+
+                assertThat(repo.checkAndGetField("someStringOne")).isNotNull.describedAs("CheckAndGetField is null!")
+            }
+
+            context.completeNow()
+        }
+    }
+
+    @Test
+    fun hasField(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val declaredFields = TestModel::class.java.declaredFields
 
-        assertTrue(repo.hasField(declaredFields, "someStringOne"))
-        assertFalse(repo.hasField(declaredFields, "someBogusField"))
+        context.verify {
+            assertThat(repo.hasField(declaredFields, "someStringOne")).isTrue()
+            assertThat(repo.hasField(declaredFields, "someBogusField")).isFalse()
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun getAlternativeIndexIdentifier(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun getAlternativeIndexIdentifier(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertEquals("alternateIndex not correct!", "someDate", repo.getAlternativeIndexIdentifier(PAGINATION_INDEX))
+        context.verify {
+            assertThat(repo.getAlternativeIndexIdentifier(PAGINATION_INDEX))
+                    .describedAs("alternateIndex not correct!").isEqualTo("someDate")
+
+            context.completeNow()
+        }
     }
 
     @Test
     @Throws(ParseException::class)
-    fun getIndexValue(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-
+    fun getIndexValue(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val attributeValue = repo.getIndexValue("someDate", nonNullTestModel())
         val df1 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX")
         val date = df1.parse(attributeValue.s)
 
-        assertEquals("Not the same date!", testDate, date)
+        context.verify {
+            assertThat(date).describedAs("Not the same date!").isEqualTo(testDate)
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun createAttributeValue(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun createAttributeValue(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val attributeValueString = repo.createAttributeValue("someStringOne", "someTestString")
-
-        assertEquals("Value not correct!", "someTestString", attributeValueString.s)
-
         val attributeValueLong = repo.createAttributeValue("someLong", "1000")
 
-        assertEquals("Value not correct!", "1000", attributeValueLong.n)
+        context.verify {
+            assertThat(attributeValueString.s).describedAs("Value not correct!").isEqualTo("someTestString")
+            assertThat(attributeValueLong.n).describedAs("Value not correct!").isEqualTo("1000")
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun createAttributeValueWithComparison(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-
+    fun createAttributeValueWithComparison(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val attributeValueGE = repo.createAttributeValue("someLong", "1000", ComparisonOperator.GE)
         val attributeValueLE = repo.createAttributeValue("someLong", "1000", ComparisonOperator.LE)
 
-        assertEquals("Value not correct: ${Json.encodePrettily(attributeValueGE)}", "999", attributeValueGE.n)
-        assertEquals("Value not correct: ${Json.encodePrettily(attributeValueLE)}", "1001", attributeValueLE.n)
+        context.verify {
+            assertThat(attributeValueGE.n)
+                    .describedAs("Value not correct: ${Json.encodePrettily(attributeValueGE)}").isEqualTo("999")
+            assertThat(attributeValueLE.n)
+                    .describedAs("Value not correct: ${Json.encodePrettily(attributeValueLE)}").isEqualTo("1001")
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun fetchNewestRecord(context: TestContext) {
-        val async = context.async()
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun fetchNewestRecord(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         repo.create(nonNullTestModel()).setHandler { res ->
             val testModel = res.result().item
             val newest = repo.fetchNewestRecord(TestModel::class.java, testModel.hash!!, testModel.range)
 
-            context.assertNotNull(newest)
-            context.assertTrue(testModel == newest,
-                    "Original: " + testModel.toJsonFormat().encodePrettily() +
-                            ", Newest: " + newest!!.toJsonFormat().encodePrettily())
+            context.verify {
+                assertThat(newest).isNotNull
+                assertThat(testModel)
+                        .describedAs("Original: " + testModel.toJsonFormat().encodePrettily() +
+                                ", Newest: " + newest!!.toJsonFormat().encodePrettily())
+                        .isEqualTo(newest)
 
-            async.complete()
+                context.completeNow()
+            }
         }
     }
 
     @Test
-    fun buildExpectedAttributeValue(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun buildExpectedAttributeValue(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val exists = repo.buildExpectedAttributeValue("someStringOne", true)
         val notExists = repo.buildExpectedAttributeValue("someStringOne", false)
 
-        assertTrue(exists.isExists!!)
-        assertFalse(notExists.isExists!!)
+        context.verify {
+            assertThat(exists.isExists!!).isTrue()
+            assertThat(notExists.isExists!!).isFalse()
 
-        assertEquals("someStringOne", exists.value.s)
-        assertNull(notExists.value)
+            assertThat(exists.value.s).isEqualTo("someStringOne")
+            assertThat(notExists.value).isNull()
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun incrementField(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun incrementField(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         repo.create(nonNullTestModel()).setHandler { res ->
             val item = res.result().item
-            val count = item.getSomeLong()!!
+            val count = item.someLong!!
 
             repo.update(item, repo.incrementField(item, "someLong"), Handler { updateRes ->
-                if (updateRes.failed()) {
-                    context.fail(updateRes.cause())
-                } else {
-                    val updatedItem = updateRes.result().item
+                context.verify {
+                    if (updateRes.failed()) {
+                        context.failNow(updateRes.cause())
+                    } else {
+                        val updatedItem = updateRes.result().item
 
-                    context.assertNotEquals(count, updatedItem.getSomeLong())
-                    context.assertTrue(updatedItem.getSomeLong() == count + 1)
+                        assertThat(count).isNotEqualTo(updatedItem.someLong)
+                        assertThat(updatedItem.someLong == count + 1).isTrue()
+                    }
+
+                    context.completeNow()
                 }
-
-                async.complete()
             })
         }
     }
 
     @Test
-    fun decrementField(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun decrementField(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         repo.create(nonNullTestModel()).setHandler { res ->
             val item = res.result().item
-            val count = item.getSomeLong()!!
+            val count = item.someLong!!
 
             repo.update(item, repo.decrementField(item, "someLong"), Handler {
-                if (it.failed()) {
-                    context.fail(it.cause())
-                } else {
-                    val updatedItem = it.result().item
+                context.verify {
+                    if (it.failed()) {
+                        context.failNow(it.cause())
+                    } else {
+                        val updatedItem = it.result().item
 
-                    context.assertNotEquals(count, updatedItem.getSomeLong())
-                    context.assertTrue(updatedItem.getSomeLong() == count - 1)
+                        assertThat(count).isNotEqualTo(updatedItem.someLong)
+                        assertThat(updatedItem.someLong == count - 1).isTrue()
+                    }
+
+                    context.completeNow()
                 }
-
-                async.complete()
             })
         }
     }
 
     @Test
-    fun create(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun create(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         repo.create(nonNullTestModel(), Handler {
-            context.assertTrue(it.succeeded())
-            context.assertEquals(it.result().item.hash, nonNullTestModel().hash)
-            context.assertEquals(it.result().item.range, nonNullTestModel().range)
+            context.verify {
+                assertThat(it.succeeded()).isTrue()
+                assertThat(it.result().item.hash).isEqualTo(nonNullTestModel().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(it.result().item.range)
 
-            async.complete()
+                context.completeNow()
+            }
         })
     }
 
     @Test
-    fun update(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun update(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         repo.create(nonNullTestModel(), Handler { createRes ->
-            context.assertTrue(createRes.succeeded())
-            context.assertEquals(createRes.result().item.hash, nonNullTestModel().hash)
-            context.assertEquals(createRes.result().item.range, nonNullTestModel().range)
+            context.verify {
+                assertThat(createRes.succeeded()).isTrue()
+                assertThat(createRes.result().item.hash).isEqualTo(nonNullTestModel().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().item.range)
+            }
 
             val testDate = Date()
-            repo.update(createRes.result().item, Function { it.setSomeDateTwo(testDate) }, Handler {
-                context.assertTrue(it.succeeded())
-                context.assertNotEquals(it.result().item, nonNullTestModel())
-                context.assertEquals(testDate, it.result().item.getSomeDateTwo())
 
-                async.complete()
+            repo.update(createRes.result().item, Function {
+                it.someDateTwo = testDate
+                it
+            }, Handler {
+                context.verify {
+                    assertThat(it.succeeded()).isTrue()
+                    assertThat(it.result().item).isNotEqualTo(nonNullTestModel())
+                    assertThat(it.result().item.someDateTwo).isEqualTo(testDate)
+
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun delete(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun delete(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
-        createXItems(context, 20, Handler {
-            context.assertTrue(it.succeeded())
+        createXItems(testInfo, 20, Handler { result ->
+            context.verify {
+                assertThat(result.succeeded()).describedAs("Create failed").isTrue()
+            }
 
-            it.result().stream().parallel().forEach { cr ->
+            result.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
                 val testModel = cr.item
                 val id = JsonObject()
@@ -360,10 +438,14 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("range", testModel.range)
 
                 repo.delete(id, Handler {
-                    context.assertTrue(it.succeeded())
+                    context.verify {
+                        assertThat(it.succeeded()).describedAs("Delete failed").isTrue()
+                    }
 
                     repo.read(id, Handler { readRes ->
-                        context.assertFalse(readRes.succeeded())
+                        context.verify {
+                            assertThat(readRes.succeeded()).describedAs("Read succeeded").isFalse()
+                        }
 
                         future.tryComplete()
                     })
@@ -375,21 +457,22 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         CompositeFuture.all(futureList).setHandler {
             if (it.failed()) {
-                context.fail(it.cause())
+                context.failNow(it.cause())
             } else {
-                async.complete()
+                context.completeNow()
             }
         }
     }
 
     @Test
-    fun read(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun read(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
-        createXItems(context, 20, Handler { res ->
-            context.assertTrue(res.succeeded())
+        createXItems(testInfo, 20, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).describedAs("Create failed").isTrue()
+            }
 
             res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
@@ -398,13 +481,17 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("hash", testModel.hash)
                         .put("range", testModel.range)
 
-                repo.read(id, Handler {
-                    context.assertTrue(it.succeeded())
+                repo.read(id, Handler { result ->
+                    context.verify {
+                        assertThat(result.succeeded()).isTrue()
+                    }
 
-                    if (it.succeeded()) {
+                    if (result.succeeded()) {
                         repo.read(id, Handler {
-                            context.assertTrue(it.succeeded())
-                            context.assertTrue(it.result().isCacheHit)
+                            context.verify {
+                                assertThat(it.succeeded()).isTrue()
+                                assertThat(it.result().isCacheHit).isTrue()
+                            }
 
                             future.tryComplete()
                         })
@@ -419,23 +506,24 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         CompositeFuture.all(futureList).setHandler {
             if (it.failed()) {
-                context.fail(it.cause())
+                context.failNow(it.cause())
             } else {
-                async.complete()
+                context.completeNow()
             }
         }
     }
 
     @Test
-    fun batchRead(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun batchRead(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 20, Handler { res ->
-            context.assertTrue(res.succeeded())
+        createXItems(testInfo, 20, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             val items = res.result().stream()
-                    .map({ it.item })
+                    .map { it.item }
                     .collect(toList<TestModel>())
 
             val id = items.stream()
@@ -447,26 +535,29 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .collect(toList<JsonObject>())
 
             repo.batchRead(id, Handler { batchRead ->
-                context.assertTrue(batchRead.succeeded())
-                context.assertTrue(batchRead.result().size == res.result().size)
+                context.verify {
+                    assertThat(batchRead.succeeded()).isTrue()
+                    assertThat(batchRead.result().size == res.result().size).isTrue()
 
-                batchRead.result().stream()
-                        .map({ it.item })
-                        .forEach({ context.assertTrue(items.contains(it)) })
+                    batchRead.result().stream()
+                            .map { it.item }
+                            .forEach { assertThat(items).contains(it) }
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readWithConsistencyAndProjections(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readWithConsistencyAndProjections(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
-        createXItems(context, 20, Handler { res ->
-            context.assertTrue(res.succeeded())
+        createXItems(testInfo, 20, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
@@ -476,12 +567,16 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("range", testModel.range)
 
                 repo.read(id, false, arrayOf("someLong"), Handler { firstRead ->
-                    context.assertTrue(firstRead.succeeded())
+                    context.verify {
+                        assertThat(firstRead.succeeded()).isTrue()
+                    }
 
                     if (firstRead.succeeded()) {
                         repo.read(id, false, arrayOf("someLong"), Handler { secondRead ->
-                            context.assertTrue(secondRead.succeeded())
-                            context.assertTrue(secondRead.result().isCacheHit)
+                            context.verify {
+                                assertThat(secondRead.succeeded()).isTrue()
+                                assertThat(secondRead.result().isCacheHit).isTrue()
+                            }
 
                             future.tryComplete()
                         })
@@ -496,38 +591,44 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         CompositeFuture.all(futureList).setHandler { res ->
             if (res.failed()) {
-                context.fail(res.cause())
+                context.failNow(res.cause())
             } else {
-                async.complete()
+                context.completeNow()
             }
         }
     }
 
     @Test
-    fun readAll(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAll(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler { res ->
-            context.assertTrue(res.succeeded())
+        createXItems(testInfo, 100, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             repo.readAll(Handler { allItemsRes ->
-                context.assertTrue(allItemsRes.succeeded())
-                context.assertTrue(allItemsRes.result().size == 100,
-                        "Actual count: " + allItemsRes.result().size)
+                context.verify {
+                    assertThat(allItemsRes.succeeded()).isTrue()
+                    assertThat(allItemsRes.result().isNotEmpty())
+                            .describedAs("Actual: " + allItemsRes.result().size)
+                            .isTrue()
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllWithIdentifiersAndFilterParameters(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllWithIdentifiersAndFilterParameters(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler { res ->
-            context.assertTrue(res.succeeded())
+        createXItems(testInfo, 100, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
+
             val idObject = JsonObject()
                     .put("hash", "testString")
             val fp = FilterParameter.builder("someStringThree")
@@ -537,54 +638,67 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             fpList["someLong"] = listOf(fp)
 
             repo.readAll(idObject, fpList, Handler { allItemsRes ->
-                context.assertTrue(allItemsRes.succeeded())
-                context.assertTrue(allItemsRes.result().isEmpty(), "Actual: " + allItemsRes.result().size)
+                context.verify {
+                    assertThat(allItemsRes.succeeded()).isTrue()
+                    assertThat(allItemsRes.result().isEmpty())
+                            .describedAs("Actual: " + allItemsRes.result().size)
+                            .isTrue()
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllWithIdentifiersAndPageTokenAndQueryPackAndProjections(context: TestContext) {
-        val async = context.async()
+    fun readAllWithIdentifiersAndPageTokenAndQueryPackAndProjections(testInfo: TestInfo, context: VertxTestContext) {
+        createXItems(testInfo, 100, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
-        createXItems(context, 100, Handler { res ->
-            context.assertTrue(res.succeeded())
             val idObject = JsonObject()
                     .put("hash", "testString")
 
-            pageAllResults(100, 0, idObject, null, null, context, async)
+            pageAllResults(100, 0, idObject, null, null, testInfo, context)
         })
     }
 
     @Test
-    fun readAllWithPageTokenAndQueryPackAndProjections(context: TestContext) {
-        val async = context.async()
+    fun readAllWithPageTokenAndQueryPackAndProjections(testInfo: TestInfo, context: VertxTestContext) {
+        createXItems(testInfo, 100, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
-        createXItems(context, 100, Handler { res ->
-            context.assertTrue(res.succeeded())
-            pageAllResults(100, 0, null, null, null, context, async)
+            pageAllResults(100, 0, null, null, null, testInfo, context)
         })
     }
 
     @Test
-    fun readAllWithIdentifiersAndPageTokenAndQueryPackAndProjectionsAndGSI(context: TestContext) {
-        val async = context.async()
+    fun readAllWithIdentifiersAndPageTokenAndQueryPackAndProjectionsAndGSI(testInfo: TestInfo, context: VertxTestContext) {
+        createXItems(testInfo, 100, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
-        createXItems(context, 100, Handler { res ->
-            context.assertTrue(res.succeeded())
             val idObject = JsonObject()
                     .put("hash", "testStringThree")
 
-            pageAllResults(100, 0, idObject, null, "TEST_GSI", context, async)
+            pageAllResults(100, 0, idObject, null, "TEST_GSI", testInfo, context)
         })
     }
 
-    private fun pageAllResults(totalCount: Int, currentCount: Int,
-                               idObject: JsonObject?, pageToken: String?, GSI: String?,
-                               context: TestContext, async: Async) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    private fun pageAllResults(
+        totalCount: Int,
+        currentCount: Int,
+        idObject: JsonObject?,
+        pageToken: String?,
+        GSI: String?,
+        testInfo: TestInfo,
+        context: VertxTestContext
+    ) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val queryPack = QueryPack.builder(TestModel::class.java)
                 .withPageToken(pageToken ?: "NoToken")
                 .build()
@@ -594,16 +708,18 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 val newCount = currentCount + allItemsRes.result().count
 
                 if (finalPageToken?.next!!.equals("END_OF_LIST", ignoreCase = true)) {
-                    context.assertEquals(totalCount, newCount)
+                    context.verify {
+                        assertThat(newCount).isEqualTo(totalCount)
 
-                    async.complete()
+                        context.completeNow()
+                    }
                 } else {
-                    pageAllResults(totalCount, newCount, idObject, finalPageToken.next, GSI, context, async)
+                    pageAllResults(totalCount, newCount, idObject, finalPageToken.next, GSI, testInfo, context)
                 }
             } else {
-                context.fail(allItemsRes.cause())
+                context.failNow(allItemsRes.cause())
 
-                async.complete()
+                context.completeNow()
             }
         }
 
@@ -611,9 +727,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             if (GSI == null) {
                 repo.readAll(pageToken, queryPack, arrayOf(), handler)
             } else {
-                context.fail("Must use an idobject with GSI")
+                context.failNow(Throwable("Must use an idobject with GSI"))
 
-                async.complete()
+                context.completeNow()
             }
         } else {
             if (GSI != null) {
@@ -625,11 +741,10 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
     }
 
     @Test
-    fun aggregation(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun aggregation(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val idObject = JsonObject()
                     .put("hash", "testString")
             val queryPack = QueryPack.builder(TestModel::class.java)
@@ -642,19 +757,20 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
             repo.aggregation(idObject, queryPack, arrayOf(), Handler { res ->
                 val count = JsonObject(res.result()).getInteger("count")
 
-                context.assertEquals(100, count, "Count is: " + count!!)
+                context.verify {
+                    assertThat(count).describedAs("Count is: " + count!!).isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun aggregationGroupedRanged(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun aggregationGroupedRanged(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val idObject = JsonObject()
                     .put("hash", "testString")
             val queryPack = QueryPack.builder(TestModel::class.java)
@@ -675,19 +791,21 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 etagOne.set(res.result().hashCode())
 
                 repo.aggregation(idObject, queryPack, arrayOf(), Handler { secondRes ->
-                    context.assertEquals(etagOne.get(), secondRes.result().hashCode())
-                    async.complete()
+                    context.verify {
+                        assertThat(secondRes.result().hashCode()).isEqualTo(etagOne.get())
+
+                        context.completeNow()
+                    }
                 })
             })
         })
     }
 
     @Test
-    fun aggregationWithGSI(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun aggregationWithGSI(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val idObject = JsonObject()
                     .put("hash", "testStringThree")
             val queryPack = QueryPack.builder(TestModel::class.java)
@@ -702,42 +820,45 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                 val results = JsonObject(res.result())
                 val count = results.getInteger("count")
 
-                context.assertEquals(100, count, "Count is: " + count!!)
+                context.verify {
+                    assertThat(count).describedAs("Count is: " + count!!).isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun buildParameters(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun buildParameters(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        async.complete()
+        context.completeNow()
     }
 
     @Test
-    fun readAllWithoutPagination(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllWithoutPagination(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             repo.readAllWithoutPagination("testString", Handler { allItems ->
-                context.assertTrue(allItems.succeeded())
-                context.assertEquals(100, allItems.result().size, "Size incorrect: " + allItems.result().size)
+                context.verify {
+                    assertThat(allItems.succeeded()).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllWithoutPaginationWithIdentifierAndQueryPack(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllWithoutPaginationWithIdentifierAndQueryPack(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val queryPack = QueryPack.builder(TestModel::class.java)
                     .withAggregateFunction(AggregateFunction.builder()
                             .withAggregateFunction(AggregateFunctions.COUNT)
@@ -746,20 +867,23 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination("testString", queryPack, Handler { allItems ->
-                context.assertTrue(allItems.succeeded())
-                context.assertEquals(100, allItems.result().size, "Size incorrect: " + allItems.result().size)
+                context.verify {
+                    assertThat(allItems.succeeded()).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllWithoutPaginationWithIdentifierAndQueryPackAndProjections(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllWithoutPaginationWithIdentifierAndQueryPackAndProjections(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val queryPack = QueryPack.builder(TestModel::class.java)
                     .withAggregateFunction(AggregateFunction.builder()
                             .withAggregateFunction(AggregateFunctions.COUNT)
@@ -768,20 +892,23 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination("testString", queryPack, arrayOf(), Handler { allItems ->
-                context.assertTrue(allItems.succeeded())
-                context.assertEquals(100, allItems.result().size, "Size incorrect: " + allItems.result().size)
+                context.verify {
+                    assertThat(allItems.succeeded()).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllWithoutPaginationWithIdentifierAndQueryPackAndProjectionsAndGSI(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllWithoutPaginationWithIdentifierAndQueryPackAndProjectionsAndGSI(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val queryPack = QueryPack.builder(TestModel::class.java)
                     .withCustomQuery("TEST_GSI")
                     .withAggregateFunction(AggregateFunction.builder()
@@ -791,20 +918,23 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination("testStringThree", queryPack, arrayOf(), "TEST_GSI", Handler { allItems ->
-                context.assertTrue(allItems.succeeded())
-                context.assertEquals(100, allItems.result().size, "Size incorrect: " + allItems.result().size)
+                context.verify {
+                    assertThat(allItems.succeeded()).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllWithoutPaginationWithQueryPackAndProjections(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllWithoutPaginationWithQueryPackAndProjections(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val queryPack = QueryPack.builder(TestModel::class.java)
                     .withAggregateFunction(AggregateFunction.builder()
                             .withAggregateFunction(AggregateFunctions.COUNT)
@@ -813,20 +943,23 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination(queryPack, arrayOf(), Handler { allItems ->
-                context.assertTrue(allItems.succeeded())
-                context.assertEquals(100, allItems.result().size, "Size incorrect: " + allItems.result().size)
+                context.verify {
+                    assertThat(allItems.succeeded()).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllWithoutPaginationWithQueryPackAndProjectionsAndGSI(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllWithoutPaginationWithQueryPackAndProjectionsAndGSI(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             val queryPack = QueryPack.builder(TestModel::class.java)
                     .withCustomQuery("TEST_GSI")
                     .withAggregateFunction(AggregateFunction.builder()
@@ -836,51 +969,60 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                     .build()
 
             repo.readAllWithoutPagination(queryPack, arrayOf(), "TEST_GSI", Handler { allItems ->
-                context.assertTrue(allItems.succeeded())
-                context.assertEquals(100, allItems.result().size, "Size incorrect: " + allItems.result().size)
+                context.verify {
+                    assertThat(allItems.succeeded()).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun readAllPaginated(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun readAllPaginated(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler {
+        createXItems(testInfo, 100, Handler {
             repo.readAllPaginated(Handler { allItems ->
-                context.assertTrue(allItems.succeeded())
-                context.assertEquals(100, allItems.result().size, "Size incorrect: " + allItems.result().size)
+                context.verify {
+                    assertThat(allItems.succeeded()).isTrue()
+                    assertThat(allItems.result().size)
+                            .describedAs("Size incorrect: " + allItems.result().size)
+                            .isEqualTo(100)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun remoteCreate(context: TestContext) {
-        val service: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun remoteCreate(testInfo: TestInfo, context: VertxTestContext) {
+        val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
-            context.assertTrue(createRes.succeeded())
-            context.assertEquals(createRes.result().hash, nonNullTestModel().hash)
-            context.assertEquals(createRes.result().range, nonNullTestModel().range)
+            context.verify {
+                assertThat(createRes.succeeded()).isTrue()
+                assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
 
-            async.complete()
+                context.completeNow()
+            }
         })
     }
 
     @Test
-    fun remoteRead(context: TestContext) {
-        val service: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun remoteRead(testInfo: TestInfo, context: VertxTestContext) {
+        val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val futureList = CopyOnWriteArrayList<Future<*>>()
 
-        createXItems(context, 20, Handler { res ->
-            context.assertTrue(res.succeeded())
+        createXItems(testInfo, 20, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
 
             res.result().stream().parallel().forEach { cr ->
                 val future = Future.future<Void>()
@@ -890,7 +1032,9 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
                         .put("range", testModel.range)
 
                 service.remoteRead(id, Handler { firstRead ->
-                    context.assertTrue(firstRead.succeeded())
+                    context.verify {
+                        assertThat(firstRead.succeeded()).isTrue()
+                    }
 
                     future.tryComplete()
                 })
@@ -901,157 +1045,203 @@ class DynamoDBRepositoryTestIT : DynamoDBTestClass() {
 
         CompositeFuture.all(futureList).setHandler { res ->
             if (res.failed()) {
-                context.fail(res.cause())
+                context.failNow(res.cause())
             } else {
-                async.complete()
+                context.completeNow()
             }
         }
     }
 
     @Test
-    fun remoteIndex(context: TestContext) {
-        val service: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun remoteIndex(testInfo: TestInfo, context: VertxTestContext) {
+        val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        createXItems(context, 100, Handler { res ->
-            context.assertTrue(res.succeeded())
+        createXItems(testInfo, 100, Handler { res ->
+            context.verify {
+                assertThat(res.succeeded()).isTrue()
+            }
+
             val idObject = JsonObject()
                     .put("hash", "testString")
 
             service.remoteIndex(idObject, Handler { allItemsRes ->
-                context.assertTrue(allItemsRes.succeeded())
-                context.assertTrue(allItemsRes.result().size == 100,
-                        "Actual count: " + allItemsRes.result().size)
+                context.verify {
+                    assertThat(allItemsRes.succeeded()).isTrue()
+                    assertThat(allItemsRes.result().size == 100)
+                            .describedAs("Actual count: " + allItemsRes.result().size)
+                            .isTrue()
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun remoteUpdate(context: TestContext) {
-        val service: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun remoteUpdate(testInfo: TestInfo, context: VertxTestContext) {
+        val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
-            context.assertTrue(createRes.succeeded())
-            context.assertEquals(createRes.result().hash, nonNullTestModel().hash)
-            context.assertEquals(createRes.result().range, nonNullTestModel().range)
+            context.verify {
+                assertThat(createRes.succeeded()).isTrue()
+                assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
+            }
 
             val testDate = Date()
             val result = createRes.result()
+            result.someDateTwo = testDate
 
             service.remoteUpdate(result, Handler { updateRes ->
-                if (updateRes.failed()) context.fail(updateRes.cause())
-                context.assertTrue(updateRes.succeeded())
-                context.assertEquals(updateRes.result().getSomeDateTwo()!!.toString(), testDate.toString())
+                if (updateRes.failed()) context.failNow(updateRes.cause())
 
-                async.complete()
+                context.verify {
+                    assertThat(updateRes.succeeded()).isTrue()
+                    assertThat(testDate.toString()).isEqualTo(updateRes.result().someDateTwo!!.toString())
+
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun remoteDelete(context: TestContext) {
-        val service: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val async = context.async()
+    fun remoteDelete(testInfo: TestInfo, context: VertxTestContext) {
+        val service: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         service.remoteCreate(nonNullTestModel(), Handler { createRes ->
-            context.assertTrue(createRes.succeeded())
-            context.assertEquals(createRes.result().hash, nonNullTestModel().hash)
-            context.assertEquals(createRes.result().range, nonNullTestModel().range)
+            context.verify {
+                assertThat(createRes.succeeded()).isTrue()
+                assertThat(nonNullTestModel().hash).isEqualTo(createRes.result().hash)
+                assertThat(nonNullTestModel().range).isEqualTo(createRes.result().range)
+            }
+
             val id = JsonObject()
                     .put("hash", createRes.result().hash)
                     .put("range", createRes.result().range)
 
             service.remoteDelete(id, Handler { deleteRes ->
-                context.assertTrue(deleteRes.succeeded())
+                context.verify {
+                    assertThat(deleteRes.succeeded()).isTrue()
+                }
 
                 service.remoteRead(id, Handler { res ->
-                    context.assertFalse(res.succeeded())
+                    context.verify {
+                        assertThat(res.succeeded()).isFalse()
 
-                    async.complete()
+                        context.completeNow()
+                    }
                 })
             })
         })
     }
 
     @Test
-    fun getModelName(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun getModelName(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertEquals("TestModel", repo.modelName)
+        context.verify {
+            assertThat(repo.modelName).isEqualTo("TestModel")
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun createS3Link(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun createS3Link(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val test = DynamoDBRepository.createS3Link(repo.dynamoDbMapper, "someName", "/someBogusPath")
 
-        assertNotNull(test)
-        assertEquals("Path is not equal!", "/someBogusPath", test.key)
+        context.verify {
+            assertThat(test).isNotNull
+            assertThat(test.key).describedAs("Path is not equal!").isEqualTo("/someBogusPath")
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun createSignedUrl(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun createSignedUrl(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val test = DynamoDBRepository.createS3Link(repo.dynamoDbMapper, "someName", "/someBogusPath")
         val signedUrl = DynamoDBRepository.createSignedUrl(repo.dynamoDbMapper, test)
 
-        assertNotNull("Url is null!", signedUrl)
-        assertTrue("Url is not secure: $signedUrl", signedUrl.startsWith("https://s3"))
-        assertTrue("Url is not secure: $signedUrl", signedUrl.contains("X-Amz-Algorithm"))
+        context.verify {
+            assertThat(signedUrl).isNotNull()
+            assertThat(signedUrl.startsWith("https://s3")).describedAs("Url is not secure: $signedUrl").isTrue()
+            assertThat(signedUrl.contains("X-Amz-Algorithm")).describedAs("Url is not secure: $signedUrl").isTrue()
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun createSignedUrlWithDays(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun createSignedUrlWithDays(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
         val test = DynamoDBRepository.createS3Link(repo.dynamoDbMapper, "someName", "/someBogusPath")
         val signedUrl = DynamoDBRepository.createSignedUrl(repo.dynamoDbMapper, 7, test)
 
-        assertNotNull("Url is null!", signedUrl)
-        assertTrue("Url is not secure: $signedUrl", signedUrl.startsWith("https://s3"))
-        assertTrue("Url is not secure: $signedUrl", signedUrl.contains("X-Amz-Algorithm"))
+        context.verify {
+            assertThat(signedUrl).isNotNull()
+            assertThat(signedUrl.startsWith("https://s3")).describedAs("Url is not secure: $signedUrl").isTrue()
+            assertThat(signedUrl.contains("X-Amz-Algorithm")).describedAs("Url is not secure: $signedUrl").isTrue()
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun buildEventbusProjections(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun buildEventbusProjections(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
         val array = JsonArray()
                 .add("someStringOne")
                 .add("someLong")
 
         repo.buildEventbusProjections(array)
+
+        context.completeNow()
     }
 
     @Test
-    fun hasRangeKey(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun hasRangeKey(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertTrue(repo.hasRangeKey())
+        context.verify {
+            assertThat(repo.hasRangeKey()).isTrue()
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun getDynamoDbMapper(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
+    fun getDynamoDbMapper(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
 
-        assertNotNull(repo.dynamoDbMapper)
+        context.verify {
+            assertThat(repo.dynamoDbMapper).isNotNull
+
+            context.completeNow()
+        }
     }
 
     @Test
-    fun getRedisClient(context: TestContext) {
-        val repo: TestModelReceiverImpl = context.get("${name.methodName}-repo")
-        val config: JsonObject = context.get("${name.methodName}-config")
-        val async = context.async()
+    fun getRedisClient(testInfo: TestInfo, context: VertxTestContext) {
+        val repo: TestModelReceiverImpl = contextObjects["${testInfo.testMethod.get().name}-repo"] as TestModelReceiverImpl
+        val config: JsonObject = contextObjects["${testInfo.testMethod.get().name}-config"] as JsonObject
 
         if (config.getString("redis_host") != null) {
-            context.assertNotNull(repo.redisClient)
-            repo.redisClient!!.info { async.complete() }
-        } else {
-            context.assertNull(repo.redisClient)
+            context.verify {
+                assertThat(repo.redisClient).isNotNull
+            }
 
-            async.complete()
+            repo.redisClient!!.info { context.completeNow() }
+        } else {
+            context.verify {
+                assertThat(repo.redisClient).isNull()
+
+                context.completeNow()
+            }
         }
     }
 

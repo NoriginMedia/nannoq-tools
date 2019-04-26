@@ -40,12 +40,16 @@ import com.nannoq.tools.repository.models.ETagable
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.repository.cache.CacheManager
 import com.nannoq.tools.repository.repository.etag.ETagManager
-import io.vertx.core.*
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
+import java.util.Arrays
 import java.util.Collections.singletonMap
 import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
@@ -56,16 +60,18 @@ import java.util.stream.IntStream
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, private val db: DynamoDBRepository<E>,
-                         private val HASH_IDENTIFIER: String, private val IDENTIFIER: String?,
-                         private val cacheManager: CacheManager<E>,
-                         private val eTagManager: ETagManager<E>?)
+class DynamoDBDeleter<E>(
+    private val TYPE: Class<E>,
+    private val vertx: Vertx,
+    private val db: DynamoDBRepository<E>,
+    private val HASH_IDENTIFIER: String,
+    private val IDENTIFIER: String?,
+    private val cacheManager: CacheManager<E>,
+    private val eTagManager: ETagManager<E>?
+)
         where E : Cacheable, E : ETagable, E : DynamoDBModel, E : Model {
-    private val DYNAMO_DB_MAPPER: DynamoDBMapper
-
-    init {
-        this.DYNAMO_DB_MAPPER = db.dynamoDbMapper
-    }
+    @Suppress("PrivatePropertyName")
+    private val DYNAMO_DB_MAPPER: DynamoDBMapper = db.dynamoDbMapper
 
     fun doDelete(identifiers: List<JsonObject>, resultHandler: Handler<AsyncResult<List<E>>>) {
         vertx.executeBlocking<List<E>>({ future ->
@@ -94,7 +100,7 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                     val deleteEtagsFuture = Future.future<Boolean>()
 
                     try {
-                        eTagManager?.removeProjectionsEtags(identifiers[it].hashCode(), deleteEtagsFuture.completer())
+                        eTagManager?.removeProjectionsEtags(identifiers[it].hashCode(), deleteEtagsFuture)
 
                         this.optimisticLockingDelete(record, null, deleteFuture)
                     } catch (e: Exception) {
@@ -123,7 +129,7 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
 
                                             val hash = JsonObject().put("hash", items[0].hash)
                                                     .encode().hashCode()
-                                            eTagManager.destroyEtags(hash, removeETags.completer())
+                                            eTagManager.destroyEtags(hash, removeETags)
 
                                             etagFutures.add(removeETags)
 
@@ -149,12 +155,12 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
                             }
                         }
 
-                        cacheManager.purgeCache(purgeFuture, items, {
+                        cacheManager.purgeCache(purgeFuture, items) {
                             val hash = it.hash
                             val range = it.range
 
                             TYPE.simpleName + "_" + hash + if (range == "") "" else "/$range"
-                        })
+                        }
                     }
                 }
             } catch (ase: AmazonServiceException) {
@@ -242,14 +248,13 @@ class DynamoDBDeleter<E>(private val TYPE: Class<E>, private val vertx: Vertx, p
 
             optimisticLockingDelete(newestRecord, ++counter, deleteFuture)
         }
-
     }
 
     private fun buildExistingDeleteExpression(element: E): DynamoDBDeleteExpression {
         val expectationbuilder = ImmutableMap.Builder<String, ExpectedAttributeValue>()
                 .put(HASH_IDENTIFIER, db.buildExpectedAttributeValue(element.hash!!, true))
 
-        if (IDENTIFIER != "") {
+        if (IDENTIFIER != null && IDENTIFIER != "") {
             expectationbuilder.put(IDENTIFIER, db.buildExpectedAttributeValue(element.range!!, true))
         }
 

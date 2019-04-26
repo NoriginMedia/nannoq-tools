@@ -38,6 +38,7 @@ import io.vertx.core.json.JsonObject
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("unused")
 @VertxGen(concrete = false)
 interface InternalRepositoryService<T> {
     @Fluent

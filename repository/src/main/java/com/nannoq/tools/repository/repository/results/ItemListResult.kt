@@ -38,7 +38,7 @@ import com.nannoq.tools.repository.utils.PageTokens
 class ItemListResult<K : Model> {
     private var etagBase: String? = null
     var count: Int = 0
-    var totalCount: Int = 0
+    private var totalCount: Int = 0
     var items: List<K>? = null
     var paging: PageTokens? = null
     var projections: Array<String>? = null
@@ -52,8 +52,15 @@ class ItemListResult<K : Model> {
     var operationProcessingTime: Long = 0
     var postOperationProcessingTime: Long = 0
 
-    constructor(etagBase: String, count: Int, totalCount: Int, items: List<K>, pageTokens: PageTokens,
-                projections: Array<String>, cacheHit: Boolean) {
+    constructor(
+        etagBase: String,
+        count: Int,
+        totalCount: Int,
+        items: List<K>,
+        pageTokens: PageTokens,
+        projections: Array<String>,
+        cacheHit: Boolean
+    ) {
         this.etagBase = etagBase
         this.count = count
         this.totalCount = totalCount

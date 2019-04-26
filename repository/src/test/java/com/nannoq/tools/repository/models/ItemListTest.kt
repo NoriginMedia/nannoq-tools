@@ -28,7 +28,7 @@ package com.nannoq.tools.repository.models
 import com.nannoq.tools.repository.utils.ItemList
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
 class ItemListTest {
     @Test

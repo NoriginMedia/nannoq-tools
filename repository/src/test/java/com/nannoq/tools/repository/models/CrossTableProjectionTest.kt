@@ -27,12 +27,9 @@ package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.utils.AggregateFunctions
 import com.nannoq.tools.repository.utils.CrossTableProjection
-import org.junit.Test
-
-import java.util.Collections
-
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.jupiter.api.Test
 
 class CrossTableProjectionTest {
     @Test
@@ -41,7 +38,7 @@ class CrossTableProjectionTest {
         assertFalse(CrossTableProjection().validate(AggregateFunctions.COUNT).isEmpty())
         assertFalse(CrossTableProjection().validate(AggregateFunctions.MIN).isEmpty())
 
-        assertTrue(CrossTableProjection(listOf<String>("feedItems"), listOf<String>("feedItems")).validate(AggregateFunctions.COUNT).isEmpty())
+        assertTrue(CrossTableProjection(listOf("feedItems"), listOf("feedItems")).validate(AggregateFunctions.COUNT).isEmpty())
         assertFalse(CrossTableProjection().validate(AggregateFunctions.MIN).isEmpty())
     }
 }

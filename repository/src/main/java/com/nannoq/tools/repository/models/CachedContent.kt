@@ -36,6 +36,7 @@ import io.vertx.core.file.AsyncFile
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpClientOptions
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.streams.Pump
 import org.apache.http.HttpHeaders
@@ -51,13 +52,24 @@ import java.io.File
 interface CachedContent {
     var contentLocation: S3Link
 
-    fun storeContent(vertx: Vertx, urlToContent: String, bucketName: String, bucketPath: String,
-                     resultHandler: Handler<AsyncResult<Boolean>>) {
+    fun storeContent(
+        vertx: Vertx,
+        urlToContent: String,
+        bucketName: String,
+        bucketPath: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         storeContent(vertx, 0, urlToContent, bucketName, bucketPath, resultHandler)
     }
 
-    fun storeContent(vertx: Vertx, attempt: Int, urlToContent: String, bucketName: String, bucketPath: String,
-                     resultHandler: Handler<AsyncResult<Boolean>>) {
+    fun storeContent(
+        vertx: Vertx,
+        attempt: Int,
+        urlToContent: String,
+        bucketName: String,
+        bucketPath: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         val startTime = System.currentTimeMillis()
         val opts = HttpClientOptions()
                 .setConnectTimeout(10000)
@@ -102,8 +114,15 @@ interface CachedContent {
         })
     }
 
-    fun doRequest(vertx: Vertx, httpClient: HttpClient, attempt: Int, urlToContent: String, bucketName: String,
-                  bucketPath: String, resultHandler: Handler<AsyncResult<Boolean>>) {
+    fun doRequest(
+        vertx: Vertx,
+        httpClient: HttpClient,
+        attempt: Int,
+        urlToContent: String,
+        bucketName: String,
+        bucketPath: String,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         val dynamoDBMapper = DynamoDBRepository.s3DynamoDbMapper
         contentLocation = DynamoDBRepository.createS3Link(dynamoDBMapper, bucketName, bucketPath)
         val finished = booleanArrayOf(false)
@@ -154,9 +173,7 @@ interface CachedContent {
                                             } catch (e: Exception) {
                                                 logger.error("Failure in external storage!", e)
 
-                                                if (file != null) {
-                                                    file.delete()
-                                                }
+                                                file?.delete()
 
                                                 it.tryFail(e)
                                             }
@@ -210,10 +227,9 @@ interface CachedContent {
         } catch (e: Exception) {
             logger.fatal("Critical error in content storage!", e)
         }
-
     }
 
     companion object {
-        val logger = LoggerFactory.getLogger(CachedContent::class.java.simpleName)
+        val logger: Logger = LoggerFactory.getLogger(CachedContent::class.java.simpleName)
     }
 }

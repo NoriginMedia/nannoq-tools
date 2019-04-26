@@ -25,18 +25,17 @@
 
 package com.nannoq.tools.repository.models
 
-import io.vertx.core.json.JsonObject
-import org.junit.Before
-import org.junit.Test
-
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import java.util.Date
-
-import org.junit.Assert.*
 
 class ValidationErrorTest {
     private var validationError: ValidationError? = null
 
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
     fun setUp() {
         validationError = ValidationError("Cannot be null!", "viewCount")

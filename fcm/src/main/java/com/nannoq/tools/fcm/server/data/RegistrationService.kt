@@ -59,7 +59,6 @@ interface RegistrationService {
 
     fun cleanData(input: String?): String? {
         return if (input != null) Jsoup.clean(input, Whitelist.basic()) else null
-
     }
 
     companion object {

@@ -26,37 +26,39 @@ package com.nannoq.tools.fcm
 
 import com.nannoq.tools.fcm.server.FcmServer
 import io.vertx.core.DeploymentOptions
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.RunTestOnContext
-import io.vertx.ext.unit.junit.VertxUnitRunner
-import junit.framework.TestCase.assertTrue
-import org.junit.*
-import org.junit.runner.RunWith
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 import redis.embedded.RedisServer
 import java.io.File
 import java.io.FileReader
-import java.util.*
+import java.util.Properties
 
 /**
  * @author Anders Mikkelsen
  * @version 31.03.2016
  */
 @Suppress("unused")
-@RunWith(VertxUnitRunner::class)
+@Execution(ExecutionMode.CONCURRENT)
+@ExtendWith(VertxExtension::class)
 class CheckFCMOnlineIT : ConfigSupport {
     private var redisServer: RedisServer? = null
     private var fcmServer: FcmServer? = null
     private var defaultDataMessageHandler: DefaultDataMessageHandler? = null
 
-    @Rule
-    @JvmField
-    val rule = RunTestOnContext()
-
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
-    fun setUp(testContext: TestContext) {
+    fun setUp(vertx: Vertx, testContext: VertxTestContext) {
         val redisPort = findFreePort()
         redisServer = RedisServer(redisPort)
         redisServer!!.start()
@@ -64,7 +66,7 @@ class CheckFCMOnlineIT : ConfigSupport {
         defaultDataMessageHandler = DefaultDataMessageHandler()
         fcmServer = FcmCreator.createFcm(defaultDataMessageHandler!!)
 
-        rule.vertx().deployVerticle(fcmServer, fcmConfig(redisPort), testContext.asyncAssertSuccess())
+        vertx.deployVerticle(fcmServer, fcmConfig(redisPort)) { if (it.succeeded()) testContext.completeNow() }
     }
 
     private fun fcmConfig(redisPort: Int): DeploymentOptions {
@@ -80,17 +82,18 @@ class CheckFCMOnlineIT : ConfigSupport {
                         .put("redis_port", redisPort))
     }
 
-    @Ignore // requires valid keys
+    @Disabled // requires valid keys
     @Test
     fun fcmRunning() {
-        assertTrue(fcmServer!!.isOnline)
+        assertThat(fcmServer!!.isOnline).isTrue()
     }
 
-    @After
+    @AfterEach
     @Throws(Exception::class)
-    fun tearDown(testContext: TestContext) {
+    fun tearDown(vertx: Vertx, testContext: VertxTestContext) {
         redisServer!!.stop()
-        rule.vertx().undeploy(fcmServer!!.deploymentID(), testContext.asyncAssertSuccess())
+        vertx.undeploy(fcmServer!!.deploymentID())
+        testContext.completeNow()
     }
 
     companion object {

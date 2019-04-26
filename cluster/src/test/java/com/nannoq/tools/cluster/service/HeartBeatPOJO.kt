@@ -33,7 +33,7 @@ import io.vertx.core.json.JsonObject
  */
 @DataObject(generateConverter = true)
 class HeartBeatPOJO {
-    var ping: Boolean? = null
+    private var ping: Boolean? = null
 
     constructor(ping: Boolean?) {
         this.ping = ping

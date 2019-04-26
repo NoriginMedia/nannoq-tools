@@ -22,16 +22,12 @@
  * SOFTWARE.
  */
 
-package com.nannoq.tools.web.controllers.repositories
-
-import com.nannoq.tools.repository.repository.Repository
-import com.nannoq.tools.web.controllers.RestControllerImpl
-import com.nannoq.tools.web.controllers.gen.models.TestModel
-import io.vertx.core.Vertx
-import io.vertx.core.json.JsonObject
-
 /**
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class TestModelRESTController(vertx: Vertx, appConfig: JsonObject, repository: Repository<TestModel>) : RestControllerImpl<TestModel>(vertx, TestModel::class.java, appConfig, repository, null)
+
+@ModuleGen(name = "nannoqHeartbeatService", groupPackage="com.nannoq.tools.cluster.service")
+package com.nannoq.tools.cluster.service;
+
+import io.vertx.codegen.annotations.ModuleGen;

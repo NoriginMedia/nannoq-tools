@@ -51,12 +51,11 @@ object ModelUtils {
 
     fun returnNewEtag(tag: Long): String {
         return try {
-            ModelUtils.hashString(tag.toString())
+            hashString(tag.toString())
         } catch (e: NoSuchAlgorithmException) {
             e.printStackTrace()
 
             tag.toString()
         }
-
     }
 }

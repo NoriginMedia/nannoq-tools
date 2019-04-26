@@ -35,7 +35,7 @@ import com.nannoq.tools.repository.repository.Repository.INCREMENTATION.ADDITION
 import com.nannoq.tools.repository.repository.Repository.INCREMENTATION.SUBTRACTION
 import io.vertx.core.logging.LoggerFactory
 import java.lang.reflect.Field
-import java.util.*
+import java.util.Arrays
 
 /**
  * This class defines the update operations for the DynamoDBRepository.
@@ -179,7 +179,6 @@ class DynamoDBUpdater<E>(private val db: DynamoDBRepository<E>)
             }
             else -> return false
         }
-
     }
 
     companion object {

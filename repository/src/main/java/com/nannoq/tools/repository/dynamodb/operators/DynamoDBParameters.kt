@@ -43,11 +43,17 @@ import com.nannoq.tools.repository.repository.Repository.Companion.ORDER_BY_KEY
 import com.nannoq.tools.repository.repository.Repository.Companion.PROJECTION_KEY
 import com.nannoq.tools.repository.utils.FilterParameter
 import com.nannoq.tools.repository.utils.OrderByParameter
-import io.vertx.core.json.*
+import io.vertx.core.json.DecodeException
+import io.vertx.core.json.EncodeException
+import io.vertx.core.json.Json
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import java.lang.reflect.Field
 import java.lang.reflect.Method
-import java.util.*
+import java.util.Arrays
+import java.util.Base64
+import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.stream.Collectors.joining
@@ -60,18 +66,27 @@ import java.util.stream.IntStream
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDBRepository<E>,
-                            private val HASH_IDENTIFIER: String, private val IDENTIFIER: String?,
-                            private val PAGINATION_IDENTIFIER: String?)
+class DynamoDBParameters<E>(
+    private val TYPE: Class<E>,
+    private val db: DynamoDBRepository<E>,
+    private val HASH_IDENTIFIER: String,
+    private val IDENTIFIER: String?,
+    private val PAGINATION_IDENTIFIER: String?
+)
         where E : ETagable, E : Cacheable, E : DynamoDBModel, E : Model {
     private val paginationIndex: String?
         get() = if (PAGINATION_IDENTIFIER != null && PAGINATION_IDENTIFIER != "") PAGINATION_INDEX else null
 
-    fun buildParameters(queryMap: Map<String, List<String>>,
-                        fields: Array<Field>, methods: Array<Method>,
-                        errors: JsonObject,
-                        params: MutableMap<String, List<FilterParameter>>, limit: IntArray,
-                        orderByQueue: Queue<OrderByParameter>, indexName: Array<String>): JsonObject {
+    fun buildParameters(
+        queryMap: Map<String, List<String>>,
+        fields: Array<Field>,
+        methods: Array<Method>,
+        errors: JsonObject,
+        params: MutableMap<String, List<FilterParameter>>,
+        limit: IntArray,
+        orderByQueue: Queue<OrderByParameter>,
+        indexName: Array<String>
+    ): JsonObject {
         queryMap.keys.forEach { key ->
             when {
                 key.equals(LIMIT_KEY, ignoreCase = true) ||
@@ -182,8 +197,10 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         return String(c)
     }
 
-    internal fun applyParameters(peek: OrderByParameter?,
-                                 params: Map<String, List<FilterParameter>>?): DynamoDBQueryExpression<E> {
+    internal fun applyParameters(
+        peek: OrderByParameter?,
+        params: Map<String, List<FilterParameter>>?
+    ): DynamoDBQueryExpression<E> {
         val filterExpression = DynamoDBQueryExpression<E>()
 
         if (params != null) {
@@ -194,7 +211,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
             val count = intArrayOf(0)
             val paramSize = params.keys.size
 
-            params.keys.stream().map<List<FilterParameter>>({ params[it] }).forEach { paramList ->
+            params.keys.stream().map<List<FilterParameter>> { params[it] }.forEach { paramList ->
                 val orderCounter = intArrayOf(0)
                 keyConditionString[0] += "("
 
@@ -463,7 +480,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
             val count = intArrayOf(0)
             val paramSize = params.keys.size
 
-            params.keys.stream().map<List<FilterParameter>>({ params[it] }).forEach { paramList ->
+            params.keys.stream().map<List<FilterParameter>> { params[it] }.forEach { paramList ->
                 keyConditionString[0] += "("
                 val orderCounter = intArrayOf(0)
 
@@ -632,20 +649,14 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         return filterExpression
     }
 
-    private fun buildRangeKeyConditionForMultipleIds(filterExpression: DynamoDBQueryExpression<E>,
-                                                     field: String, ids: List<String>) {
-        val idsAsAttributeValues = ids.stream()
-                .map { id -> AttributeValue().withS(id) }
-                .collect(toList())
-
-        filterExpression.withRangeKeyCondition(field, Condition()
-                .withComparisonOperator(ComparisonOperator.IN)
-                .withAttributeValueList(idsAsAttributeValues))
-    }
-
-    private fun buildRangeKeyCondition(filterExpression: DynamoDBQueryExpression<E>, count: Int,
-                                       field: String?, comparator: ComparisonOperator, type: String?,
-                                       vararg attributeValues: AttributeValue) {
+    private fun buildRangeKeyCondition(
+        filterExpression: DynamoDBQueryExpression<E>,
+        count: Int,
+        field: String?,
+        comparator: ComparisonOperator,
+        type: String?,
+        vararg attributeValues: AttributeValue
+    ) {
         filterExpression.withRangeKeyCondition(field, Condition()
                 .withComparisonOperator(comparator)
                 .withAttributeValueList(*attributeValues))
@@ -653,9 +664,12 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         if (count > 1) filterExpression.withConditionalOperator(type)
     }
 
-    private fun buildMultipleRangeKeyCondition(filterExpression: DynamoDBQueryExpression<E>, count: Int,
-                                               paramList: List<FilterParameter>,
-                                               rangeKeyName: String?) {
+    private fun buildMultipleRangeKeyCondition(
+        filterExpression: DynamoDBQueryExpression<E>,
+        count: Int,
+        paramList: List<FilterParameter>,
+        rangeKeyName: String?
+    ) {
         if (paramList.size > 2) throw IllegalArgumentException("Cannot query on more than two params on a range key!")
 
         val paramOne = paramList[0]
@@ -703,8 +717,12 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         if (count > 1) filterExpression.withConditionalOperator("AND")
     }
 
-    internal fun applyOrderBy(orderByQueue: Queue<OrderByParameter>?, GSI: String?, indexName: String?,
-                              filterExpression: DynamoDBQueryExpression<E>): DynamoDBQueryExpression<E> {
+    internal fun applyOrderBy(
+        orderByQueue: Queue<OrderByParameter>?,
+        GSI: String?,
+        indexName: String?,
+        filterExpression: DynamoDBQueryExpression<E>
+    ): DynamoDBQueryExpression<E> {
         when {
             orderByQueue == null || orderByQueue.size == 0 -> {
                 when {
@@ -729,50 +747,52 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
 
     internal fun isIllegalRangedKeyQueryParams(nameParams: List<FilterParameter>): Boolean {
         return nameParams.stream()
-                .anyMatch({ it.isIllegalRangedKeyParam })
+                .anyMatch { it.isIllegalRangedKeyParam }
     }
 
     internal fun buildProjections(projections: Array<String>?, indexName: String): Array<String>? {
-        var projections = projections
-        if (projections == null || projections.isEmpty()) return projections
-        val finalProjections = projections
+        var newProjections = projections
+        if (newProjections == null || newProjections.isEmpty()) return newProjections
+        val finalProjections = newProjections
 
         if (Arrays.stream(finalProjections).noneMatch { p -> p.equals(HASH_IDENTIFIER, ignoreCase = true) }) {
             val newProjectionArray = arrayOfNulls<String>(finalProjections.size + 1)
             IntStream.range(0, finalProjections.size).forEach { i -> newProjectionArray[i] = finalProjections[i] }
             newProjectionArray[finalProjections.size] = HASH_IDENTIFIER
-            projections = newProjectionArray.requireNoNulls()
+            newProjections = newProjectionArray.requireNoNulls()
         }
 
-        val finalProjections2 = projections
+        val finalProjections2 = newProjections
 
         if (db.hasRangeKey()) {
             if (Arrays.stream(finalProjections2).noneMatch { p -> p.equals(IDENTIFIER, ignoreCase = true) }) {
                 val newProjectionArray = arrayOfNulls<String>(finalProjections2.size + 1)
                 IntStream.range(0, finalProjections2.size).forEach { i -> newProjectionArray[i] = finalProjections2[i] }
                 newProjectionArray[finalProjections2.size] = IDENTIFIER
-                projections = newProjectionArray.requireNoNulls()
+                newProjections = newProjectionArray.requireNoNulls()
             }
         }
 
-        val finalProjections3 = projections
+        val finalProjections3 = newProjections
 
         if (Arrays.stream(finalProjections3).noneMatch { p -> p.equals(indexName, ignoreCase = true) }) {
             val newProjectionArray = arrayOfNulls<String>(finalProjections3.size + 1)
             IntStream.range(0, finalProjections3.size).forEach { i -> newProjectionArray[i] = finalProjections3[i] }
             newProjectionArray[finalProjections3.size] = indexName
-            projections = newProjectionArray.requireNoNulls()
+            newProjections = newProjectionArray.requireNoNulls()
         }
 
-        return projections
+        return newProjections
     }
 
-    internal fun createPageTokenMap(encodedPageToken: String?,
-                                    hashIdentifier: String,
-                                    rangeIdentifier: String?,
-                                    paginationIdentifier: String?,
-                                    GSI: String?,
-                                    GSI_KEY_MAP: Map<String, JsonObject>): MutableMap<String, AttributeValue>? {
+    internal fun createPageTokenMap(
+        encodedPageToken: String?,
+        hashIdentifier: String,
+        rangeIdentifier: String?,
+        paginationIdentifier: String?,
+        GSI: String?,
+        GSI_KEY_MAP: Map<String, JsonObject>
+    ): MutableMap<String, AttributeValue>? {
         var pageTokenMap: MutableMap<String, AttributeValue>? = null
         var pageToken: JsonObject? = null
         var splitToken: List<String>? = null
@@ -830,7 +850,7 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         if (pageTokenMap != null) {
             when {
                 splitToken != null -> {
-                    pageTokenMap["oldPageToken"] = AttributeValue().withS(splitToken.get(0))
+                    pageTokenMap["oldPageToken"] = AttributeValue().withS(splitToken[0])
                 }
                 else -> pageTokenMap["oldPageToken"] = AttributeValue().withS(null)
             }
@@ -843,9 +863,15 @@ class DynamoDBParameters<E>(private val TYPE: Class<E>, private val db: DynamoDB
         return pageTokenMap
     }
 
-    internal fun createNewPageToken(hashIdentifier: String, identifier: String, index: String?,
-                                    lastEvaluatedKey: Map<String, AttributeValue>, GSI: String?,
-                                    GSI_KEY_MAP: Map<String, JsonObject>, alternateIndex: String?): String {
+    internal fun createNewPageToken(
+        hashIdentifier: String,
+        identifier: String,
+        index: String?,
+        lastEvaluatedKey: Map<String, AttributeValue>,
+        GSI: String?,
+        GSI_KEY_MAP: Map<String, JsonObject>,
+        alternateIndex: String?
+    ): String {
         if (logger.isDebugEnabled) {
             logger.debug("Last key is: $lastEvaluatedKey")
         }

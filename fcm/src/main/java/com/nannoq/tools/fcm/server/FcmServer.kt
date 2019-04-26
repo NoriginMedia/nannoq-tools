@@ -41,7 +41,12 @@ import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
-import org.jivesoftware.smack.*
+import org.jivesoftware.smack.Connection
+import org.jivesoftware.smack.ConnectionConfiguration
+import org.jivesoftware.smack.ConnectionListener
+import org.jivesoftware.smack.PacketInterceptor
+import org.jivesoftware.smack.XMPPConnection
+import org.jivesoftware.smack.XMPPException
 import org.jivesoftware.smack.filter.PacketTypeFilter
 import org.jivesoftware.smack.packet.Message
 import org.jivesoftware.smack.provider.PacketExtensionProvider
@@ -64,7 +69,7 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
     private var dataMessageHandler: DataMessageHandler? = null
     private var registrationService: RegistrationService? = null
 
-    internal var redisClient: RedisClient? = null
+    private var redisClient: RedisClient? = null
         private set
 
     private var connectionConfiguration: ConnectionConfiguration? = null
@@ -163,7 +168,7 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
 
     @Throws(Exception::class)
     override fun start(startFuture: Future<Void>) {
-        logger.info("Starting GCM Server: " + this)
+        logger.info("Starting GCM Server: $this")
 
         PACKAGE_NAME_BASE = config().getString("basePackageNameFcm")
         GCM_SENDER_ID = config().getString("gcmSenderId")
@@ -197,14 +202,14 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
 
                     it.fail(e)
                 }
-            }, false, startFuture.completer())
+            }, false, startFuture)
             else -> startFuture.fail(errors.encodePrettily())
         }
     }
 
     @Throws(Exception::class)
     override fun stop(stopFuture: Future<Void>) {
-        logger.info("Shutting down GCM Server: " + this + "...")
+        logger.info("Shutting down GCM Server: $this...")
 
         vertx.executeBlocking(Handler {
             primaryConnection!!.disconnect()
@@ -214,7 +219,7 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
             }
 
             it.complete()
-        }, false, stopFuture.completer())
+        }, false, stopFuture)
     }
 
     fun checkForDeadConnections() {
@@ -376,14 +381,13 @@ class FcmServer private constructor(dev: Boolean) : AbstractVerticle() {
         } catch (e: XMPPException) {
             logger.error("Could not connect secondary on draining!")
         }
-
     }
 
     companion object {
         private const val GCM_ENDPOINT = "fcm-xmpp.googleapis.com"
         const val GCM_HTTP_ENDPOINT = "https://fcm.googleapis.com/fcm/send"
-        const val GCM_DEVICE_GROUP_BASE = "android.googleapis.com"
-        const val GCM_DEVICE_GROUP_HTTP_ENDPOINT = "/gcm/notification"
+        private const val GCM_DEVICE_GROUP_BASE = "android.googleapis.com"
+        private const val GCM_DEVICE_GROUP_HTTP_ENDPOINT = "/gcm/notification"
         const val GCM_DEVICE_GROUP_HTTP_ENDPOINT_COMPLETE =
                 "https://$GCM_DEVICE_GROUP_BASE$GCM_DEVICE_GROUP_HTTP_ENDPOINT"
     }

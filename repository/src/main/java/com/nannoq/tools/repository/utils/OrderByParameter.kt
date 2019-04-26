@@ -27,7 +27,7 @@ package com.nannoq.tools.repository.utils
 
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.logging.LoggerFactory
-import java.util.*
+import java.util.Objects
 
 /**
  * This class defines an orderByParameter, which is used for sorting results.
@@ -45,7 +45,7 @@ class OrderByParameter {
     val isDesc: Boolean
         get() = direction == null || direction!!.equals("desc", ignoreCase = true)
 
-    var isValid: Boolean = false
+    val isValid: Boolean
         get() = this.field != null && (isAsc && !isDesc || isDesc && !isAsc)
 
     class OrderByParameterBuilder internal constructor() {
@@ -69,13 +69,13 @@ class OrderByParameter {
         }
 
         @Fluent
-        fun withField(field: String): OrderByParameter.OrderByParameterBuilder {
+        fun withField(field: String): OrderByParameterBuilder {
             this.field = field
             return this
         }
 
         @Fluent
-        fun withDirection(direction: String): OrderByParameter.OrderByParameterBuilder {
+        fun withDirection(direction: String): OrderByParameterBuilder {
             this.direction = direction
 
             return this
@@ -99,8 +99,8 @@ class OrderByParameter {
     }
 
     companion object {
-        fun builder(): OrderByParameter.OrderByParameterBuilder {
-            return OrderByParameter.OrderByParameterBuilder()
+        fun builder(): OrderByParameterBuilder {
+            return OrderByParameterBuilder()
         }
     }
 }

@@ -26,19 +26,23 @@
 package com.nannoq.tools.repository.models
 
 import com.nannoq.tools.repository.utils.AggregateFunction
+import com.nannoq.tools.repository.utils.AggregateFunctions.AVG
+import com.nannoq.tools.repository.utils.AggregateFunctions.COUNT
+import com.nannoq.tools.repository.utils.AggregateFunctions.MAX
+import com.nannoq.tools.repository.utils.AggregateFunctions.MIN
+import com.nannoq.tools.repository.utils.AggregateFunctions.SUM
 import com.nannoq.tools.repository.utils.GroupingConfiguration
-import org.junit.Before
-import org.junit.Test
-
-import java.util.Collections
-
-import com.nannoq.tools.repository.utils.AggregateFunctions.*
-import org.junit.Assert.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
 class AggregateFunctionTest {
     private var validAggregateFunction: AggregateFunction? = null
 
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
     fun setUp() {
         validAggregateFunction = AggregateFunction.builder()
@@ -115,7 +119,7 @@ class AggregateFunctionTest {
         assertFalse(AggregateFunction.builder()
                 .withAggregateFunction(COUNT)
                 .withField("viewCount")
-                .withGroupBy(listOf<GroupingConfiguration>(GroupingConfiguration.builder().withGroupBy("viewCount").build()))
+                .withGroupBy(listOf(GroupingConfiguration.builder().withGroupBy("viewCount").build()))
                 .build().groupBy!!.isEmpty())
     }
 
@@ -126,7 +130,7 @@ class AggregateFunctionTest {
         assertTrue(AggregateFunction.builder()
                 .withAggregateFunction(COUNT)
                 .withField("viewCount")
-                .withGroupBy(listOf<GroupingConfiguration>(GroupingConfiguration.builder().withGroupBy("viewCount").build()))
+                .withGroupBy(listOf(GroupingConfiguration.builder().withGroupBy("viewCount").build()))
                 .build().hasGrouping())
     }
 }

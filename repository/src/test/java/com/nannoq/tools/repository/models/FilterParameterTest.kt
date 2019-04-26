@@ -25,18 +25,17 @@
 
 package com.nannoq.tools.repository.models
 
-import com.nannoq.tools.repository.models.utils.FilterParameterTestClass
 import com.nannoq.tools.repository.utils.FilterParameter
-import org.junit.Before
-import org.junit.Test
-
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 class FilterParameterTest {
     private var validParameter: FilterParameter? = null
 
-    @Before
+    @BeforeEach
     @Throws(Exception::class)
     fun setUp() {
         validParameter = FilterParameter.builder("viewCount")
@@ -91,7 +90,7 @@ class FilterParameterTest {
     @Throws(Exception::class)
     fun isIn() {
         validParameter = FilterParameter.builder("viewCount")
-                .withIn(arrayOf<Any>(1000))
+                .withIn(arrayOf(1000))
                 .build()
         assertTrue(validParameter!!.isIn)
         assertTrue(validParameter!!.isValid)
@@ -363,14 +362,16 @@ class FilterParameterTest {
         assertFalse(validParameter!!.isIn)
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     @Throws(Exception::class)
     fun isValid() {
-        assertTrue(validParameter!!.isValid)
+        assertThrows<IllegalArgumentException> {
+            assertTrue(validParameter!!.isValid)
 
-        validParameter = FilterParameter.builder("viewCount")
-                .withEq(1000)
-                .withGt("lol")
-                .build()
+            validParameter = FilterParameter.builder("viewCount")
+                    .withEq(1000)
+                    .withGt("lol")
+                    .build()
+        }
     }
 }

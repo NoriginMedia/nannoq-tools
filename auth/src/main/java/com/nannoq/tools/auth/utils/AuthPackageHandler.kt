@@ -38,9 +38,16 @@ import io.vertx.core.json.JsonObject
  * @version 17.11.2017
  */
 interface AuthPackageHandler {
-    fun processDirectAuth(authPackage: AuthPackage, userId: String,
-                          resultHandler: Handler<AsyncResult<JsonObject>>)
+    fun processDirectAuth(
+        authPackage: AuthPackage,
+        userId: String,
+        resultHandler: Handler<AsyncResult<JsonObject>>
+    )
 
-    fun processOAuthFlow(authPackage: AuthPackage, userId: String,
-                         finalUrl: String, resultHandler: Handler<AsyncResult<JsonObject>>)
+    fun processOAuthFlow(
+        authPackage: AuthPackage,
+        userId: String,
+        finalUrl: String,
+        resultHandler: Handler<AsyncResult<JsonObject>>
+    )
 }

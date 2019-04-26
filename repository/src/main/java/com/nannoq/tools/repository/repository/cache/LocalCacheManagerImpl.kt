@@ -41,17 +41,18 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.shareddata.LocalMap
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
+import java.util.Arrays
 import java.util.function.Function
 import java.util.function.Supplier
 import java.util.stream.Collectors.toList
 
 /**
- * The cachemanger contains the logic for setting, removing, and replace caches.
+ * The LocalCacheManagerImpl contains the logic for setting, removing, and replace caches.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("PrivatePropertyName")
 class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Vertx) : CacheManager<E> where E : Model, E : Cacheable {
     private val ITEM_LIST_KEY_MAP: String = TYPE.simpleName + "/ITEMLIST"
     private val AGGREGATION_KEY_MAP: String = TYPE.simpleName + "/AGGREGATION"
@@ -115,9 +116,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
     override fun checkObjectCache(cacheId: String, resultHandler: Handler<AsyncResult<E>>) {
         when {
             isObjectCacheAvailable -> {
-                val content = objectCache!![cacheId]
-
-                when (content) {
+                when (val content = objectCache!![cacheId]) {
                     null -> resultHandler.handle(ServiceException.fail(404, "Cache result is null!"))
                     else -> resultHandler.handle(Future.succeededFuture(Json.decodeValue(content, TYPE)))
                 }
@@ -130,17 +129,18 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun checkItemListCache(cacheId: String, projections: Array<String>,
-                                    resultHandler: Handler<AsyncResult<ItemList<E>>>) {
+    override fun checkItemListCache(
+        cacheId: String,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<ItemList<E>>>
+    ) {
         if (logger.isDebugEnabled) {
             logger.debug("Checking Item List Cache")
         }
 
         when {
             isItemListCacheAvailable -> {
-                val content = itemListCache!![cacheId]
-
-                when (content) {
+                when (val content = itemListCache!![cacheId]) {
                     null -> resultHandler.handle(ServiceException.fail(404, "Cache result is null!"))
                     else -> try {
                         val jsonObject = JsonObject(content)
@@ -184,12 +184,10 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
     override fun checkAggregationCache(cacheKey: String, resultHandler: Handler<AsyncResult<String>>) {
         when {
             isAggregationCacheAvailable -> {
-                val content = aggregationCache!![cacheKey]
-
-                when (content) {
+                when (val content = aggregationCache!![cacheKey]) {
                     null -> resultHandler.handle(ServiceException.fail(404, "Cache result is null..."))
                     else -> {
-                        if (logger.isDebugEnabled()) {
+                        if (logger.isDebugEnabled) {
                             logger.debug("Returning cached content...")
                         }
 
@@ -220,9 +218,12 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun replaceCache(writeFuture: Future<Boolean>, records: List<E>,
-                              shortCacheIdSupplier: Function<E, String>,
-                              cacheIdSupplier: Function<E, String>) {
+    override fun replaceCache(
+        writeFuture: Future<Boolean>,
+        records: List<E>,
+        shortCacheIdSupplier: Function<E, String>,
+        cacheIdSupplier: Function<E, String>
+    ) {
         when {
             isObjectCacheAvailable -> {
                 records.forEach { record ->
@@ -237,18 +238,21 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                     objectCache!!["FULL_CACHE_$shortCacheId"] = Json.encode(record)
                 }
 
-                purgeSecondaryCaches(writeFuture.completer())
+                purgeSecondaryCaches(writeFuture)
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(writeFuture.completer())
+                purgeSecondaryCaches(writeFuture)
             }
         }
     }
 
-    override fun replaceItemListCache(content: String, cacheIdSupplier: Supplier<String>,
-                                      resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun replaceItemListCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         when {
             isItemListCacheAvailable -> {
                 val cacheId = cacheIdSupplier.get()
@@ -266,8 +270,11 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun replaceAggregationCache(content: String, cacheIdSupplier: Supplier<String>,
-                                         resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun replaceAggregationCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         when {
             isAggregationCacheAvailable -> {
                 val cacheKey = cacheIdSupplier.get()
@@ -312,12 +319,12 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                     objectCache!!.remove(secondaryCache)
                 }
 
-                purgeSecondaryCaches(future.completer())
+                purgeSecondaryCaches(future)
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(future.completer())
+                purgeSecondaryCaches(future)
             }
         }
     }
@@ -341,14 +348,14 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
             val localMap = vertx.sharedData().getLocalMap<String, String>(MAP_KEY)
 
             try {
-                val cachePartitionKey = TYPE.newInstance().cachePartitionKey
+                val cachePartitionKey = TYPE.getDeclaredConstructor().newInstance().cachePartitionKey
 
                 val strings = localMap[cachePartitionKey]
 
                 when {
                     strings != null -> JsonArray(strings).stream()
                             .map { it.toString() }
-                            .forEach({ cache!!.remove(it) })
+                            .forEach { cache!!.remove(it) }
                     else -> localMap[cachePartitionKey] = JsonArray().encode()
                 }
             } catch (e: InstantiationException) {
@@ -357,7 +364,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
                 logger.error("Unable to build partitionKey", e)
             }
 
-            if (logger.isDebugEnabled()) {
+            if (logger.isDebugEnabled) {
                 logger.debug("Cache cleared: " + cache!!.size)
             }
         } catch (e: Exception) {
@@ -366,7 +373,6 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
 
             cache!!.clear()
         }
-
     }
 
     companion object {

@@ -32,34 +32,36 @@ import com.nannoq.tools.version.mocks.MockVersionListObject
 import com.nannoq.tools.version.mocks.MockVersionObject
 import com.nannoq.tools.version.models.DiffPair
 import io.vertx.core.Handler
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.VertxUnitRunner
-import org.junit.Test
-import org.junit.runner.RunWith
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.Instant
-import java.util.*
+import java.util.Date
 import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
 import kotlin.test.assertEquals
 import kotlin.test.fail
 
-@RunWith(VertxUnitRunner::class)
+@Execution(ExecutionMode.CONCURRENT)
+@ExtendWith(VertxExtension::class)
 class VersionManagerImplTest {
     private val versionManager = VersionManagerImpl()
 
     private val listObjectSupplier = {
         val mockVersionListObject = MockVersionListObject()
-        
+
         mockVersionListObject.stringOne = "testList"
-        
+
         mockVersionListObject
     }
 
     @Test
-    fun setIteratorIds_returnsObjectWithIteratorIdsSet(context: TestContext) {
-        val async = context.async()
+    fun setIteratorIds_returnsObjectWithIteratorIdsSet(context: VertxTestContext) {
         val iteratorBeforeObjects = IntStream.range(0, 100)
                 .mapToObj { this.newIteratorBeforeObject(it) }
                 .collect(toList())
@@ -71,14 +73,16 @@ class VersionManagerImplTest {
 
             versionObjects.result().forEach { versionObject ->
                 try {
-                    assertEquals(ObjectMapper().writeValueAsString(iteratorAfterObjects[versionObject.integerOne!!]),
-                            ObjectMapper().writeValueAsString(versionObject))
+                    context.verify {
+                        assertEquals(ObjectMapper().writeValueAsString(iteratorAfterObjects[versionObject.integerOne!!]),
+                                ObjectMapper().writeValueAsString(versionObject))
+                    }
                 } catch (e: JsonProcessingException) {
                     fail(e.message)
                 }
             }
 
-            async.complete()
+            context.completeNow()
         })
     }
 
@@ -185,8 +189,7 @@ class VersionManagerImplTest {
     }
 
     @Test
-    fun multipleListModifications_areMappedCorrectly(context: TestContext) {
-        val async = context.async()
+    fun multipleListModifications_areMappedCorrectly(context: VertxTestContext) {
         val listObjectsBefore = ArrayList<MockVersionListObject>()
         listObjectsBefore.add(listObjectSupplier().withIteratorId(0))
         listObjectsBefore.add(listObjectSupplier().withIteratorId(1))
@@ -311,16 +314,17 @@ class VersionManagerImplTest {
                     .withMapComplexObjects(newMapComplexObjectsAfter)
 
             versionManager.applyState(version.result(), newBefore, Handler {
-                assertEquals(it.result(), newAfter)
+                context.verify {
+                    assertEquals(it.result(), newAfter)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }
 
     @Test
-    fun simpleFields_mapCorrectly(context: TestContext) {
-        val async = context.async()
+    fun simpleFields_mapCorrectly(context: VertxTestContext) {
         val before = newBeforeSimpleFields()
         val after = newAfterSimpleFields()
 
@@ -329,9 +333,11 @@ class VersionManagerImplTest {
             val newAfter = newAfterSimpleFields()
 
             versionManager.applyState(version.result(), newBefore, Handler {
-                assertEquals(it.result(), newAfter)
+                context.verify {
+                    assertEquals(it.result(), newAfter)
 
-                async.complete()
+                    context.completeNow()
+                }
             })
         })
     }

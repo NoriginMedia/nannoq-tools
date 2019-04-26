@@ -26,53 +26,14 @@
 package com.nannoq.tools.repository.models.utils
 
 import com.nannoq.tools.repository.models.Model
-import com.nannoq.tools.repository.models.ValidationError
-import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Date
 
+@Suppress("SuspiciousVarProperty")
 class FilterParameterTestClass : Model {
     private val viewCount: Long? = null
 
-    override var createdAt: Date?
+    override var createdAt: Date? = null
         get() = Date()
-        set(value) {}
-    override var updatedAt: Date?
+    override var updatedAt: Date? = null
         get() = Date()
-        set(value) {}
-
-    override fun setIdentifiers(identifiers: JsonObject): Model {
-        return this
-    }
-
-    override fun setModifiables(newObject: Model): Model {
-        return this
-    }
-
-    override fun sanitize(): Model {
-        return this
-    }
-
-    override fun validateCreate(): List<ValidationError> {
-        return listOf()
-    }
-
-    override fun validateUpdate(): List<ValidationError> {
-        return listOf()
-    }
-
-    override fun setCreatedAt(date: Date): Model {
-        return this
-    }
-
-    override fun setUpdatedAt(date: Date): Model {
-        return this
-    }
-
-    override fun setInitialValues(record: Model): Model {
-        return this
-    }
-
-    override fun toJsonFormat(projections: Array<String>): JsonObject {
-        return JsonObject()
-    }
 }

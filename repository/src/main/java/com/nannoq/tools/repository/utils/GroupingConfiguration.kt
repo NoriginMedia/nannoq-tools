@@ -29,7 +29,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
-import java.util.*
+import java.util.Date
+import java.util.Objects
 
 /**
  * This class defines the grouping configuration for a single model, similar to the cross-model grouping configurations.
@@ -164,7 +165,6 @@ class GroupingConfiguration {
                         groupByUnit!!.equals("INTEGER", ignoreCase = true) -> true
                         else -> false
                     }
-
                 }
                 else -> return when {
                     fieldType === Date::class.java ->

@@ -36,14 +36,18 @@ import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.utils.ItemList
 import com.nannoq.tools.repository.utils.ItemListMeta
 import com.nannoq.tools.repository.utils.PageTokens
-import io.vertx.core.*
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.shareddata.AsyncMap
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
+import java.util.Arrays
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -58,14 +62,15 @@ import javax.cache.expiry.AccessedExpiryPolicy
 import javax.cache.expiry.Duration.FIVE_MINUTES
 
 /**
- * The cachemanger contains the logic for setting, removing, and replace caches.
+ * The ClusterCacheManagerImpl contains the logic for setting, removing, and replace caches.
  *
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("PrivatePropertyName")
 class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Vertx) : CacheManager<E> where E : Cacheable, E : Model {
     private val ITEM_LIST_KEY_MAP: String = TYPE.simpleName + "/ITEMLIST"
-    private val AGGREGATION_KEY_MAP: String
+    private val AGGREGATION_KEY_MAP: String = TYPE.simpleName + "/AGGREGATION"
 
     private val CACHE_READ_TIMEOUT_VALUE = 500L
     private val CACHE_WRITE_TIMEOUT_VALUE = 10000L
@@ -74,7 +79,6 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
     private val hasTypeJsonField: Boolean
 
     init {
-        this.AGGREGATION_KEY_MAP = TYPE.simpleName + "/AGGREGATION"
 
         hasTypeJsonField = Arrays.stream(TYPE.declaredAnnotations).anyMatch { a -> a is JsonTypeInfo }
     }
@@ -128,7 +132,6 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                             .setReadThrough(false)
                             .setWriteThrough(false)
 
-
                     @Suppress("UNCHECKED_CAST")
                     return cachingProvider.cacheManager.createCache<String, String, CompleteConfiguration<String, String>>(
                             cacheName, config).unwrap<ICache<*, *>>(ICache::class.java) as ICache<String, String>?
@@ -137,7 +140,6 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
 
                     return null
                 }
-
             }
             else -> {
                 logger.error("Cannot find hazelcast instance!")
@@ -197,8 +199,11 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    override fun checkItemListCache(cacheId: String, projections: Array<String>,
-                                    resultHandler: Handler<AsyncResult<ItemList<E>>>) {
+    override fun checkItemListCache(
+        cacheId: String,
+        projections: Array<String>,
+        resultHandler: Handler<AsyncResult<ItemList<E>>>
+    ) {
         if (logger.isDebugEnabled) {
             logger.debug("Checking Item List Cache")
         }
@@ -301,7 +306,6 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                         }
                     }
 
-
                     override fun onFailure(throwable: Throwable) {
                         logger.error(throwable.toString() + " : " + throwable.message + " : " +
                                 Arrays.toString(throwable.stackTrace))
@@ -395,9 +399,12 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    override fun replaceCache(writeFuture: Future<Boolean>, records: List<E>,
-                              shortCacheIdSupplier: Function<E, String>,
-                              cacheIdSupplier: Function<E, String>) {
+    override fun replaceCache(
+        writeFuture: Future<Boolean>,
+        records: List<E>,
+        shortCacheIdSupplier: Function<E, String>,
+        cacheIdSupplier: Function<E, String>
+    ) {
         when {
             isObjectCacheAvailable -> {
                 val replaceFutures = ArrayList<Future<*>>()
@@ -434,12 +441,12 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     replaceFutures.add(replaceFuture)
                 }
 
-                CompositeFuture.all(replaceFutures).setHandler { purgeSecondaryCaches(writeFuture.completer()) }
+                CompositeFuture.all(replaceFutures).setHandler { purgeSecondaryCaches(writeFuture) }
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(writeFuture.completer())
+                purgeSecondaryCaches(writeFuture)
             }
         }
     }
@@ -484,8 +491,11 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    override fun replaceItemListCache(content: String, cacheIdSupplier: Supplier<String>,
-                                      resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun replaceItemListCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         when {
             isItemListCacheAvailable -> {
                 val cacheId = cacheIdSupplier.get()
@@ -538,8 +548,11 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    override fun replaceAggregationCache(content: String, cacheIdSupplier: Supplier<String>,
-                                         resultHandler: Handler<AsyncResult<Boolean>>) {
+    override fun replaceAggregationCache(
+        content: String,
+        cacheIdSupplier: Supplier<String>,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         when {
             isAggregationCacheAvailable -> {
                 val cacheKey = cacheIdSupplier.get()
@@ -720,12 +733,12 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     purgeFutures.add(purgeFuture)
                 }
 
-                CompositeFuture.all(purgeFutures).setHandler { purgeSecondaryCaches(future.completer()) }
+                CompositeFuture.all(purgeFutures).setHandler { purgeSecondaryCaches(future) }
             }
             else -> {
                 logger.error("ObjectCache is null, recreating...")
 
-                purgeSecondaryCaches(future.completer())
+                purgeSecondaryCaches(future)
             }
         }
     }
@@ -799,8 +812,11 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         CompositeFuture.any(itemListFuture, aggregationFuture).setHandler { resultHandler.handle(Future.succeededFuture()) }
     }
 
-    private fun purgeMap(MAP_KEY: String, cache: ICache<String, String>?,
-                         resultHandler: Handler<AsyncResult<Boolean>>) {
+    private fun purgeMap(
+        MAP_KEY: String,
+        cache: ICache<String, String>?,
+        resultHandler: Handler<AsyncResult<Boolean>>
+    ) {
         vertx.executeBlocking<Boolean>({ purgeAllListCaches ->
             if (logger.isDebugEnabled) logger.debug("Now purging cache: $MAP_KEY")
 
@@ -819,7 +835,8 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                         }
                         else ->
                             try {
-                                val cachePartitionKey = TYPE.newInstance().cachePartitionKey
+                                val cachePartitionKey =
+                                        TYPE.getDeclaredConstructor().newInstance().cachePartitionKey
 
                                 map.result().get(cachePartitionKey) {
                                     purgeMapContents(it, cache, purgeAllListCaches, cachePartitionKey, map.result())
@@ -847,9 +864,13 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }) { res -> resultHandler.handle(res.map(res.result())) }
     }
 
-    private fun purgeMapContents(getSet: AsyncResult<Set<String>>, cache: ICache<String, String>?,
-                                 purgeAllListCaches: Future<Boolean>, cachePartitionKey: String,
-                                 result: AsyncMap<String, Set<String>>) {
+    private fun purgeMapContents(
+        getSet: AsyncResult<Set<String>>,
+        cache: ICache<String, String>?,
+        purgeAllListCaches: Future<Boolean>,
+        cachePartitionKey: String,
+        result: AsyncMap<String, Set<String>>
+    ) {
         when {
             getSet.failed() -> {
                 logger.error("Unable to get idSet!", getSet.cause())

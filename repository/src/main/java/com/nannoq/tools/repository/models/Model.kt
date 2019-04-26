@@ -30,7 +30,7 @@ import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Date
 
 /**
  * This class defines the model interface which includes sanitation, validation and json representations.
@@ -42,22 +42,49 @@ import java.util.*
 interface Model {
     var createdAt: Date?
     var updatedAt: Date?
-    fun setModifiables(newObject: Model): Model
 
     @Fluent
-    fun sanitize(): Model
-
-    fun validateCreate(): List<ValidationError>
-    fun validateUpdate(): List<ValidationError>
-
-    fun setIdentifiers(identifiers: JsonObject): Model
-    fun setCreatedAt(date: Date): Model
-    fun setUpdatedAt(date: Date): Model
+    fun setModifiables(newObject: Model): Model {
+        return this
+    }
 
     @Fluent
-    fun setInitialValues(record: Model): Model
+    fun sanitize(): Model {
+        return this
+    }
 
-    fun toJsonFormat(projections: Array<String>): JsonObject
+    fun validateCreate(): List<ValidationError> {
+        return emptyList()
+    }
+
+    fun validateUpdate(): List<ValidationError> {
+        return emptyList()
+    }
+
+    @Fluent
+    fun setIdentifiers(identifiers: JsonObject): Model {
+        return this
+    }
+
+    @Fluent
+    fun setInitialValues(record: Model): Model {
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+
+        return this
+    }
+
+    fun toJson(): JsonObject {
+        return JsonObject.mapFrom(this)
+    }
+
+    fun toJsonFormat(projections: Array<String>): JsonObject {
+        val jsonObject = JsonObject(Json.encode(this))
+
+        projections.forEach { jsonObject.remove(it) }
+
+        return jsonObject
+    }
 
     fun toJsonFormat(): JsonObject {
         return toJsonFormat(arrayOf())
@@ -71,8 +98,12 @@ interface Model {
         return Json.encode(toJsonFormat(projections))
     }
 
-    fun validateNotNullAndAdd(jsonObject: JsonObject, projectionList: List<String>,
-                              key: String, value: Any?): JsonObject {
+    fun validateNotNullAndAdd(
+        jsonObject: JsonObject,
+        projectionList: List<String>,
+        key: String,
+        value: Any?
+    ): JsonObject {
         if (value != null) {
             if (projectionList.isEmpty() || projectionList.contains(key)) {
                 jsonObject.put(key, value)
@@ -87,7 +118,7 @@ interface Model {
             val errorObject = JsonObject()
             errorObject.put("error_type", "VALIDATION")
             val errorObjects = JsonArray()
-            errors.stream().map<JsonObject>({ it.toJson() }).forEach({ errorObjects.add(it) })
+            errors.stream().map<JsonObject> { it.toJson() }.forEach { errorObjects.add(it) }
 
             errorObject.put("errors", errorObjects)
 

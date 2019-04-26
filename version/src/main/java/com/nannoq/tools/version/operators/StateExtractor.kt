@@ -43,11 +43,14 @@ import io.vertx.core.logging.LoggerFactory
 import java.io.IOException
 import java.lang.reflect.Field
 import java.time.Instant
-import java.util.*
+import java.util.AbstractMap.SimpleEntry
+import java.util.Arrays
+import java.util.Objects
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
 import java.util.stream.Collectors.toMap
 import java.util.stream.IntStream
+import kotlin.collections.set
 
 internal class StateExtractor(private val objectMapper: ObjectMapper, private val versionUtils: VersionUtils) {
     private val logger = LoggerFactory.getLogger(StateApplier::class.java)
@@ -81,9 +84,12 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         logger.error(message, e)
     }
 
-    private fun doExtract(failedExtract: AtomicBoolean,
-                          pair: DiffPair<*>, prepend: String,
-                          changeMap: MutableMap<String, ObjectModification>) {
+    private fun doExtract(
+        failedExtract: AtomicBoolean,
+        pair: DiffPair<*>,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>
+    ) {
         if (pair.current == null && pair.updated == null) {
             failedStateExtact(failedExtract, "Both fields cannot be null!", IllegalArgumentException())
 
@@ -103,9 +109,12 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
                 .forEach(processFields(failedExtract, pair, prepend, changeMap))
     }
 
-    private fun processFields(failedExtract: AtomicBoolean,
-                              pair: DiffPair<*>, prepend: String,
-                              changeMap: MutableMap<String, ObjectModification>): (Field) -> Unit {
+    private fun processFields(
+        failedExtract: AtomicBoolean,
+        pair: DiffPair<*>,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>
+    ): (Field) -> Unit {
         return { field ->
             try {
                 field.isAccessible = true
@@ -124,8 +133,11 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
     }
 
     @Throws(JsonProcessingException::class)
-    private fun setCollectionModificationFieldChange(pair: DiffPair<*>, prepend: String,
-                                                     changeMap: MutableMap<String, ObjectModification>) {
+    private fun setCollectionModificationFieldChange(
+        pair: DiffPair<*>,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>
+    ) {
         val current = pair.current
         val updated = pair.updated
 
@@ -137,9 +149,13 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
     }
 
     @Throws(IllegalAccessException::class, JsonProcessingException::class)
-    private fun processSimpleAndComplexFields(failedExtract: AtomicBoolean,
-                                              pair: DiffPair<*>, prepend: String,
-                                              changeMap: MutableMap<String, ObjectModification>, field: Field) {
+    private fun processSimpleAndComplexFields(
+        failedExtract: AtomicBoolean,
+        pair: DiffPair<*>,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field
+    ) {
         val current = if (pair.current == null) null else field.get(pair.current)
         val updated = if (pair.updated == null) null else field.get(pair.updated)
 
@@ -173,9 +189,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
     }
 
     @Throws(JsonProcessingException::class)
-    private fun extractComplexType(failedExtract: AtomicBoolean,
-                                   prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                                   field: Field, current: Any?, updated: Any?) {
+    private fun extractComplexType(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        current: Any?,
+        updated: Any?
+    ) {
         when {
             current != null -> when (updated) {
                 null -> changeMap[prepend + field.name] = objectModification(current, null)
@@ -189,8 +210,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun nullCurrentValue(field: Field, failedExtract: AtomicBoolean, prepend: String,
-                                 changeMap: MutableMap<String, ObjectModification>, current: Any?, updated: Any?) {
+    private fun nullCurrentValue(
+        field: Field,
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        current: Any?,
+        updated: Any?
+    ) {
         val type = field.type
 
         when {
@@ -206,9 +233,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun extractFromList(failedExtract: AtomicBoolean,
-                                prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                                field: Field, old: List<*>, updated: List<*>) {
+    private fun extractFromList(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: List<*>,
+        updated: List<*>
+    ) {
         when {
             listModificationsPresent(old, updated) -> {
                 old.forEach {
@@ -229,9 +261,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun extractFromMap(failedExtract: AtomicBoolean,
-                               prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                               field: Field, old: MutableMap<*, *>, updated: Map<*, *>) {
+    private fun extractFromMap(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: MutableMap<*, *>,
+        updated: Map<*, *>
+    ) {
         try {
             val oldMap = makeMap(failedExtract, old)
             val newMap = makeMap(failedExtract, updated)
@@ -245,7 +282,6 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         } catch (e: Exception) {
             failedStateExtact(failedExtract, "Error in extract from maps", e)
         }
-
     }
 
     @Throws(IOException::class)
@@ -259,12 +295,12 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
                 val type = map.values.iterator().next()!!::class.java
 
                 return jsonMap.keys.stream()
-                        .map<AbstractMap.SimpleEntry<String, Any>> { k ->
+                        .map<SimpleEntry<String, Any>> { k ->
                             try {
                                 val objectAsString = objectMapper.writeValueAsString(jsonMap[k])
                                 val o = objectMapper.readValue(objectAsString, type)
 
-                                AbstractMap.SimpleEntry<String, Any>(k as String?, o)
+                                SimpleEntry<String, Any>(k as String?, o)
                             } catch (e: IOException) {
                                 failedStateExtact(failedExtract, "Error in map extract creation", e)
 
@@ -277,9 +313,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun extractFromSet(failedExtract: AtomicBoolean,
-                               prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                               field: Field, old: Set<*>, updated: Set<*>) {
+    private fun extractFromSet(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: Set<*>,
+        updated: Set<*>
+    ) {
         when {
             listModificationsPresent(old, updated) -> {
                 old.forEach {
@@ -299,10 +340,13 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun addOldRecordRemovalToChangeMapForCollection(failedExtract: AtomicBoolean,
-                                                            prepend: String,
-                                                            changeMap: MutableMap<String, ObjectModification>,
-                                                            field: Field, collection: Collection<*>): (Any) -> Unit {
+    private fun addOldRecordRemovalToChangeMapForCollection(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        collection: Collection<*>
+    ): (Any) -> Unit {
         return { record ->
             try {
                 val iteratorIdField = versionUtils.getIteratorIdField(record)
@@ -327,9 +371,13 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun updatedExistingRecordsInCollection(failedExtract: AtomicBoolean,
-                                                   prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                                                   field: Field, collection: Collection<*>): (Any) -> Unit {
+    private fun updatedExistingRecordsInCollection(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        collection: Collection<*>
+    ): (Any) -> Unit {
         return { oldRecord ->
             try {
                 val iteratorIdField = versionUtils.getIteratorIdField(oldRecord)
@@ -356,10 +404,16 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun setCollectionChangeInChangeMap(failedExtract: AtomicBoolean,
-                                               prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                                               field: Field, i: Int, diffPair: DiffPair<*>,
-                                               size: Int, size2: Int) {
+    private fun setCollectionChangeInChangeMap(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        i: Int,
+        diffPair: DiffPair<*>,
+        size: Int,
+        size2: Int
+    ) {
         val indexValue = if (i >= size) size + size2 + i else i
 
         doExtract(failedExtract, diffPair,
@@ -369,11 +423,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
                 changeMap)
     }
 
-    private fun extractChangesInRecordsForUnmodifiedList(failedExtract: AtomicBoolean,
-                                                         prepend: String,
-                                                         changeMap: MutableMap<String, ObjectModification>,
-                                                         field: Field,
-                                                         old: List<*>, updated: List<*>): (Int) -> Unit {
+    private fun extractChangesInRecordsForUnmodifiedList(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: List<*>,
+        updated: List<*>
+    ): (Int) -> Unit {
         return { i ->
             when {
                 old[i] != updated[i] -> {
@@ -389,10 +446,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun addNewRecordsToChangeMapForList(failedExtract: AtomicBoolean,
-                                                prepend: String,
-                                                changeMap: MutableMap<String, ObjectModification>,
-                                                field: Field, old: List<*>, updated: List<*>): (Int) -> Unit {
+    private fun addNewRecordsToChangeMapForList(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: List<*>,
+        updated: List<*>
+    ): (Int) -> Unit {
         return { i ->
             val o = updated[i]
 
@@ -407,9 +468,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun addNewRecordsToChangeMapForSet(failedExtract: AtomicBoolean,
-                                               prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                                               field: Field, old: Set<*>, updated: Set<*>) {
+    private fun addNewRecordsToChangeMapForSet(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: Set<*>,
+        updated: Set<*>
+    ) {
         val itr = updated.iterator()
 
         var i = 0
@@ -429,10 +495,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun addRemovalOfOldRecordsToChangeMapForMap(failedExtract: AtomicBoolean,
-                                                        prepend: String,
-                                                        changeMap: MutableMap<String, ObjectModification>,
-                                                        field: Field, old: MutableMap<*, *>, updated: Map<*, *>) {
+    private fun addRemovalOfOldRecordsToChangeMapForMap(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: MutableMap<*, *>,
+        updated: Map<*, *>
+    ) {
         val keysToRemove = ArrayList<Any>()
 
         old.keys.stream()
@@ -451,9 +521,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         keysToRemove.forEach(Consumer { old.remove(it) })
     }
 
-    private fun addNewRecordsToChangeMapForMap(failedExtract: AtomicBoolean,
-                                               prepend: String, changeMap: MutableMap<String, ObjectModification>,
-                                               field: Field, old: Map<*, *>, updated: Map<*, *>) {
+    private fun addNewRecordsToChangeMapForMap(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: Map<*, *>,
+        updated: Map<*, *>
+    ) {
         updated.keys.stream()
                 .filter { record -> !old.containsKey(record) }
                 .forEach { record ->
@@ -475,11 +550,14 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
                 }
     }
 
-    private fun extractChangesInRecordsForUnmodifiedMap(failedExtract: AtomicBoolean,
-                                                        prepend: String,
-                                                        changeMap: MutableMap<String, ObjectModification>,
-                                                        field: Field,
-                                                        old: Map<*, *>, updated: Map<*, *>): (Any) -> Unit {
+    private fun extractChangesInRecordsForUnmodifiedMap(
+        failedExtract: AtomicBoolean,
+        prepend: String,
+        changeMap: MutableMap<String, ObjectModification>,
+        field: Field,
+        old: Map<*, *>,
+        updated: Map<*, *>
+    ): (Any) -> Unit {
         return { k ->
             val oldObject = old[k]
             val updatedObject = updated[k]
@@ -541,8 +619,11 @@ internal class StateExtractor(private val objectMapper: ObjectMapper, private va
         }
     }
 
-    private fun isNoneExistantInUpdatedList(failedExtract: AtomicBoolean,
-                                            iteratorIdField: Field, iteratorId: Any): (Any) -> Boolean {
+    private fun isNoneExistantInUpdatedList(
+        failedExtract: AtomicBoolean,
+        iteratorIdField: Field,
+        iteratorId: Any
+    ): (Any) -> Boolean {
         return { updateRecord ->
             try {
                 val iteratorIdOnOldRecord = iteratorIdField.get(updateRecord)

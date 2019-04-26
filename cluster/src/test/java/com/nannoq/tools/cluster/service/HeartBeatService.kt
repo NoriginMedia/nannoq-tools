@@ -28,8 +28,6 @@ import io.vertx.codegen.annotations.ProxyGen
 import io.vertx.codegen.annotations.VertxGen
 import io.vertx.core.AsyncResult
 import io.vertx.core.Handler
-import io.vertx.core.Vertx
-import io.vertx.serviceproxy.ProxyHelper
 
 /**
  * @author Anders Mikkelsen
@@ -40,10 +38,4 @@ import io.vertx.serviceproxy.ProxyHelper
 interface HeartBeatService {
 
     fun ping(pingHandler: Handler<AsyncResult<HeartBeatPOJO>>)
-
-    companion object {
-        fun createProxy(vertx: Vertx, address: String): HeartBeatService {
-            return ProxyHelper.createProxy(HeartBeatService::class.java, vertx, address)
-        }
-    }
 }

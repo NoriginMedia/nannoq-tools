@@ -30,7 +30,11 @@ import com.nannoq.tools.version.models.Version
 import com.nannoq.tools.version.operators.IteratorIdManager
 import com.nannoq.tools.version.operators.StateApplier
 import com.nannoq.tools.version.operators.StateExtractor
-import io.vertx.core.*
+import io.vertx.core.AbstractVerticle
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.awaitResult
 
@@ -40,16 +44,16 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
     private val stateExtractor: StateExtractor = StateExtractor(Json.mapper, versionUtils)
     private val iteratorIdManager: IteratorIdManager = IteratorIdManager(versionUtils)
 
-    override fun <T: Any> applyState(version: Version, obj: T, handler: Handler<AsyncResult<T>>): VersionManagerImpl {
+    override fun <T : Any> applyState(version: Version, obj: T, handler: Handler<AsyncResult<T>>): VersionManagerImpl {
         handler.handle(applyState(version, obj))
 
         return this
     }
 
-    override fun <T: Any> applyState(version: Version, obj: T): Future<T> {
+    override fun <T : Any> applyState(version: Version, obj: T): Future<T> {
         val fut = Future.future<T>()
 
-        stateApplier.applyState(version, obj, fut.completer())
+        stateApplier.applyState(version, obj, fut)
 
         return fut
     }
@@ -59,14 +63,14 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
         return awaitResult { applyState(version, obj, it) }
     }
 
-    override fun <T: Any> applyState(versionList: List<Version>, obj: T, handler: Handler<AsyncResult<T>>)
-            : VersionManagerImpl {
+    override fun <T : Any> applyState(versionList: List<Version>, obj: T, handler: Handler<AsyncResult<T>>):
+            VersionManagerImpl {
         handler.handle(applyState(versionList, obj))
 
         return this
     }
 
-    override fun <T: Any> applyState(versionList: List<Version>, obj: T): Future<T> {
+    override fun <T : Any> applyState(versionList: List<Version>, obj: T): Future<T> {
         val fut = Future.future<T>()
         val futList = mutableListOf<Future<T>>()
 
@@ -90,14 +94,17 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
         return awaitResult { applyState(versionList, obj, it) }
     }
 
-    override fun <T: Any> applyState(versionMap: Map<T, List<Version>>, objs: List<T>,
-                                     handler: Handler<AsyncResult<List<T>>>): VersionManagerImpl {
+    override fun <T : Any> applyState(
+        versionMap: Map<T, List<Version>>,
+        objs: List<T>,
+        handler: Handler<AsyncResult<List<T>>>
+    ): VersionManagerImpl {
         handler.handle(applyState(versionMap, objs))
 
         return this
     }
 
-    override fun <T: Any> applyState(versionMap: Map<T, List<Version>>, objs: List<T>): Future<List<T>> {
+    override fun <T : Any> applyState(versionMap: Map<T, List<Version>>, objs: List<T>): Future<List<T>> {
         val fut = Future.future<List<T>>()
         val futList = mutableListOf<Future<T>>()
 
@@ -121,17 +128,17 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
         return awaitResult { applyState(versionMap, objs, it) }
     }
 
-    override fun <T: Any> extractVersion(pair: DiffPair<T>, handler: Handler<AsyncResult<Version>>):
+    override fun <T : Any> extractVersion(pair: DiffPair<T>, handler: Handler<AsyncResult<Version>>):
             VersionManagerImpl {
         handler.handle(extractVersion(pair))
 
         return this
     }
 
-    override fun <T: Any> extractVersion(pair: DiffPair<T>): Future<Version> {
+    override fun <T : Any> extractVersion(pair: DiffPair<T>): Future<Version> {
         val fut = Future.future<Version>()
 
-        stateExtractor.extractVersion(pair, fut.completer())
+        stateExtractor.extractVersion(pair, fut)
 
         return fut
     }
@@ -141,14 +148,14 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
         return awaitResult { extractVersion(pair, it) }
     }
 
-    override fun <T: Any> extractVersion(pairs: List<DiffPair<T>>, handler: Handler<AsyncResult<List<Version>>>)
-            : VersionManagerImpl {
+    override fun <T : Any> extractVersion(pairs: List<DiffPair<T>>, handler: Handler<AsyncResult<List<Version>>>):
+            VersionManagerImpl {
         handler.handle(extractVersion(pairs))
 
         return this
     }
 
-    override fun <T: Any> extractVersion(pairs: List<DiffPair<T>>): Future<List<Version>> {
+    override fun <T : Any> extractVersion(pairs: List<DiffPair<T>>): Future<List<Version>> {
         val fut = Future.future<List<Version>>()
         val futList = mutableListOf<Future<Version>>()
 
@@ -172,13 +179,13 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
         return awaitResult { extractVersion(pairs, it) }
     }
 
-    override fun <T: Any> setIteratorIds(obj: T, handler: Handler<AsyncResult<T>>): VersionManagerImpl {
+    override fun <T : Any> setIteratorIds(obj: T, handler: Handler<AsyncResult<T>>): VersionManagerImpl {
         handler.handle(setIteratorIds(obj))
 
         return this
     }
 
-    override fun <T: Any> setIteratorIds(obj: T): Future<T> {
+    override fun <T : Any> setIteratorIds(obj: T): Future<T> {
         val fut = Future.future<T>()
 
         setIteratorIds(listOf(obj)).setHandler {
@@ -196,17 +203,17 @@ class VersionManagerImpl : VersionManager, AbstractVerticle() {
         return awaitResult { setIteratorIds(obj, it) }
     }
 
-    override fun <T: Any> setIteratorIds(objs: List<T>, handler: Handler<AsyncResult<List<T>>>): VersionManagerImpl {
+    override fun <T : Any> setIteratorIds(objs: List<T>, handler: Handler<AsyncResult<List<T>>>): VersionManagerImpl {
         handler.handle(setIteratorIds(objs))
 
         return this
     }
 
-    override fun <T: Any> setIteratorIds(objs: List<T>): Future<List<T>> {
+    override fun <T : Any> setIteratorIds(objs: List<T>): Future<List<T>> {
         val fut = Future.future<List<T>>()
 
         @Suppress("UNCHECKED_CAST")
-        iteratorIdManager.setIteratorIds(objs, fut.completer() as Handler<AsyncResult<Collection<T>>>)
+        iteratorIdManager.setIteratorIds(objs, fut as Handler<AsyncResult<Collection<T>>>)
 
         return fut
     }

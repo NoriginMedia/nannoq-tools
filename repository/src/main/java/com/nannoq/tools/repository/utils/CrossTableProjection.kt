@@ -27,7 +27,7 @@ package com.nannoq.tools.repository.utils
 
 import com.nannoq.tools.repository.models.ValidationError
 import org.apache.commons.lang3.StringUtils
-import java.util.*
+import java.util.Objects
 
 /**
  * This class defines projection configurations for cross table queries.
@@ -68,7 +68,7 @@ class CrossTableProjection @JvmOverloads constructor(val models: List<String>? =
                             "fields_$field"))
                 }
 
-                val fieldSplit = field.split("\\.".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()
+                val fieldSplit = field.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
 
                 if (!fieldSplit[0].endsWith("s")) {
                     errors.add(ValidationError(

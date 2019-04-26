@@ -24,33 +24,38 @@
 
 package com.nannoq.tools.auth.webhandlers
 
-import io.vertx.ext.unit.TestContext
-import io.vertx.ext.unit.junit.RunTestOnContext
-import io.vertx.ext.unit.junit.VertxUnitRunner
-import org.junit.After
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
+import io.vertx.core.Vertx
+import io.vertx.junit5.VertxExtension
+import io.vertx.junit5.VertxTestContext
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 
 /**
  * @author Anders Mikkelsen
  * @version 19.12.2017
  */
-@RunWith(VertxUnitRunner::class)
+@Execution(ExecutionMode.CONCURRENT)
+@ExtendWith(VertxExtension::class)
 class JWTGeneratorTest {
-    @Rule
-    @JvmField
-    val rule = RunTestOnContext()
 
-    @Before
-    @Throws(Exception::class)
-    fun setUp(testContext: TestContext) {
-    }
+    companion object {
+        @BeforeAll
+        @Throws(Exception::class)
+        @JvmStatic
+        fun setUp(vertx: Vertx, testContext: VertxTestContext) {
+            testContext.completeNow()
+        }
 
-    @After
-    @Throws(Exception::class)
-    fun tearDown(testContext: TestContext) {
+        @AfterAll
+        @Throws(Exception::class)
+        @JvmStatic
+        fun tearDown(vertx: Vertx, testContext: VertxTestContext) {
+            testContext.completeNow()
+        }
     }
 
     @Test

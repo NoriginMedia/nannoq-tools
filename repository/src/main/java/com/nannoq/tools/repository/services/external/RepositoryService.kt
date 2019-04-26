@@ -30,6 +30,7 @@ import io.vertx.codegen.annotations.GenIgnore
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 
 /**
@@ -38,6 +39,7 @@ import io.vertx.core.logging.LoggerFactory
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
+@Suppress("unused")
 interface RepositoryService<T> {
 
     @GenIgnore
@@ -76,6 +78,6 @@ interface RepositoryService<T> {
 
     companion object {
         @GenIgnore
-        val SERVICE_LOGGER = LoggerFactory.getLogger(RepositoryService::class.java.simpleName)
+        val SERVICE_LOGGER: Logger = LoggerFactory.getLogger(RepositoryService::class.java.simpleName)
     }
 }

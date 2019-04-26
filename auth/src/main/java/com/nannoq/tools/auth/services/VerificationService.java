@@ -29,7 +29,11 @@ import com.nannoq.tools.auth.models.VerifyResult;
 import com.nannoq.tools.auth.utils.Authorization;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
-import io.vertx.codegen.annotations.*;
+import io.vertx.codegen.annotations.Fluent;
+import io.vertx.codegen.annotations.GenIgnore;
+import io.vertx.codegen.annotations.ProxyClose;
+import io.vertx.codegen.annotations.ProxyGen;
+import io.vertx.codegen.annotations.VertxGen;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -44,7 +48,7 @@ import javax.annotation.Nonnull;
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@SuppressWarnings({"UnusedReturnValue", "NullableProblems"})
+@SuppressWarnings({"UnusedReturnValue", "NullableProblems", "unused"})
 @ProxyGen
 @VertxGen
 public interface VerificationService {

@@ -31,13 +31,43 @@ import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.handlers.AsyncHandler
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder
-import com.amazonaws.services.dynamodbv2.datamodeling.*
-import com.amazonaws.services.dynamodbv2.model.*
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBDocument
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBHashKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBIndexHashKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBIndexRangeKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapperConfig
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMappingException
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBRangeKey
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBTable
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBVersionAttribute
+import com.amazonaws.services.dynamodbv2.datamodeling.PaginatedParallelScanList
+import com.amazonaws.services.dynamodbv2.datamodeling.S3Link
+import com.amazonaws.services.dynamodbv2.model.AttributeValue
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator
+import com.amazonaws.services.dynamodbv2.model.CreateTableRequest
+import com.amazonaws.services.dynamodbv2.model.CreateTableResult
+import com.amazonaws.services.dynamodbv2.model.DescribeTableResult
+import com.amazonaws.services.dynamodbv2.model.ExpectedAttributeValue
+import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndex
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement
+import com.amazonaws.services.dynamodbv2.model.KeyType
+import com.amazonaws.services.dynamodbv2.model.ListTablesRequest
+import com.amazonaws.services.dynamodbv2.model.ListTablesResult
+import com.amazonaws.services.dynamodbv2.model.Projection
+import com.amazonaws.services.dynamodbv2.model.ProjectionType
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest
 import com.amazonaws.services.s3.model.Region
 import com.fasterxml.jackson.core.Version
 import com.fasterxml.jackson.databind.module.SimpleModule
-import com.nannoq.tools.repository.dynamodb.operators.*
+import com.nannoq.tools.repository.dynamodb.operators.DynamoDBAggregates
+import com.nannoq.tools.repository.dynamodb.operators.DynamoDBCreator
+import com.nannoq.tools.repository.dynamodb.operators.DynamoDBDeleter
+import com.nannoq.tools.repository.dynamodb.operators.DynamoDBParameters
+import com.nannoq.tools.repository.dynamodb.operators.DynamoDBReader
+import com.nannoq.tools.repository.dynamodb.operators.DynamoDBUpdater
 import com.nannoq.tools.repository.models.Cacheable
 import com.nannoq.tools.repository.models.DynamoDBModel
 import com.nannoq.tools.repository.models.ETagable
@@ -54,11 +84,19 @@ import com.nannoq.tools.repository.repository.results.ItemListResult
 import com.nannoq.tools.repository.repository.results.ItemResult
 import com.nannoq.tools.repository.repository.results.UpdateResult
 import com.nannoq.tools.repository.services.internal.InternalRepositoryService
-import com.nannoq.tools.repository.utils.*
+import com.nannoq.tools.repository.utils.FilterParameter
+import com.nannoq.tools.repository.utils.OrderByParameter
+import com.nannoq.tools.repository.utils.QueryPack
+import com.nannoq.tools.repository.utils.S3LinkDeserializer
+import com.nannoq.tools.repository.utils.S3LinkSerializer
 import com.nannoq.tools.version.manager.VersionManager
 import com.nannoq.tools.version.manager.VersionManagerImpl
 import com.nannoq.tools.version.models.DiffPair
-import io.vertx.core.*
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -73,7 +111,12 @@ import java.lang.reflect.Method
 import java.lang.reflect.Type
 import java.text.ParseException
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Arrays.stream
+import java.util.Calendar
+import java.util.Date
+import java.util.Objects
+import java.util.Queue
+import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Function
 import java.util.stream.Collectors.toList
@@ -85,13 +128,14 @@ import java.util.stream.IntStream
  * @author Anders Mikkelsen
  * @version 17.11.2017
  */
-@Suppress("LeakingThis")
+@Suppress("LeakingThis", "PrivatePropertyName")
 open class DynamoDBRepository<E>(
-        protected var vertx: Vertx = Vertx.currentContext().owner(),
-        private val TYPE: Class<E>,
-        appConfig: JsonObject,
-        cacheManager: CacheManager<E>?,
-        eTagManager: ETagManager<E>?) : Repository<E>, InternalRepositoryService<E>
+    protected var vertx: Vertx = Vertx.currentContext().owner(),
+    private val TYPE: Class<E>,
+    appConfig: JsonObject,
+    cacheManager: CacheManager<E>?,
+    eTagManager: ETagManager<E>?
+) : Repository<E>, InternalRepositoryService<E>
         where E : DynamoDBModel, E : Model, E : Cacheable, E : ETagable {
     final override var isCached = false
     final override var isEtagEnabled = false
@@ -135,19 +179,31 @@ open class DynamoDBRepository<E>(
 
     constructor(type: Class<E>, appConfig: JsonObject, eTagManager: ETagManager<E>?) : this(Vertx.currentContext().owner(), type, appConfig, null, eTagManager)
 
-    constructor(type: Class<E>, appConfig: JsonObject,
-                cacheManager: CacheManager<E>?, eTagManager: ETagManager<E>?) : this(Vertx.currentContext().owner(), type, appConfig, cacheManager, eTagManager)
+    constructor(
+        type: Class<E>,
+        appConfig: JsonObject,
+        cacheManager: CacheManager<E>?,
+        eTagManager: ETagManager<E>?
+    ) : this(Vertx.currentContext().owner(), type, appConfig, cacheManager, eTagManager)
 
     constructor(vertx: Vertx, type: Class<E>, appConfig: JsonObject) : this(vertx, type, appConfig, null, null)
 
-    constructor(vertx: Vertx, type: Class<E>, appConfig: JsonObject,
-                cacheManager: CacheManager<E>?) : this(vertx, type, appConfig, cacheManager, null)
+    constructor(
+        vertx: Vertx,
+        type: Class<E>,
+        appConfig: JsonObject,
+        cacheManager: CacheManager<E>?
+    ) : this(vertx, type, appConfig, cacheManager, null)
 
-    constructor(vertx: Vertx, type: Class<E>, appConfig: JsonObject,
-                eTagManager: ETagManager<E>?) : this(vertx, type, appConfig, null, eTagManager)
+    constructor(
+        vertx: Vertx,
+        type: Class<E>,
+        appConfig: JsonObject,
+        eTagManager: ETagManager<E>?
+    ) : this(vertx, type, appConfig, null, eTagManager)
 
     init {
-        if (Arrays.stream<Annotation>(TYPE.javaClass.annotations).anyMatch { ann -> ann is DynamoDBDocument }) {
+        if (stream<Annotation>(TYPE.javaClass.annotations).anyMatch { ann -> ann is DynamoDBDocument }) {
             throw DynamoDBMappingException("This type is a document definition, should not have own repository!")
         }
 
@@ -155,16 +211,17 @@ open class DynamoDBRepository<E>(
 
         setMapper(appConfig)
 
-        val tableName = Arrays.stream(TYPE.declaredAnnotations)
+        val tableName = stream(TYPE.declaredAnnotations)
                 .filter { a -> a is DynamoDBTable }
                 .map { a -> a as DynamoDBTable }
                 .map<String> { table -> table.tableName }
                 .findFirst()
 
+        @Suppress("LocalVariableName")
         val COLLECTION: String
 
         when {
-            tableName.isPresent || Arrays.stream(TYPE.declaredAnnotations)
+            tableName.isPresent || stream(TYPE.declaredAnnotations)
                     .anyMatch { a -> a is DynamoDBDocument } -> {
                 COLLECTION = tableName.orElseGet { TYPE.simpleName.substring(0, 1).toLowerCase() + TYPE.simpleName.substring(1) + "s" }
 
@@ -208,13 +265,14 @@ open class DynamoDBRepository<E>(
             }
         }
 
-        isVersioned = Arrays.stream(TYPE.declaredMethods)
+        isVersioned = stream(TYPE.declaredMethods)
                 .anyMatch { m ->
-                    Arrays.stream(m.declaredAnnotations)
+                    stream(m.declaredAnnotations)
                             .anyMatch { a -> a is DynamoDBVersionAttribute }
                 }
 
         setHashAndRange(TYPE)
+        @Suppress("LocalVariableName")
         val GSI_KEY_MAP = setGsiKeys(TYPE)
         if (isCached) this.cacheManager!!.initializeCache(Handler { isCached = it.succeeded() })
 
@@ -256,22 +314,22 @@ open class DynamoDBRepository<E>(
         IDENTIFIER = ""
         PAGINATION_IDENTIFIER = ""
 
-        Arrays.stream(allMethods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(allMethods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation -> annotation is DynamoDBHashKey }
         }
                 .findFirst()
                 .ifPresent { method -> HASH_IDENTIFIER = stripGet(method.name) }
 
-        Arrays.stream(allMethods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(allMethods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation -> annotation is DynamoDBRangeKey }
         }
                 .findFirst()
                 .ifPresent { method -> IDENTIFIER = stripGet(method.name) }
 
-        Arrays.stream(allMethods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(allMethods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation ->
                         annotation is DynamoDBIndexRangeKey && annotation.localSecondaryIndexName
                                 .equals(PAGINATION_INDEX, ignoreCase = true)
@@ -306,7 +364,6 @@ open class DynamoDBRepository<E>(
             }
             throw UnknownError("Cannot get field " + fieldName + " from " + TYPE.simpleName + "!")
         }
-
     }
 
     @Throws(IllegalArgumentException::class)
@@ -336,7 +393,6 @@ open class DynamoDBRepository<E>(
             }
             throw UnknownError("Cannot find field!")
         }
-
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -359,7 +415,6 @@ open class DynamoDBRepository<E>(
 
             throw UnknownError("Cannot find field!")
         }
-
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -382,7 +437,6 @@ open class DynamoDBRepository<E>(
 
             throw UnknownError("Cannot find field!")
         }
-
     }
 
     fun <T : Any> getFieldAsString(fieldName: String, `object`: T): String {
@@ -417,7 +471,6 @@ open class DynamoDBRepository<E>(
                 }
             }
         }
-
     }
 
     private fun <T> getFieldAsString(fieldName: String, `object`: T, klazz: Class<*>): String {
@@ -452,7 +505,6 @@ open class DynamoDBRepository<E>(
                 }
             }
         }
-
     }
 
     @Throws(IllegalArgumentException::class)
@@ -500,7 +552,6 @@ open class DynamoDBRepository<E>(
                 else -> throw IllegalArgumentException("Field does not exist!")
             }
         }
-
     }
 
     @Throws(IllegalArgumentException::class)
@@ -545,7 +596,7 @@ open class DynamoDBRepository<E>(
     }
 
     fun hasField(fields: Array<Field>, key: String): Boolean {
-        val hasField = Arrays.stream(fields).anyMatch { field -> field.name.equals(key, ignoreCase = true) }
+        val hasField = stream(fields).anyMatch { field -> field.name.equals(key, ignoreCase = true) }
 
         return hasField || hasField(TYPE.superclass, key)
     }
@@ -568,14 +619,13 @@ open class DynamoDBRepository<E>(
         } catch (e: NullPointerException) {
             return false
         }
-
     }
 
     fun getAlternativeIndexIdentifier(indexName: String): String? {
         val identifier = arrayOfNulls<String>(1)
 
-        Arrays.stream(TYPE.methods).filter { method ->
-            Arrays.stream(method.annotations)
+        stream(TYPE.methods).filter { method ->
+            stream(method.annotations)
                     .anyMatch { annotation ->
                         annotation is DynamoDBIndexRangeKey && annotation.localSecondaryIndexName
                                 .equals(indexName, ignoreCase = true)
@@ -746,7 +796,6 @@ open class DynamoDBRepository<E>(
                 } catch (nfe: NumberFormatException) {
                     logger.error("Cannot rceate attribute!", nfe)
                 }
-
             }
             else -> return when {
                 fieldType === java.util.Date::class.java -> try {
@@ -801,7 +850,7 @@ open class DynamoDBRepository<E>(
                 }
 
                 val query = DynamoDBQueryExpression<E>()
-                val keyObject = type.newInstance()
+                val keyObject = type.getDeclaredConstructor().newInstance()
                 keyObject.hash = hash
                 query.isConsistentRead = true
                 query.hashKeyValues = keyObject
@@ -856,14 +905,14 @@ open class DynamoDBRepository<E>(
         when {
             isVersioned -> resultHandler.handle(ServiceException.fail(
                     400, "This model is versioned, use the updateLogic method!"))
-            else -> update(record, resultHandler)
+            else -> super.update(record, resultHandler)
         }
     }
 
     override fun update(record: E): Future<UpdateResult<E>> {
         return when {
             !isVersioned -> throw IllegalArgumentException("This model is versioned, use the updateLogic method!")
-            else -> update(record)
+            else -> super.update(record)
         }
     }
 
@@ -895,6 +944,7 @@ open class DynamoDBRepository<E>(
         reader.readAll(pageToken, queryPack, projections, resultHandler)
     }
 
+    @Suppress("unused")
     fun readAll(identifiers: JsonObject, queryPack: QueryPack, GSI: String, resultHandler: Handler<AsyncResult<ItemListResult<E>>>) {
         reader.readAll(identifiers, queryPack.pageToken, queryPack, queryPack.projections ?: arrayOf(), GSI, resultHandler)
     }
@@ -915,9 +965,16 @@ open class DynamoDBRepository<E>(
         aggregates.aggregation(identifiers, queryPack, projections ?: arrayOf(), GSI, resultHandler)
     }
 
-    override fun buildParameters(queryMap: Map<String, List<String>>, fields: Array<Field>, methods: Array<Method>,
-                                 errors: JsonObject, params: Map<String, List<FilterParameter>>, limit: IntArray,
-                                 orderByQueue: Queue<OrderByParameter>, indexName: Array<String>): JsonObject {
+    override fun buildParameters(
+        queryMap: Map<String, List<String>>,
+        fields: Array<Field>,
+        methods: Array<Method>,
+        errors: JsonObject,
+        params: Map<String, List<FilterParameter>>,
+        limit: IntArray,
+        orderByQueue: Queue<OrderByParameter>,
+        indexName: Array<String>
+    ): JsonObject {
         return parameters.buildParameters(queryMap, fields, methods, errors, params.toMutableMap(), limit, orderByQueue, indexName)
     }
 
@@ -933,8 +990,13 @@ open class DynamoDBRepository<E>(
         readAllWithoutPagination(identifier, queryPack, projections, null, resultHandler)
     }
 
-    fun readAllWithoutPagination(identifier: String, queryPack: QueryPack, projections: Array<String>, GSI: String?,
-                                 resultHandler: Handler<AsyncResult<List<E>>>) {
+    fun readAllWithoutPagination(
+        identifier: String,
+        queryPack: QueryPack,
+        projections: Array<String>,
+        GSI: String?,
+        resultHandler: Handler<AsyncResult<List<E>>>
+    ) {
         reader.readAllWithoutPagination(identifier, queryPack, projections, GSI, resultHandler)
     }
 
@@ -1115,8 +1177,8 @@ open class DynamoDBRepository<E>(
             val allMethods = getAllMethodsOnType(type)
             val gsiMap = ConcurrentHashMap<String, JsonObject>()
 
-            Arrays.stream(allMethods).forEach { method ->
-                if (Arrays.stream(method.declaredAnnotations)
+            stream(allMethods).forEach { method ->
+                if (stream(method.declaredAnnotations)
                                 .anyMatch { annotation -> annotation is DynamoDBIndexHashKey }) {
                     val hashName = method.getDeclaredAnnotation<DynamoDBIndexHashKey>(DynamoDBIndexHashKey::class.java)
                             .globalSecondaryIndexName
@@ -1124,8 +1186,8 @@ open class DynamoDBRepository<E>(
                     val range = arrayOfNulls<String>(1)
 
                     if (hashName != "") {
-                        Arrays.stream(allMethods).forEach { rangeMethod ->
-                            if (Arrays.stream(rangeMethod.declaredAnnotations)
+                        stream(allMethods).forEach { rangeMethod ->
+                            if (stream(rangeMethod.declaredAnnotations)
                                             .anyMatch { annotation -> annotation is DynamoDBIndexRangeKey }) {
                                 val rangeIndexName = rangeMethod.getDeclaredAnnotation<DynamoDBIndexRangeKey>(DynamoDBIndexRangeKey::class.java)
                                         .globalSecondaryIndexName
@@ -1157,7 +1219,6 @@ open class DynamoDBRepository<E>(
             return if (klazz.superclass != null && klazz.superclass != java.lang.Object::class.java) {
                 ArrayUtils.addAll(methods, *getAllMethodsOnType(klazz.superclass))
             } else methods
-
         }
 
         fun stripGet(string: String): String {
@@ -1168,8 +1229,11 @@ open class DynamoDBRepository<E>(
             return String(c)
         }
 
-        fun initializeDynamoDb(appConfig: JsonObject, collectionMap: Map<String, Class<*>>,
-                               resultHandler: Handler<AsyncResult<Void>>) {
+        fun initializeDynamoDb(
+            appConfig: JsonObject,
+            collectionMap: Map<String, Class<*>>,
+            resultHandler: Handler<AsyncResult<Void>>
+        ) {
             if (logger.isDebugEnabled) {
                 logger.debug("Initializing DynamoDB")
             }
@@ -1178,7 +1242,7 @@ open class DynamoDBRepository<E>(
                 silenceDynamoDBLoggers()
                 val futures = ArrayList<Future<*>>()
 
-                collectionMap.forEach { k, v -> futures.add(initialize(appConfig, k, v)) }
+                collectionMap.forEach { (k, v) -> futures.add(initialize(appConfig, k, v)) }
 
                 CompositeFuture.all(futures).setHandler { res ->
                     if (logger.isDebugEnabled) {
@@ -1203,7 +1267,6 @@ open class DynamoDBRepository<E>(
             } catch (e: Exception) {
                 logger.error("Unable to initialize!", e)
             }
-
         }
 
         private fun silenceDynamoDBLoggers() {
@@ -1242,15 +1305,19 @@ open class DynamoDBRepository<E>(
                 }
             }
 
-            initialize(amazonDynamoDBAsync, dynamoDBMapper, COLLECTION, TYPE, future.completer())
+            initialize(amazonDynamoDBAsync, dynamoDBMapper, COLLECTION, TYPE, future)
 
             return future
         }
 
         @Suppress("MayBeConstant")
-        private fun initialize(client: AmazonDynamoDBAsync, mapper: DynamoDBMapper,
-                               COLLECTION: String, TYPE: Class<*>,
-                               resultHandler: Handler<AsyncResult<Void>>) {
+        private fun initialize(
+            client: AmazonDynamoDBAsync,
+            mapper: DynamoDBMapper,
+            COLLECTION: String,
+            TYPE: Class<*>,
+            resultHandler: Handler<AsyncResult<Void>>
+        ) {
             client.listTablesAsync(object : AsyncHandler<ListTablesRequest, ListTablesResult> {
                 private val DEFAULT_WRITE_TABLE = 100L
                 private val DEFAULT_READ_TABLE = 100L
@@ -1292,7 +1359,7 @@ open class DynamoDBRepository<E>(
 
                             client.createTableAsync(req, object : AsyncHandler<CreateTableRequest, CreateTableResult> {
                                 override fun onError(e: Exception) {
-                                    logger.error(e.toString() + " : " + e.message + " : " + Arrays.toString(e.stackTrace))
+                                    logger.error(e.toString() + " : " + e.message + " : " + toString())
                                     if (logger.isDebugEnabled) {
                                         logger.debug("Could not remoteCreate table for: $COLLECTION")
                                     }
@@ -1319,15 +1386,19 @@ open class DynamoDBRepository<E>(
                     }
                 }
 
-                private fun setAnyGlobalSecondaryIndexes(req: CreateTableRequest,
-                                                         readProvisioning: Long, writeProvisioning: Long) {
+                @Suppress("SameParameterValue")
+                private fun setAnyGlobalSecondaryIndexes(
+                    req: CreateTableRequest,
+                    readProvisioning: Long = 100,
+                    writeProvisioning: Long = 100
+                ) {
                     @Suppress("UNCHECKED_CAST")
                     val map = setGsiKeys(TYPE as Class<Any>)
 
                     if (map.isNotEmpty()) {
                         val gsis = ArrayList<GlobalSecondaryIndex>()
 
-                        map.forEach { k, v ->
+                        map.forEach { (k, v) ->
                             gsis.add(GlobalSecondaryIndex()
                                     .withIndexName(k)
                                     .withProjection(Projection()
@@ -1347,8 +1418,10 @@ open class DynamoDBRepository<E>(
                     }
                 }
 
-                private fun waitForTableAvailable(createTableResult: CreateTableResult,
-                                                  resultHandler: Handler<AsyncResult<Void>>) {
+                private fun waitForTableAvailable(
+                    createTableResult: CreateTableResult,
+                    resultHandler: Handler<AsyncResult<Void>>
+                ) {
                     val tableName = createTableResult.tableDescription.tableName
 
                     val describeTableResult = client.describeTable(tableName)

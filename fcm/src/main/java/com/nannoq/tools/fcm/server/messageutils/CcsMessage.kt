@@ -36,22 +36,24 @@ import io.vertx.core.json.JsonObject
  * @version 31.03.2016
  */
 class CcsMessage(
-        /**
-         * Recipient-ID.
-         */
-        val from: String,
-        /**
-         * Sender app's package.
-         */
-        val category: String,
-        /**
-         * Unique id for this message.
-         */
-        val messageId: String, val registrationId: String,
-        /**
-         * Payload data. A String in Json format.
-         */
-        val payload: JsonObject) {
+    /**
+     * Recipient-ID.
+     */
+    val from: String,
+    /**
+     * Sender app's package.
+     */
+    val category: String,
+    /**
+     * Unique id for this message.
+     */
+    val messageId: String,
+    val registrationId: String,
+    /**
+     * Payload data. A String in Json format.
+     */
+    val payload: JsonObject
+) {
     companion object {
         const val GCM_CONFIGURATION_NOTATION = "configuration"
         const val GCM_PRIORITY_NOTATION = "priority"

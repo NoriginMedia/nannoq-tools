@@ -26,7 +26,12 @@
 package com.nannoq.tools.cluster.services
 
 import io.vertx.codegen.annotations.Fluent
-import io.vertx.core.*
+import io.vertx.core.AbstractVerticle
+import io.vertx.core.AsyncResult
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.eventbus.Message
 import io.vertx.core.eventbus.MessageConsumer
 import io.vertx.core.http.HttpClient
@@ -41,7 +46,6 @@ import io.vertx.servicediscovery.types.EventBusService
 import io.vertx.servicediscovery.types.HttpEndpoint
 import io.vertx.serviceproxy.ServiceBinder
 import io.vertx.serviceproxy.ServiceException
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Consumer
 
@@ -212,8 +216,10 @@ class ServiceManager {
     }
 
     @Fluent
-    fun publishApi(httpRecord: Record,
-                   resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
+    fun publishApi(
+        httpRecord: Record,
+        resultHandler: Handler<AsyncResult<Record>>
+    ): ServiceManager {
         return publishService(httpRecord, Consumer { registeredRecords[it.registration] = it }, resultHandler)
     }
 
@@ -255,8 +261,11 @@ class ServiceManager {
     }
 
     @Fluent
-    fun <T> publishService(type: Class<T>, service: T,
-                           resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
+    fun <T> publishService(
+        type: Class<T>,
+        service: T,
+        resultHandler: Handler<AsyncResult<Record>>
+    ): ServiceManager {
         return publishService(createRecord(type), Consumer {
             registeredServices[it.registration] = ServiceBinder(vertx)
                     .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
@@ -266,8 +275,12 @@ class ServiceManager {
     }
 
     @Fluent
-    fun <T> publishService(type: Class<T>, customName: String, service: T,
-                           resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
+    fun <T> publishService(
+        type: Class<T>,
+        customName: String,
+        service: T,
+        resultHandler: Handler<AsyncResult<Record>>
+    ): ServiceManager {
         return publishService(createRecord(customName, type), Consumer {
             registeredServices[it.registration] = ServiceBinder(vertx)
                     .setTimeoutSeconds(NANNOQ_SERVICE_DEFAULT_TIMEOUT.toLong())
@@ -284,8 +297,11 @@ class ServiceManager {
     }
 
     @Fluent
-    fun <T> unPublishService(type: Class<T>, service: Record,
-                             resultHandler: Handler<AsyncResult<Void>>): ServiceManager {
+    fun <T> unPublishService(
+        type: Class<T>,
+        service: Record,
+        resultHandler: Handler<AsyncResult<Void>>
+    ): ServiceManager {
         val serviceName = type.simpleName
 
         return unPublishService(serviceName, service, resultHandler)
@@ -293,32 +309,43 @@ class ServiceManager {
 
     @Fluent
     @JvmOverloads
-    fun unPublishService(serviceName: String, service: Record,
-                         resultHandler: Handler<AsyncResult<Void>> = Handler {
-                             logger.info("Unpublish res: " + it.succeeded())
-                         }): ServiceManager {
+    fun unPublishService(
+        serviceName: String,
+        service: Record,
+        resultHandler: Handler<AsyncResult<Void>> = Handler {
+            logger.info("Unpublish res: " + it.succeeded())
+        }
+    ): ServiceManager {
         ServiceBinder(vertx)
                 .setAddress(serviceName)
                 .unregister(registeredServices[service.registration])
 
-        serviceDiscovery!!.unpublish(service.registration, resultHandler)
+        serviceDiscovery!!.unpublish(service.registration) {
+            if (it.succeeded()) {
+                registeredServices.remove(service.registration)
 
-        registeredServices.remove(service.registration)
+                val objects = fetchedServices[service.name]
 
-        val objects = fetchedServices[service.name]
+                if (objects != null && objects.size > 0) {
+                    val iterator = objects.iterator()
+                    iterator.next()
+                    iterator.remove()
+                }
 
-        if (objects != null && objects.size > 0) {
-            val iterator = objects.iterator()
-            iterator.next()
-            iterator.remove()
+                resultHandler.handle(Future.succeededFuture())
+            } else {
+                resultHandler.handle(ServiceException.fail(500, "Unable to unpublish Service..."))
+            }
         }
 
         return this
     }
 
     @Fluent
-    fun consumeApi(name: String,
-                   resultHandler: Handler<AsyncResult<HttpClient>>): ServiceManager {
+    fun consumeApi(
+        name: String,
+        resultHandler: Handler<AsyncResult<HttpClient>>
+    ): ServiceManager {
         return getApi(name, resultHandler)
     }
 
@@ -328,8 +355,11 @@ class ServiceManager {
     }
 
     @Fluent
-    fun <T> consumeService(type: Class<T>, customName: String,
-                           resultHandler: Handler<AsyncResult<T>>): ServiceManager {
+    fun <T> consumeService(
+        type: Class<T>,
+        customName: String,
+        resultHandler: Handler<AsyncResult<T>>
+    ): ServiceManager {
         return getService(type, customName, resultHandler)
     }
 
@@ -439,8 +469,11 @@ class ServiceManager {
         return EventBusService.createRecord(serviceName, serviceName, type)
     }
 
-    private fun publishService(record: Record, recordLogic: Consumer<Record>,
-                               resultHandler: Handler<AsyncResult<Record>>): ServiceManager {
+    private fun publishService(
+        record: Record,
+        recordLogic: Consumer<Record>,
+        resultHandler: Handler<AsyncResult<Record>>
+    ): ServiceManager {
         serviceDiscovery!!.publish(record) { ar ->
             when {
                 ar.failed() -> {

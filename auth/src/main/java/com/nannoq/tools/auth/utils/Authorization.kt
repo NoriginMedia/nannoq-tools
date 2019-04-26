@@ -39,8 +39,8 @@ import io.vertx.core.json.JsonObject
  */
 @DataObject(generateConverter = true)
 class Authorization {
-    val model: String?
-    val method: String?
+    private val model: String?
+    private val method: String?
     val domainIdentifier: String
 
     constructor() : this(JsonObject())

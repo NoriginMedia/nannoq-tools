@@ -36,7 +36,7 @@ import io.vertx.core.Future
  * @version 31.03.2016
  */
 class DefaultDataMessageHandler : DataMessageHandler {
-    var messageFuture: Future<CcsMessage>? = null
+    private var messageFuture: Future<CcsMessage>? = null
 
     override val registrationService: RegistrationService = DefaultRegistrationService()
 

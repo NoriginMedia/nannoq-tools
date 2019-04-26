@@ -28,7 +28,8 @@ package com.nannoq.tools.repository.models
 import com.fasterxml.jackson.annotation.JsonIgnore
 import io.vertx.codegen.annotations.DataObject
 import io.vertx.core.json.JsonObject
-import java.util.*
+import java.util.Calendar
+import java.util.Date
 
 /**
  * This class defines helpers for Model operations.
@@ -77,7 +78,6 @@ class ValidationError {
             return if (date.before(yesterday.time)) {
                 ValidationError("Cannot be older than 24H!", fieldName)
             } else null
-
         }
 
         fun validateTextLength(field: String?, fieldName: String, count: Int): ValidationError? {
@@ -86,7 +86,6 @@ class ValidationError {
             return if (field.length > count) {
                 ValidationError("Cannot be over $count characters!", fieldName)
             } else null
-
         }
     }
 }
