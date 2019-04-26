@@ -9,7 +9,7 @@ class BuildUtils {
     }
 
     fun gitBranch(): String {
-        return Runtime.getRuntime().exec("git rev-parse --abbrev-ref HEAD")
+        return System.getenv("BRANCH_NAME") ?: Runtime.getRuntime().exec("git rev-parse --abbrev-ref HEAD")
                 .inputStream
                 .bufferedReader()
                 .readText()
