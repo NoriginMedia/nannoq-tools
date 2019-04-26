@@ -52,11 +52,12 @@ abstract class DynamoDBTestClass : ConfigSupport {
     companion object {
         private var localPort: Int = 0
         private val dynamoDBUtils = DynamoDBUtils()
+        private val mapSet = mutableSetOf<Int>()
 
         @BeforeAll
         @JvmStatic
         fun beforeAll() {
-            localPort = ServerSocket(0).use { it.localPort }
+            localPort = getPort()
             dynamoDBUtils.startDynamoDB(localPort)
         }
 
@@ -65,12 +66,26 @@ abstract class DynamoDBTestClass : ConfigSupport {
         fun afterAll() {
             dynamoDBUtils.stopDynamoDB(localPort)
         }
+
+        @JvmStatic
+        @Synchronized
+        private fun getPort(): Int {
+            val use = ServerSocket(0).use { it.localPort }
+
+            if (mapSet.contains(use)) {
+                return getPort()
+            } else {
+                mapSet.add(use)
+
+                return use
+            }
+        }
     }
 
     @BeforeEach
     fun setup(vertx: Vertx, testInfo: TestInfo, context: VertxTestContext) {
-        val redisPort = ServerSocket(0).use { it.localPort }
-        val httpPort = ServerSocket(0).use { it.localPort }
+        val redisPort = getPort()
+        val httpPort = getPort()
 
         contextObjects["${testInfo.testMethod.get().name}-port"] = localPort
         contextObjects["${testInfo.testMethod.get().name}-redis-port"] = redisPort
