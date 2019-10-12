@@ -41,6 +41,7 @@ import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.eventbus.MessageConsumer
 import io.vertx.core.json.Json
@@ -68,9 +69,9 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
     private var verifyCircuitBreakerEvents: MessageConsumer<JsonObject>? = null
     private val apiManager: APIManager
 
-    private val authenticationService: Future<AuthenticationService>
+    private val authenticationService: Promise<AuthenticationService>
         get() {
-            val authenticationServiceFuture = Future.future<AuthenticationService>()
+            val authenticationServiceFuture = Promise.promise<AuthenticationService>()
 
             ServiceManager.getInstance().consumeService(AuthenticationService::class.java, Handler {
                 when {
@@ -86,9 +87,9 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
             return authenticationServiceFuture
         }
 
-    private val verificationService: Future<VerificationService>
+    private val verificationService: Promise<VerificationService>
         get() {
-            val verificationServiceFuture = Future.future<VerificationService>()
+            val verificationServiceFuture = Promise.promise<VerificationService>()
 
             ServiceManager.getInstance().consumeService(VerificationService::class.java, Handler {
                 when {
@@ -183,12 +184,12 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                     })
                 }
 
-                authenticationService.compose({ service ->
+                authenticationService.future().compose({ service ->
                     logger.debug("Running Eventbus Auth...")
 
                     CircuitBreakerUtils.performRequestWithCircuitBreaker(authAuthCircuitBreaker, resultHandler, Handler {
                         attemptAuthConversionOnEventBus(it, service, token, provider) }, backup)
-                }, Future.future<Any>().setHandler { failure -> backup(failure.cause()) })
+                }, Promise.promise<Any>().future().setHandler { failure -> backup(failure.cause()) })
             }
         }
 
@@ -196,14 +197,14 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
     }
 
     private fun attemptAuthConversionOnEventBus(
-        authFuture: Future<AuthPackage>,
+        authFuture: Promise<AuthPackage>,
         authenticationService: AuthenticationService,
         token: String?,
         provider: String
     ) {
         authenticationService.createJwtFromProvider(token!!, provider) {
             when {
-                authFuture.isComplete -> logger.error("Ignoring result, authFuture already completed: " + it.cause())
+                authFuture.future().isComplete -> logger.error("Ignoring result, authFuture already completed: " + it.cause())
                 else ->
                     when {
                         it.failed() -> {
@@ -310,7 +311,7 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                     })
                 }
 
-                verificationService.compose({ service ->
+                verificationService.future().compose({ service ->
                     logger.debug("Running Eventbus Auth...")
 
                     CircuitBreakerUtils.performRequestWithCircuitBreaker<VerifyResult>(authAuthCircuitBreaker, Handler {
@@ -323,7 +324,7 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
                                 }
                         }
                     }, Handler { attemptAuthOnEventBus(it, service, jwt, authorization) }, backup)
-                }, Future.future<Any>().setHandler { failure -> backup(failure.cause()) })
+                }, Promise.promise<Any>().future().setHandler { failure -> backup(failure.cause()) })
             }
         }
 
@@ -331,7 +332,7 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
     }
 
     private fun attemptAuthOnEventBus(
-        authFuture: Future<VerifyResult>,
+        authFuture: Promise<VerifyResult>,
         verificationService: VerificationService,
         jwt: String?,
         authorization: Authorization
@@ -340,7 +341,7 @@ class AuthUtils private constructor(private val vertx: Vertx, appConfig: JsonObj
 
         verificationService.verifyJWT(jwt!!, authorization) {
             when {
-                authFuture.isComplete -> logger.error("Ignoring result, authFuture already completed:" + it.cause())
+                authFuture.future().isComplete -> logger.error("Ignoring result, authFuture already completed:" + it.cause())
                 else ->
                     when {
                         it.failed() -> {

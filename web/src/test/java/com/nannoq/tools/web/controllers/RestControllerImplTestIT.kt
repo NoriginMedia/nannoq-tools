@@ -37,6 +37,7 @@ import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpServer
 import io.vertx.core.json.Json
@@ -45,6 +46,16 @@ import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.Router
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
+import java.time.LocalDate
+import java.util.Date
+import java.util.Random
+import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ThreadLocalRandom
+import java.util.function.Consumer
+import java.util.function.Supplier
+import java.util.stream.Collectors.toList
+import java.util.stream.IntStream
 import junit.framework.TestCase.assertEquals
 import org.apache.http.HttpHeaders
 import org.assertj.core.api.Assertions.assertThat
@@ -56,16 +67,6 @@ import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.parallel.Execution
 import org.junit.jupiter.api.parallel.ExecutionMode
-import java.time.LocalDate
-import java.util.Date
-import java.util.Random
-import java.util.UUID
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.ThreadLocalRandom
-import java.util.function.Consumer
-import java.util.function.Supplier
-import java.util.stream.Collectors.toList
-import java.util.stream.IntStream
 
 /**
  * @author Anders Mikkelsen
@@ -146,11 +147,11 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         }
 
         items.forEach { item ->
-            val future = Future.future<CreateResult<TestModel>>()
+            val future = Promise.promise<CreateResult<TestModel>>()
 
             repo.create(item, future)
 
-            futures.add(future)
+            futures.add(future.future())
 
             try {
                 Thread.sleep(10)
@@ -232,7 +233,7 @@ class RestControllerImplTestIT : DynamoDBTestClass() {
         })
     }
 
-    private fun getPage(port: Int, pageToken: String?, async: Future<Any>) {
+    private fun getPage(port: Int, pageToken: String?, async: Promise<Any>) {
         val response = getIndex(port, null, pageToken, 200)
         val etag = response.header(HttpHeaders.ETAG)
         getIndex(port, etag, pageToken, 304)

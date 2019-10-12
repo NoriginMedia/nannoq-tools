@@ -34,10 +34,6 @@ import com.nannoq.tools.version.models.DiffPair
 import io.vertx.core.Handler
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import org.junit.jupiter.api.parallel.Execution
-import org.junit.jupiter.api.parallel.ExecutionMode
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.Instant
@@ -46,6 +42,10 @@ import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
 import kotlin.test.assertEquals
 import kotlin.test.fail
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(VertxExtension::class)

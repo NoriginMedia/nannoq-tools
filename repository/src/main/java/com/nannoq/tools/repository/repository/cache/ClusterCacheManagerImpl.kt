@@ -40,6 +40,7 @@ import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.Json
@@ -321,24 +322,24 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    override fun replaceObjectCache(cacheId: String, item: E, future: Future<E>, projections: Array<String>) {
+    override fun replaceObjectCache(cacheId: String, item: E, future: Promise<E>, projections: Array<String>) {
         when {
             isObjectCacheAvailable -> {
                 val fullCacheContent = Json.encode(item)
                 val jsonRepresentationCache = item.toJsonFormat(projections).encode()
-                val fullCacheFuture = Future.future<Boolean>()
-                val jsonFuture = Future.future<Boolean>()
+                val fullCacheFuture = Promise.promise<Boolean>()
+                val jsonFuture = Promise.promise<Boolean>()
 
                 vertx.setTimer(CACHE_WRITE_TIMEOUT_VALUE) {
                     vertx.executeBlocking<Any>({ fut ->
-                        if (!fullCacheFuture.isComplete) {
+                        if (!fullCacheFuture.future().isComplete) {
                             objectCache!!.removeAsync("FULL_CACHE_$cacheId")
                             fullCacheFuture.tryComplete()
 
                             logger.error("Cache timeout!")
                         }
 
-                        if (!jsonFuture.isComplete) {
+                        if (!jsonFuture.future().isComplete) {
                             objectCache!!.removeAsync(cacheId)
                             jsonFuture.tryComplete()
 
@@ -383,7 +384,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     }
                 })
 
-                CompositeFuture.all(fullCacheFuture, jsonFuture).setHandler {
+                CompositeFuture.all(fullCacheFuture.future(), jsonFuture.future()).setHandler {
                     if (it.failed()) {
                         future.fail(it.cause())
                     } else {
@@ -400,7 +401,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
     }
 
     override fun replaceCache(
-        writeFuture: Future<Boolean>,
+        writeFuture: Promise<Boolean>,
         records: List<E>,
         shortCacheIdSupplier: Function<E, String>,
         cacheIdSupplier: Function<E, String>
@@ -410,35 +411,40 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                 val replaceFutures = ArrayList<Future<*>>()
 
                 records.forEach { record ->
-                    val replaceFuture = Future.future<Boolean>()
+                    val replaceFuture = Promise.promise<Boolean>()
                     val shortCacheId = shortCacheIdSupplier.apply(record)
                     val cacheId = cacheIdSupplier.apply(record)
 
-                    val rFirst = Future.future<Boolean>()
+                    val rFirst = Promise.promise<Boolean>()
                     replaceTimeoutHandler(cacheId, rFirst)
                     replace(rFirst, cacheId, record.toJsonString())
 
-                    val rFirstRoot = Future.future<Boolean>()
+                    val rFirstRoot = Promise.promise<Boolean>()
                     replaceTimeoutHandler(shortCacheId, rFirstRoot)
                     replace(rFirstRoot, shortCacheId, record.toJsonString())
 
                     val secondaryCache = "FULL_CACHE_$cacheId"
-                    val rSecond = Future.future<Boolean>()
+                    val rSecond = Promise.promise<Boolean>()
                     replaceTimeoutHandler(secondaryCache, rSecond)
                     replace(rSecond, secondaryCache, Json.encode(record))
 
-                    val rSecondRoot = Future.future<Boolean>()
+                    val rSecondRoot = Promise.promise<Boolean>()
                     replaceTimeoutHandler(cacheId, rSecondRoot)
                     replace(rSecondRoot, "FULL_CACHE_$shortCacheId", Json.encode(record))
 
-                    CompositeFuture.all(rFirst, rSecond, rFirstRoot, rSecondRoot).setHandler {
+                    CompositeFuture.all(
+                            rFirst.future(),
+                            rSecond.future(),
+                            rFirstRoot.future(),
+                            rSecondRoot.future()
+                    ).setHandler {
                         when {
                             it.succeeded() -> replaceFuture.complete(java.lang.Boolean.TRUE)
                             else -> replaceFuture.fail(it.cause())
                         }
                     }
 
-                    replaceFutures.add(replaceFuture)
+                    replaceFutures.add(replaceFuture.future())
                 }
 
                 CompositeFuture.all(replaceFutures).setHandler { purgeSecondaryCaches(writeFuture) }
@@ -451,7 +457,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    private fun replace(replaceFuture: Future<Boolean>, cacheId: String, recordAsJson: String) {
+    private fun replace(replaceFuture: Promise<Boolean>, cacheId: String, recordAsJson: String) {
         when {
             isObjectCacheAvailable -> objectCache!!.putAsync(cacheId, recordAsJson, expiryPolicy).andThen(object : ExecutionCallback<Void> {
                 override fun onResponse(b: Void?) {
@@ -473,11 +479,11 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    private fun replaceTimeoutHandler(cacheId: String, replaceFirst: Future<Boolean>) {
+    private fun replaceTimeoutHandler(cacheId: String, replaceFirst: Promise<Boolean>) {
         vertx.setTimer(CACHE_WRITE_TIMEOUT_VALUE) {
             try {
                 vertx.executeBlocking<Any>({ future ->
-                    if (!replaceFirst.isComplete && !objectCache!!.isDestroyed) {
+                    if (!replaceFirst.future().isComplete && !objectCache!!.isDestroyed) {
                         objectCache!!.removeAsync(cacheId)
 
                         replaceFirst.tryComplete(java.lang.Boolean.TRUE)
@@ -499,11 +505,11 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         when {
             isItemListCacheAvailable -> {
                 val cacheId = cacheIdSupplier.get()
-                val cacheFuture = Future.future<Boolean>()
+                val cacheFuture = Promise.promise<Boolean>()
 
                 vertx.setTimer(CACHE_WRITE_TIMEOUT_VALUE) {
                     vertx.executeBlocking<Any>({ fut ->
-                        if (!cacheFuture.isComplete) {
+                        if (!cacheFuture.future().isComplete) {
                             itemListCache!!.removeAsync(cacheId)
 
                             cacheFuture.tryFail(TimeoutException(
@@ -533,7 +539,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     }
                 })
 
-                cacheFuture.setHandler {
+                cacheFuture.future().setHandler {
                     when {
                         it.failed() -> resultHandler.handle(ServiceException.fail(504, it.cause().message))
                         else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
@@ -557,10 +563,10 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
             isAggregationCacheAvailable -> {
                 val cacheKey = cacheIdSupplier.get()
 
-                val cacheIdFuture = Future.future<Boolean>()
+                val cacheIdFuture = Promise.promise<Boolean>()
                 vertx.setTimer(CACHE_WRITE_TIMEOUT_VALUE) {
                     vertx.executeBlocking<Any>({ future ->
-                        if (!cacheIdFuture.isComplete) {
+                        if (!cacheIdFuture.future().isComplete) {
                             aggregationCache!!.removeAsync(cacheKey)
 
                             cacheIdFuture.tryComplete()
@@ -588,7 +594,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     }
                 })
 
-                cacheIdFuture.setHandler {
+                cacheIdFuture.future().setHandler {
                     when {
                         it.failed() -> resultHandler.handle(ServiceException.fail(500, it.cause().message))
                         else -> resultHandler.handle(Future.succeededFuture(java.lang.Boolean.TRUE))
@@ -603,7 +609,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    private fun replaceMapValues(cacheIdFuture: Future<Boolean>, AGGREGATION_KEY_MAP: String, cacheKey: String) {
+    private fun replaceMapValues(cacheIdFuture: Promise<Boolean>, AGGREGATION_KEY_MAP: String, cacheKey: String) {
         vertx.sharedData().getClusterWideMap<String, Set<String>>(AGGREGATION_KEY_MAP) { map ->
             when {
                 map.failed() -> {
@@ -654,15 +660,15 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
         }
     }
 
-    override fun purgeCache(future: Future<Boolean>, records: List<E>, cacheIdSupplier: (E) -> String) {
+    override fun purgeCache(future: Promise<Boolean>, records: List<E>, cacheIdSupplier: (E) -> String) {
         when {
             isObjectCacheAvailable -> {
                 val purgeFutures = ArrayList<Future<*>>()
 
                 records.forEach { record ->
-                    val purgeFuture = Future.future<Boolean>()
+                    val purgeFuture = Promise.promise<Boolean>()
                     val cacheId = cacheIdSupplier(record)
-                    val purgeFirst = Future.future<Boolean>()
+                    val purgeFirst = Promise.promise<Boolean>()
 
                     objectCache!!.removeAsync(cacheId).andThen(object : ExecutionCallback<Boolean> {
                         override fun onResponse(b: Boolean?) {
@@ -682,10 +688,10 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                     })
 
                     val secondaryCache = "FULL_CACHE_$cacheId"
-                    val purgeSecond = Future.future<Boolean>()
+                    val purgeSecond = Promise.promise<Boolean>()
                     vertx.setTimer(CACHE_WRITE_TIMEOUT_VALUE) {
                         vertx.executeBlocking<Any>({ fut ->
-                            if (!purgeFirst.isComplete) {
+                            if (!purgeFirst.future().isComplete) {
                                 objectCache!!.removeAsync(cacheId)
 
                                 purgeFirst.tryComplete()
@@ -693,7 +699,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                                 logger.error("Cache timeout purging cache for: $cacheId!")
                             }
 
-                            if (!purgeSecond.isComplete) {
+                            if (!purgeSecond.future().isComplete) {
                                 objectCache!!.removeAsync(secondaryCache)
 
                                 purgeSecond.tryComplete()
@@ -722,7 +728,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                         }
                     })
 
-                    CompositeFuture.all(purgeFirst, purgeSecond).setHandler {
+                    CompositeFuture.all(purgeFirst.future(), purgeSecond.future()).setHandler {
                         if (it.succeeded()) {
                             purgeFuture.complete(java.lang.Boolean.TRUE)
                         } else {
@@ -730,7 +736,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                         }
                     }
 
-                    purgeFutures.add(purgeFuture)
+                    purgeFutures.add(purgeFuture.future())
                 }
 
                 CompositeFuture.all(purgeFutures).setHandler { purgeSecondaryCaches(future) }
@@ -744,15 +750,15 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
     }
 
     private fun purgeSecondaryCaches(resultHandler: Handler<AsyncResult<Boolean>>) {
-        val itemListFuture = Future.future<Boolean>()
-        val aggregationFuture = Future.future<Boolean>()
+        val itemListFuture = Promise.promise<Boolean>()
+        val aggregationFuture = Promise.promise<Boolean>()
 
         when {
             isItemListCacheAvailable -> {
                 vertx.setTimer(CACHE_WRITE_TIMEOUT_VALUE) {
                     try {
                         vertx.executeBlocking<Any>({ future ->
-                            if (!itemListFuture.isComplete && !itemListCache!!.isDestroyed) {
+                            if (!itemListFuture.future().isComplete && !itemListCache!!.isDestroyed) {
                                 itemListCache!!.clear()
 
                                 itemListFuture.tryComplete()
@@ -783,7 +789,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
                 vertx.setTimer(CACHE_WRITE_TIMEOUT_VALUE) {
                     try {
                         vertx.executeBlocking<Any>({
-                            if (!aggregationFuture.isComplete && !aggregationCache!!.isDestroyed) {
+                            if (!aggregationFuture.future().isComplete && !aggregationCache!!.isDestroyed) {
                                 aggregationCache!!.clear()
 
                                 aggregationFuture.tryComplete()
@@ -809,7 +815,10 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
             }
         }
 
-        CompositeFuture.any(itemListFuture, aggregationFuture).setHandler { resultHandler.handle(Future.succeededFuture()) }
+        CompositeFuture.any(
+                itemListFuture.future(),
+                aggregationFuture.future()
+        ).setHandler { resultHandler.handle(Future.succeededFuture()) }
     }
 
     private fun purgeMap(
@@ -867,7 +876,7 @@ class ClusterCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: 
     private fun purgeMapContents(
         getSet: AsyncResult<Set<String>>,
         cache: ICache<String, String>?,
-        purgeAllListCaches: Future<Boolean>,
+        purgeAllListCaches: Promise<Boolean>,
         cachePartitionKey: String,
         result: AsyncMap<String, Set<String>>
     ) {

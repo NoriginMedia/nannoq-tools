@@ -43,15 +43,14 @@ import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.serviceproxy.ServiceException
 import java.util.Arrays
-
 import java.util.function.Function
-
 import java.util.stream.Collectors.toList
 
 /**
@@ -98,7 +97,7 @@ class DynamoDBCreator<E>(
                 val writeFutures = ArrayList<Future<*>>()
 
                 writeMap.forEach { (record: E, updateLogic: Function<E, E>) ->
-                    val writeFuture = Future.future<E>()
+                    val writeFuture = Promise.promise<E>()
 
                     when {
                         !create -> {
@@ -114,7 +113,7 @@ class DynamoDBCreator<E>(
                                 writeFuture.fail(e)
                             }
 
-                            writeFutures.add(writeFuture)
+                            writeFutures.add(writeFuture.future())
                         }
                         else -> {
                             if (logger.isDebugEnabled) {
@@ -131,7 +130,7 @@ class DynamoDBCreator<E>(
 
                                 DYNAMO_DB_MAPPER.save(finalRecord, buildExistingExpression(finalRecord, false))
 
-                                val purgeFuture = Future.future<Boolean>()
+                                val purgeFuture = Promise.promise<Boolean>()
                                 destroyEtagsAfterCachePurge(writeFuture, finalRecord, purgeFuture)
 
                                 cacheManager.replaceCache(purgeFuture, es, shortCacheIdSupplier, cacheIdSupplier)
@@ -139,7 +138,7 @@ class DynamoDBCreator<E>(
                                 writeFuture.fail(e)
                             }
 
-                            writeFutures.add(writeFuture)
+                            writeFutures.add(writeFuture.future())
                         }
                     }
                 }
@@ -190,7 +189,7 @@ class DynamoDBCreator<E>(
         newerVersion: E?,
         updateLogic: Function<E, E>?,
         prevCounter: Int?,
-        writeFuture: Future<E>,
+        writeFuture: Promise<E>,
         record: E
     ) {
         @Suppress("NAME_SHADOWING")
@@ -213,7 +212,7 @@ class DynamoDBCreator<E>(
                     }
 
                     DYNAMO_DB_MAPPER.save(newerVersion, buildExistingExpression(newerVersion, true))
-                    val purgeFuture = Future.future<Boolean>()
+                    val purgeFuture = Promise.promise<Boolean>()
                     destroyEtagsAfterCachePurge(writeFuture, record, purgeFuture)
 
                     cacheManager.replaceCache(purgeFuture, listOf(newerVersion),
@@ -235,8 +234,8 @@ class DynamoDBCreator<E>(
                     }
 
                     DYNAMO_DB_MAPPER.save(updatedRecord, buildExistingExpression(record, true))
-                    val purgeFuture = Future.future<Boolean>()
-                    purgeFuture.setHandler { destroyEtagsAfterCachePurge(writeFuture, record, purgeFuture) }
+                    val purgeFuture = Promise.promise<Boolean>()
+                    purgeFuture.future().setHandler { destroyEtagsAfterCachePurge(writeFuture, record, purgeFuture) }
 
                     cacheManager.replaceCache(purgeFuture, listOf(updatedRecord),
                             shortCacheIdSupplier, cacheIdSupplier)
@@ -296,10 +295,10 @@ class DynamoDBCreator<E>(
         }
     }
 
-    private fun destroyEtagsAfterCachePurge(writeFuture: Future<E>, record: E, purgeFuture: Future<Boolean>) {
+    private fun destroyEtagsAfterCachePurge(writeFuture: Promise<E>, record: E, purgeFuture: Promise<Boolean>) {
         val hashId = JsonObject().put("hash", record.hash).encode().hashCode()
 
-        purgeFuture.setHandler { purgeRes ->
+        purgeFuture.future().setHandler { purgeRes ->
             when {
                 purgeRes.failed() ->
                     when {
@@ -309,13 +308,13 @@ class DynamoDBCreator<E>(
                 else ->
                     when {
                         eTagManager != null -> {
-                            val removeProjections = Future.future<Boolean>()
-                            val removeETags = Future.future<Boolean>()
+                            val removeProjections = Promise.promise<Boolean>()
+                            val removeETags = Promise.promise<Boolean>()
 
                             eTagManager.removeProjectionsEtags(hashId, removeProjections)
                             eTagManager.destroyEtags(hashId, removeETags)
 
-                            CompositeFuture.all(removeProjections, removeETags).setHandler {
+                            CompositeFuture.all(removeProjections.future(), removeETags.future()).setHandler {
                                 when {
                                     it.failed() -> writeFuture.fail(it.cause())
                                     else -> writeFuture.complete(record)

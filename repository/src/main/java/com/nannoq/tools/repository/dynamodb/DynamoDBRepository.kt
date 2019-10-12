@@ -104,8 +104,6 @@ import io.vertx.core.logging.LoggerFactory
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.redis.RedisClient
 import io.vertx.serviceproxy.ServiceException
-import kotlinx.coroutines.runBlocking
-import org.apache.commons.lang3.ArrayUtils
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Type
@@ -121,6 +119,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Function
 import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
+import kotlinx.coroutines.runBlocking
+import org.apache.commons.lang3.ArrayUtils
 
 /**
  * This class defines DynamoDBRepository class. It handles almost all cases of use with the DynamoDB of AWS.

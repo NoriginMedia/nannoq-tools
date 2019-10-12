@@ -33,6 +33,7 @@ import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.eventbus.MessageConsumer
 import io.vertx.core.json.JsonObject
@@ -125,7 +126,7 @@ class APIManager @JvmOverloads constructor(
     fun <T> performRequestWithCircuitBreaker(
         path: String,
         resultHandler: Handler<AsyncResult<T>>,
-        handler: Handler<Future<T>>,
+        handler: Handler<Promise<T>>,
         fallback: (Throwable) -> Unit
     ) {
         CircuitBreakerUtils.performRequestWithCircuitBreaker(
@@ -152,7 +153,7 @@ class APIManager @JvmOverloads constructor(
 
         fun <T> performRequestWithCircuitBreaker(
             resultHandler: Handler<AsyncResult<T>>,
-            handler: Handler<Future<T>>,
+            handler: Handler<Promise<T>>,
             fallback: (Throwable) -> Unit
         ) {
             CircuitBreakerUtils.performRequestWithCircuitBreaker(

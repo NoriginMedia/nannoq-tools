@@ -49,6 +49,7 @@ import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClientOptions
 import io.vertx.core.http.HttpHeaders
@@ -57,11 +58,11 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.RoutingContext
 import io.vertx.redis.RedisClient
+import java.security.NoSuchAlgorithmException
+import java.util.function.Consumer
 import org.jinstagram.auth.InstagramAuthService
 import org.jsoup.Jsoup
 import org.jsoup.safety.Whitelist
-import java.security.NoSuchAlgorithmException
-import java.util.function.Consumer
 
 /**
  * This class defines a Handler implementation that receives all traffic for endpoints that handle JWT generator, e.g.
@@ -179,7 +180,7 @@ open class JWTGenerator(
                 .post(443, "www.googleapis.com", "/oauth2/v4/token")
                 .putHeader("Content-Type", "application/x-www-form-urlencoded")
 
-        val authHandler = Handler<Future<String>> {
+        val authHandler = Handler<Promise<String>> {
             req.handler { response ->
                 when {
                     response.statusCode() in 200..399 -> {
@@ -313,17 +314,17 @@ open class JWTGenerator(
     }
 
     private fun handleAccessToken(authProvider: String, authToken: String, routingContext: RoutingContext) {
-        getReceivedUserState(routingContext).compose({
-            getLocation(it).compose({ location ->
-                handleToken(authToken, it, location, authProvider).compose({ authPackage ->
+        getReceivedUserState(routingContext).future().compose({
+            getLocation(it).future().compose({ location ->
+                handleToken(authToken, it, location, authProvider).future().compose({ authPackage ->
                     finalizeResponse(location, it, authPackage, routingContext) },
                         authFailRedirect<Any>(routingContext)) },
                     authFailRedirect<Any>(routingContext))
         }, authFailRedirect<Any>(routingContext))
     }
 
-    private fun handleToken(authToken: String?, state: String, location: String?, authProvider: String?): Future<AuthPackage> {
-        val authFuture = Future.future<AuthPackage>()
+    private fun handleToken(authToken: String?, state: String, location: String?, authProvider: String?): Promise<AuthPackage> {
+        val authFuture = Promise.promise<AuthPackage>()
 
         when {
             authToken != null && authProvider != null && location != null ->
@@ -370,8 +371,8 @@ open class JWTGenerator(
         }
     }
 
-    private fun getLocation(state: String): Future<String> {
-        val stateFuture = Future.future<String>()
+    private fun getLocation(state: String): Promise<String> {
+        val stateFuture = Promise.promise<String>()
 
         RedisUtils.performJedisWithRetry(redisClient) { intRedis ->
             intRedis.get(state) {
@@ -386,8 +387,8 @@ open class JWTGenerator(
         return stateFuture
     }
 
-    private fun getReceivedUserState(routingContext: RoutingContext): Future<String> {
-        val stateFuture = Future.future<String>()
+    private fun getReceivedUserState(routingContext: RoutingContext): Promise<String> {
+        val stateFuture = Promise.promise<String>()
         val stateParam = routingContext.request().getParam("state")
 
         when {
@@ -438,11 +439,11 @@ open class JWTGenerator(
                     .end()
         }
 
-        getProvider(routingContext).compose({ provider ->
-            getUserState(routingContext).compose({ state ->
-                getLocation(routingContext, state).compose({ location ->
-                    setState(state, location).compose({
-                        constructAuthUrl(routingContext, state, location, provider).compose(Handler {
+        getProvider(routingContext).future().compose({ provider ->
+            getUserState(routingContext).future().compose({ state ->
+                getLocation(routingContext, state).future().compose({ location ->
+                    setState(state, location).future().compose({
+                        constructAuthUrl(routingContext, state, location, provider).future().compose(Handler {
                             success.accept(it)
                         }, authFailRedirect<Any>(routingContext))
                     }, authFailRedirect<Any>(routingContext))
@@ -456,8 +457,8 @@ open class JWTGenerator(
         state: String,
         location: String,
         provider: String
-    ): Future<String> {
-        val locationFuture = Future.future<String>()
+    ): Promise<String> {
+        val locationFuture = Promise.promise<String>()
 
         when (provider.toUpperCase()) {
             INSTAGRAM -> {
@@ -548,8 +549,8 @@ open class JWTGenerator(
         }
     }
 
-    private fun setState(state: String, location: String): Future<Void> {
-        val voidFuture = Future.future<Void>()
+    private fun setState(state: String, location: String): Promise<Void> {
+        val voidFuture = Promise.promise<Void>()
 
         RedisUtils.performJedisWithRetry(redisClient) {
             it.set(state, location) { result ->
@@ -564,8 +565,8 @@ open class JWTGenerator(
         return voidFuture
     }
 
-    private fun getLocation(routingContext: RoutingContext, state: String?): Future<String> {
-        val locationFuture = Future.future<String>()
+    private fun getLocation(routingContext: RoutingContext, state: String?): Promise<String> {
+        val locationFuture = Promise.promise<String>()
 
         var location: String? = routingContext.request().getParam("location")
         if (location == null) location = CMS_ROOT
@@ -581,8 +582,8 @@ open class JWTGenerator(
         return locationFuture
     }
 
-    private fun getProvider(routingContext: RoutingContext): Future<String> {
-        val providerFuture = Future.future<String>()
+    private fun getProvider(routingContext: RoutingContext): Promise<String> {
+        val providerFuture = Promise.promise<String>()
 
         when (val provider = routingContext.request().getParam("provider")) {
             null -> providerFuture.fail(IllegalArgumentException())
@@ -592,8 +593,8 @@ open class JWTGenerator(
         return providerFuture
     }
 
-    private fun getUserState(routingContext: RoutingContext): Future<String> {
-        val stateFuture = Future.future<String>()
+    private fun getUserState(routingContext: RoutingContext): Promise<String> {
+        val stateFuture = Promise.promise<String>()
         val stateParam = routingContext.request().getParam("state")
 
         when {
@@ -612,14 +613,14 @@ open class JWTGenerator(
         }
 
         getToken(routingContext).compose({ refreshToken ->
-            refreshToken(refreshToken).compose(Handler {
+            refreshToken(refreshToken).future().compose(Handler {
                 success.accept(it)
             }, authFail<Any>(routingContext))
         }, authFail<Any>(routingContext))
     }
 
-    private fun refreshToken(refreshToken: String): Future<TokenContainer> {
-        val tokenContainerFuture = Future.future<TokenContainer>()
+    private fun refreshToken(refreshToken: String): Promise<TokenContainer> {
+        val tokenContainerFuture = Promise.promise<TokenContainer>()
 
         authenticator.refresh(refreshToken) {
             when {

@@ -29,7 +29,6 @@ import com.amazonaws.services.dynamodbv2.datamodeling.S3Link
 import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.ser.std.StdSerializer
-
 import java.io.IOException
 
 /**

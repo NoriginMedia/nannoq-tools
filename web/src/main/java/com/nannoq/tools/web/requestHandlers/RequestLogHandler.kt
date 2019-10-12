@@ -28,8 +28,8 @@ package com.nannoq.tools.web.requestHandlers
 import io.vertx.core.Handler
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.RoutingContext
-import org.apache.commons.lang3.exception.ExceptionUtils
 import java.rmi.server.UID
+import org.apache.commons.lang3.exception.ExceptionUtils
 
 /**
  * This interface defines the RequestLogHandler. It starts the logging process, to be concluded by the

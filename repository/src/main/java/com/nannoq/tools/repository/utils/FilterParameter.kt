@@ -25,9 +25,9 @@
 
 package com.nannoq.tools.repository.utils
 
-import com.nannoq.tools.repository.utils.FilterParameter.FILTER_TYPE.valueOf
 import com.nannoq.tools.repository.utils.FilterParameter.FILTER_TYPE.AND
 import com.nannoq.tools.repository.utils.FilterParameter.FILTER_TYPE.OR
+import com.nannoq.tools.repository.utils.FilterParameter.FILTER_TYPE.valueOf
 import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory

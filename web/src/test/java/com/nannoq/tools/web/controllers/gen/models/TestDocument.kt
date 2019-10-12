@@ -3,8 +3,8 @@ package com.nannoq.tools.web.controllers.gen.models
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBDocument
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBVersionAttribute
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.nannoq.tools.web.controllers.gen.models.TestDocumentConverter.fromJson
 import com.nannoq.tools.repository.models.ETagable
+import com.nannoq.tools.web.controllers.gen.models.TestDocumentConverter.fromJson
 import io.vertx.codegen.annotations.DataObject
 import io.vertx.core.json.JsonObject
 

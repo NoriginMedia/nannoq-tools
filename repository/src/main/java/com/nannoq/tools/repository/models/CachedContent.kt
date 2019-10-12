@@ -39,9 +39,8 @@ import io.vertx.core.http.HttpClientOptions
 import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.streams.Pump
-import org.apache.http.HttpHeaders
-
 import java.io.File
+import org.apache.http.HttpHeaders
 
 /**
  * This class defines an interface for models that store content.

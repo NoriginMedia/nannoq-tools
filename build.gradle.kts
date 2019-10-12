@@ -203,8 +203,6 @@ subprojects {
         logging.level = LogLevel.QUIET
         outputFormat = "html"
         outputDirectory = "$buildDir/docs"
-        jdkVersion = 8
-        reportUndocumented = false
     }
 
     val packageJavadoc by tasks.creating(Jar::class) {

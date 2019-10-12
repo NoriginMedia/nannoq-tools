@@ -44,12 +44,12 @@ import io.vertx.core.http.HttpHeaders
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
-import org.apache.commons.lang3.ArrayUtils
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.Date
 import java.util.Queue
 import java.util.function.Function
+import org.apache.commons.lang3.ArrayUtils
 
 @Suppress("unused")
 /**
