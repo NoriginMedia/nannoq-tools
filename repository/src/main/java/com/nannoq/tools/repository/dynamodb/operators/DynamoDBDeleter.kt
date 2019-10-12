@@ -44,6 +44,7 @@ import io.vertx.core.AsyncResult
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
@@ -96,8 +97,8 @@ class DynamoDBDeleter<E>(
 
                 IntStream.range(0, items.size).forEach {
                     val record = items[it]
-                    val deleteFuture = Future.future<E>()
-                    val deleteEtagsFuture = Future.future<Boolean>()
+                    val deleteFuture = Promise.promise<E>()
+                    val deleteEtagsFuture = Promise.promise<Boolean>()
 
                     try {
                         eTagManager?.removeProjectionsEtags(identifiers[it].hashCode(), deleteEtagsFuture)
@@ -109,29 +110,29 @@ class DynamoDBDeleter<E>(
                         deleteFuture.fail(e)
                     }
 
-                    deleteFutures.add(deleteFuture)
-                    etagFutures.add(deleteEtagsFuture)
+                    deleteFutures.add(deleteFuture.future())
+                    etagFutures.add(deleteEtagsFuture.future())
                 }
 
                 CompositeFuture.all(deleteFutures).setHandler { res ->
                     if (res.failed()) {
                         future.fail(res.cause())
                     } else {
-                        val purgeFuture = Future.future<Boolean>()
+                        val purgeFuture = Promise.promise<Boolean>()
 
-                        purgeFuture.setHandler { purgeRes ->
+                        purgeFuture.future().setHandler { purgeRes ->
                             when {
                                 purgeRes.failed() -> future.fail(purgeRes.cause())
                                 else ->
                                     when {
                                         eTagManager != null -> {
-                                            val removeETags = Future.future<Boolean>()
+                                            val removeETags = Promise.promise<Boolean>()
 
                                             val hash = JsonObject().put("hash", items[0].hash)
                                                     .encode().hashCode()
                                             eTagManager.destroyEtags(hash, removeETags)
 
-                                            etagFutures.add(removeETags)
+                                            etagFutures.add(removeETags.future())
 
                                             CompositeFuture.all(etagFutures).setHandler {
                                                 when {
@@ -191,7 +192,7 @@ class DynamoDBDeleter<E>(
         }
     }
 
-    private fun optimisticLockingDelete(record: E?, prevCounter: Int?, deleteFuture: Future<E>) {
+    private fun optimisticLockingDelete(record: E?, prevCounter: Int?, deleteFuture: Promise<E>) {
         var counter = 0
         if (prevCounter != null) counter = prevCounter
 

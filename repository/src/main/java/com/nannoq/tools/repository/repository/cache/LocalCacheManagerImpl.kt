@@ -33,6 +33,7 @@ import com.nannoq.tools.repository.utils.PageTokens
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.Json
@@ -199,7 +200,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun replaceObjectCache(cacheId: String, item: E, future: Future<E>, projections: Array<String>) {
+    override fun replaceObjectCache(cacheId: String, item: E, future: Promise<E>, projections: Array<String>) {
         when {
             isObjectCacheAvailable -> {
                 val fullCacheContent = Json.encode(item)
@@ -219,7 +220,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
     }
 
     override fun replaceCache(
-        writeFuture: Future<Boolean>,
+        writeFuture: Promise<Boolean>,
         records: List<E>,
         shortCacheIdSupplier: Function<E, String>,
         cacheIdSupplier: Function<E, String>
@@ -308,7 +309,7 @@ class LocalCacheManagerImpl<E>(private val TYPE: Class<E>, private val vertx: Ve
         }
     }
 
-    override fun purgeCache(future: Future<Boolean>, records: List<E>, cacheIdSupplier: (E) -> String) {
+    override fun purgeCache(future: Promise<Boolean>, records: List<E>, cacheIdSupplier: (E) -> String) {
         when {
             isObjectCacheAvailable -> {
                 records.forEach { record ->

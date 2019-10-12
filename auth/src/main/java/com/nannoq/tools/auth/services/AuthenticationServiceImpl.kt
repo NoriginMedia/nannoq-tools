@@ -63,8 +63,6 @@ import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
 import io.vertx.serviceproxy.ServiceException
 import io.vertx.serviceproxy.ServiceException.fail
-import org.apache.commons.codec.digest.DigestUtils
-import org.apache.logging.log4j.core.config.plugins.convert.HexConverter.parseHexBinary
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
 import java.util.AbstractMap.SimpleEntry
@@ -76,6 +74,8 @@ import java.util.stream.Collectors.toConcurrentMap
 import javax.crypto.Mac
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
+import org.apache.commons.codec.digest.DigestUtils
+import org.apache.logging.log4j.core.config.plugins.convert.HexConverter.parseHexBinary
 
 @Suppress("unused")
 /**

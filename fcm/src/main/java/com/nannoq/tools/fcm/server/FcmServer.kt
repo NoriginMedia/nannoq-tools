@@ -41,6 +41,7 @@ import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
+import javax.net.ssl.SSLSocketFactory
 import org.jivesoftware.smack.Connection
 import org.jivesoftware.smack.ConnectionConfiguration
 import org.jivesoftware.smack.ConnectionListener
@@ -51,7 +52,6 @@ import org.jivesoftware.smack.filter.PacketTypeFilter
 import org.jivesoftware.smack.packet.Message
 import org.jivesoftware.smack.provider.PacketExtensionProvider
 import org.jivesoftware.smack.provider.ProviderManager
-import javax.net.ssl.SSLSocketFactory
 
 /**
  * @author Anders Mikkelsen

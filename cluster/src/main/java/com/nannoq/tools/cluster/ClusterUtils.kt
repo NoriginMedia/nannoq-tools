@@ -31,7 +31,6 @@ import io.vertx.core.eventbus.EventBusOptions
 import io.vertx.core.http.ClientAuth
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.core.net.JksOptions
-import org.apache.commons.io.IOUtils
 import java.io.BufferedWriter
 import java.io.FileOutputStream
 import java.io.IOException
@@ -46,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 import java.util.stream.IntStream
 import java.util.zip.ZipInputStream
+import org.apache.commons.io.IOUtils
 
 /**
  * This class defines helpers for operating the cluster. It can produce a member list, sets eventbus SSL, and produces

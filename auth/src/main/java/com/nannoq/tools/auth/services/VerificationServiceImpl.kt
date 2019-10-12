@@ -44,13 +44,13 @@ import io.vertx.codegen.annotations.Fluent
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.redis.RedisClient
 import io.vertx.serviceproxy.ServiceException.fail
-import org.apache.logging.log4j.core.config.plugins.convert.HexConverter.parseHexBinary
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
 import java.security.SignatureException
@@ -59,6 +59,7 @@ import java.util.function.Supplier
 import javax.crypto.Mac
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
+import org.apache.logging.log4j.core.config.plugins.convert.HexConverter.parseHexBinary
 
 /**
  * This class defines an implementation of a VerificationService. It verifies both incoming JWTS, and also checks
@@ -75,7 +76,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     appConfig: JsonObject,
     KEY_BASE: String,
     private val authorizer: Authorizer,
-    private val userIdsSupplier: Supplier<Future<List<String>>>,
+    private val userIdsSupplier: Supplier<Promise<List<String>>>,
     private val dev: Boolean = false
 ) : VerificationService {
     private val ISSUER: String
@@ -267,7 +268,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     }
 
     private fun failedVerify(
-        verificationFuture: Future<Any>,
+        verificationFuture: Promise<Any>,
         resultHandler: Handler<AsyncResult<Jws<Claims>>>,
         jwts: AsyncResult<String>,
         userId: String,
@@ -474,7 +475,7 @@ class VerificationServiceImpl @Throws(InvalidKeyException::class, NoSuchAlgorith
     }
 
     private fun fetchUserIds(resultHandler: Handler<AsyncResult<List<String>>>) {
-        userIdsSupplier.get().setHandler { idsRes ->
+        userIdsSupplier.get().future().setHandler { idsRes ->
             when {
                 idsRes.failed() -> resultHandler.handle(Future.failedFuture(idsRes.cause()))
                 else -> resultHandler.handle(Future.succeededFuture(idsRes.result()))

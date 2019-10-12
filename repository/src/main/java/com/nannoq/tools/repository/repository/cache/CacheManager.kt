@@ -28,8 +28,8 @@ import com.nannoq.tools.repository.models.Cacheable
 import com.nannoq.tools.repository.models.Model
 import com.nannoq.tools.repository.utils.ItemList
 import io.vertx.core.AsyncResult
-import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import java.util.function.Function
 import java.util.function.Supplier
 
@@ -48,13 +48,13 @@ interface CacheManager<E> where E : Cacheable, E : Model {
     fun checkAggregationCache(cacheKey: String, resultHandler: Handler<AsyncResult<String>>)
 
     fun replaceCache(
-        writeFuture: Future<Boolean>,
+        writeProm: Promise<Boolean>,
         records: List<E>,
         shortCacheIdSupplier: Function<E, String>,
         cacheIdSupplier: Function<E, String>
     )
 
-    fun replaceObjectCache(cacheId: String, item: E, future: Future<E>, projections: Array<String>)
+    fun replaceObjectCache(cacheId: String, item: E, future: Promise<E>, projections: Array<String>)
     fun replaceItemListCache(
         content: String,
         cacheIdSupplier: Supplier<String>,
@@ -67,5 +67,5 @@ interface CacheManager<E> where E : Cacheable, E : Model {
         resultHandler: Handler<AsyncResult<Boolean>>
     )
 
-    fun purgeCache(future: Future<Boolean>, records: List<E>, cacheIdSupplier: (E) -> String)
+    fun purgeCache(future: Promise<Boolean>, records: List<E>, cacheIdSupplier: (E) -> String)
 }

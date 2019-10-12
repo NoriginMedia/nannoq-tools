@@ -12,14 +12,14 @@ import io.vertx.core.logging.Logger
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
+import java.net.ServerSocket
+import java.util.Date
+import java.util.UUID
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.TestInfo
 import org.junit.jupiter.api.extension.ExtendWith
-import java.net.ServerSocket
-import java.util.Date
-import java.util.UUID
 
 @ExtendWith(VertxExtension::class)
 abstract class DynamoDBTestClass : ConfigSupport {

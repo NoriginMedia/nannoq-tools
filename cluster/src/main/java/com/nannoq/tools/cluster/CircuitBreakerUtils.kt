@@ -30,6 +30,7 @@ import io.vertx.circuitbreaker.CircuitBreaker
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.Promise
 import io.vertx.core.eventbus.Message
 import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
@@ -47,11 +48,11 @@ object CircuitBreakerUtils {
     fun <T> performRequestWithCircuitBreaker(
         circuitBreaker: CircuitBreaker,
         resultHandler: Handler<AsyncResult<T>>,
-        handler: Handler<Future<T>>,
+        handler: Handler<Promise<T>>,
         backup: (Throwable) -> Unit
     ) {
-        val result = Future.future<T>()
-        result.setHandler {
+        val result = Promise.promise<T>()
+        result.future().setHandler {
             logger.debug("Received " + circuitBreaker.name() + " Result: " + it.succeeded())
 
             when {

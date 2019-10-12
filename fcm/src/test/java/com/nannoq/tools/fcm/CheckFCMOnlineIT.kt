@@ -31,6 +31,9 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
+import java.io.File
+import java.io.FileReader
+import java.util.Properties
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -40,9 +43,6 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.parallel.Execution
 import org.junit.jupiter.api.parallel.ExecutionMode
 import redis.embedded.RedisServer
-import java.io.File
-import java.io.FileReader
-import java.util.Properties
 
 /**
  * @author Anders Mikkelsen

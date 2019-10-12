@@ -48,13 +48,6 @@ import io.vertx.core.json.JsonObject
 import io.vertx.core.logging.LoggerFactory
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
-import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInfo
-import org.junit.jupiter.api.assertThrows
-import org.junit.jupiter.api.extension.ExtendWith
-import org.junit.jupiter.api.parallel.Execution
-import org.junit.jupiter.api.parallel.ExecutionMode
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -68,6 +61,13 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Function
 import java.util.stream.Collectors.toList
 import java.util.stream.IntStream
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInfo
+import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 
 /**
  * This class defines DynamoDBRepository class. It handles almost all cases of use with the DynamoDB of AWS.

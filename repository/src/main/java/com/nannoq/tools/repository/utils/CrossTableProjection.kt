@@ -26,8 +26,8 @@
 package com.nannoq.tools.repository.utils
 
 import com.nannoq.tools.repository.models.ValidationError
-import org.apache.commons.lang3.StringUtils
 import java.util.Objects
+import org.apache.commons.lang3.StringUtils
 
 /**
  * This class defines projection configurations for cross table queries.
